@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -16,26 +16,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     
-    # === ГЛАВНОЕ ИСПРАВЛЕНИЕ ===
-    # 1. Отключаем проверку токена для GET запросов. 
-    # Сервер даже не будет пытаться читать токен, поэтому ошибки 401 не будет.
-    def get_authenticators(self):
-        if self.request.method == 'GET':
-            return []
-        return super().get_authenticators()
-
-    # 2. Настраиваем права доступа
     def get_permissions(self):
-        # Для создания/изменения/удаления — строго по токену
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated()]
-        # Для просмотра (list, retrieve) — пускаем всех (AllowAny)
-        return [AllowAny()]
-    # ===========================
+        """
+        Просмотр доступен всем, создание/редактирование - только авторизованным
+        """
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         """
-        Support filtering by owner_id for 'My Services' section
+        Поддержка фильтрации по owner_id для секции "Мои услуги"
         """
         queryset = Service.objects.all()
         owner_id = self.request.query_params.get('owner_id')
@@ -44,7 +35,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return queryset
 
     def list(self, request):
-        """Get all services (with optional filtering)"""
+        """Получить все услуги (с опциональной фильтрацией)"""
         services = self.get_queryset()
         serializer = self.get_serializer(services, many=True)
         
@@ -55,7 +46,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     def retrieve(self, request, pk=None):
-        """Get single service"""
+        """Получить одну услугу"""
         try:
             service = self.get_object()
             serializer = self.get_serializer(service)
@@ -69,13 +60,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
         except Service.DoesNotExist:
             return Response({
                 'status': 'error',
-                'error': 'Service not found',
+                'error': 'Услуга не найдена',
                 'data': None
             }, status=status.HTTP_404_NOT_FOUND)
 
     def create(self, request, *args, **kwargs):
         """
-        Create a new service with automatic owner assignment
+        Создать новую услугу с автоматическим назначением владельца
         """
         serializer = self.get_serializer(data=request.data)
         
@@ -86,11 +77,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Здесь мы берем ID юзера из токена (безопасно),
-        # а имя и аватар — из данных, присланных фронтом
+        # ID берём из токена (безопасно), имя и аватар - из данных фронта
         serializer.save(
             owner_id=request.user.id,
-            owner_name=request.data.get('owner_name', 'Freelancer'),
+            owner_name=request.data.get('owner_name', 'Фрилансер'),
             owner_avatar=request.data.get('owner_avatar', '')
         )
 
@@ -100,14 +90,67 @@ class ServiceViewSet(viewsets.ModelViewSet):
             'error': None
         }, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        """Обновить услугу (только владелец)"""
+        instance = self.get_object()
+        
+        # Проверка, что пользователь - владелец
+        if str(instance.owner_id) != str(request.user.id):
+            return Response({
+                'status': 'error',
+                'error': 'Вы не можете редактировать чужую услугу',
+                'data': None
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        
+        if not serializer.is_valid():
+            return Response({
+                'status': 'error',
+                'error': serializer.errors,
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer.save()
+        
+        return Response({
+            'status': 'success',
+            'data': serializer.data,
+            'error': None
+        }, status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        """Удалить услугу (только владелец)"""
+        instance = self.get_object()
+        
+        # Проверка, что пользователь - владелец
+        if str(instance.owner_id) != str(request.user.id):
+            return Response({
+                'status': 'error',
+                'error': 'Вы не можете удалить чужую услугу',
+                'data': None
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        instance.delete()
+        
+        return Response({
+            'status': 'success',
+            'data': {'message': 'Услуга успешно удалена'},
+            'error': None
+        }, status=status.HTTP_200_OK)
+
 
 class OrderViewSet(viewsets.ViewSet):
-    # Для заказов оставляем строгую проверку всегда
     permission_classes = [IsAuthenticated]
 
     @action(detail=False, methods=['post'], url_path='preview')
     def preview_tz(self, request):
-        """Generate TZ preview using AI"""
+        """
+        Генерация ТЗ с помощью AI
+        
+        Клиент отправляет свои требования, AI генерирует структурированное ТЗ
+        на основе шаблона воркера
+        """
         serializer = GenerateTZSerializer(data=request.data)
         
         if not serializer.is_valid():
@@ -125,20 +168,23 @@ class OrderViewSet(viewsets.ViewSet):
             
             return Response({
                 'status': 'success',
-                'data': {'generated_tz': generated_tz},
+                'data': {
+                    'generated_tz': generated_tz,
+                    'message': 'ТЗ успешно сгенерировано! Вы можете его отредактировать перед отправкой.'
+                },
                 'error': None
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
                 'status': 'error',
-                'error': str(e),
+                'error': f'Ошибка генерации ТЗ: {str(e)}',
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_order(self, request):
-        """Create order with agreed TZ"""
+        """Создать заказ с согласованным ТЗ"""
         serializer = CreateOrderSerializer(data=request.data)
         
         if not serializer.is_valid():
@@ -169,7 +215,7 @@ class OrderViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
     def list(self, request):
-        """Get user orders"""
+        """Получить заказы пользователя"""
         from django.db.models import Q
         user_id = request.user.id
         

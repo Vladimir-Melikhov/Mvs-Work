@@ -5,20 +5,113 @@ from .models import Service, Order
 
 
 class AIService:
-    """AI service for generating technical specifications using DeepSeek"""
+    """AI-сервис для генерации технических заданий с использованием DeepSeek"""
     
     @staticmethod
     def generate_tz(service_id: str, client_requirements: str) -> str:
-        """Generate TZ using DeepSeek API (Free, unlimited requests)"""
+        """
+        Генерация ТЗ с помощью DeepSeek API
+        
+        Процесс:
+        1. Берём шаблон воркера из услуги
+        2. Добавляем требования клиента
+        3. Отправляем всё в DeepSeek
+        4. Получаем структурированное ТЗ на русском
+        """
         try:
             service = Service.objects.get(id=service_id)
             
-            # Build prompt
-            template = service.ai_template or "Create a detailed technical specification based on:"
-            prompt = f"{template}\n\nClient Requirements:\n{client_requirements}\n\nProvide a structured technical specification in markdown format."
+            # Строим промпт для AI
+            system_prompt = """Ты - опытный менеджер проектов и технический писатель. 
+Твоя задача - преобразовать запрос клиента в чёткое, структурированное техническое задание.
+
+Требования к ТЗ:
+- Чёткая структура с разделами
+- Конкретные сроки и этапы
+- Детальное описание требований
+- Критерии приёмки работ
+- Профессиональный стиль изложения
+
+ТЗ должно быть понятным как клиенту, так и исполнителю."""
+
+            # Формируем контекст
+            service_context = f"""
+📋 Услуга: {service.title}
+💰 Цена: {service.price} USD
+📝 Описание услуги: {service.description}
+"""
             
-            # Call DeepSeek API
-            api_key = os.getenv('DEEPSEEK_API_KEY', 'sk-demo')
+            if service.ai_template:
+                service_context += f"\n🎯 Шаблон воркера:\n{service.ai_template}"
+            
+            user_prompt = f"""{service_context}
+
+💬 Запрос клиента:
+{client_requirements}
+
+---
+
+На основе этой информации создай подробное техническое задание в формате Markdown.
+Используй следующую структуру:
+
+# Техническое задание
+
+## 📋 Описание проекта
+[Краткое описание того, что нужно сделать]
+
+## 🎯 Цели и задачи
+- [Основная цель]
+- [Задача 1]
+- [Задача 2]
+
+## 🔧 Требования
+### Функциональные требования
+- [Требование 1]
+- [Требование 2]
+
+### Технические требования
+- [Требование 1]
+- [Требование 2]
+
+## 📦 Ожидаемый результат
+- [Что будет сдано]
+- [В каком виде]
+
+## ⏰ Сроки и этапы
+| Этап | Срок | Описание |
+|------|------|----------|
+| Этап 1 | [X дней] | [Описание] |
+| Этап 2 | [Y дней] | [Описание] |
+
+**Общий срок:** [N недель/дней]
+
+## 💰 Бюджет
+**Стоимость:** ${service.price}
+
+**Условия оплаты:**
+- 50% - предоплата
+- 50% - по завершении
+
+## ✅ Критерии приёмки
+- [ ] [Критерий 1]
+- [ ] [Критерий 2]
+- [ ] [Критерий 3]
+
+## 📌 Дополнительные условия
+- Количество правок: до 2-х раундов
+- Гарантийная поддержка: 14 дней
+- Передача исходных файлов: после полной оплаты
+
+---
+*Техническое задание сгенерировано AI-ассистентом на основе ваших требований*
+"""
+
+            # Вызываем DeepSeek API
+            api_key = os.getenv('DEEPSEEK_API_KEY', '')
+            
+            if not api_key:
+                # Если нет API ключа - используем fallback
+                return AIService._generate_mock_tz(client_requirements, service.price, service.title)
             
             response = requests.post(
                 'https://api.deepseek.com/v1/chat/completions',
@@ -29,17 +122,11 @@ class AIService:
                 json={
                     'model': 'deepseek-chat',
                     'messages': [
-                        {
-                            'role': 'system', 
-                            'content': 'You are an expert technical specification writer. Create detailed, structured specifications in markdown format with clear sections, deliverables, timeline, and budget.'
-                        },
-                        {
-                            'role': 'user', 
-                            'content': prompt
-                        }
+                        {'role': 'system', 'content': system_prompt},
+                        {'role': 'user', 'content': user_prompt}
                     ],
                     'temperature': 0.7,
-                    'max_tokens': 2000,
+                    'max_tokens': 3000,
                     'stream': False
                 },
                 timeout=60
@@ -49,85 +136,125 @@ class AIService:
                 data = response.json()
                 return data['choices'][0]['message']['content']
             else:
-                # Fallback to mock on API error
-                return AIService._generate_mock_tz(client_requirements, service.price)
+                # Fallback при ошибке API
+                return AIService._generate_mock_tz(client_requirements, service.price, service.title)
                 
         except Service.DoesNotExist:
-            raise ValueError("Service not found")
+            raise ValueError("Услуга не найдена")
         except requests.exceptions.RequestException:
-            # Fallback to mock on network error
+            # Fallback при сетевых ошибках
             try:
                 service = Service.objects.get(id=service_id)
-                return AIService._generate_mock_tz(client_requirements, service.price)
+                return AIService._generate_mock_tz(client_requirements, service.price, service.title)
             except:
-                raise Exception("Failed to generate TZ and fallback failed")
+                raise Exception("Не удалось сгенерировать ТЗ")
         except Exception as e:
-            raise Exception(f"Failed to generate TZ: {str(e)}")
+            raise Exception(f"Ошибка генерации ТЗ: {str(e)}")
     
     @staticmethod
-    def _generate_mock_tz(requirements: str, price: float) -> str:
-        """Fallback mock TZ generator (used when DeepSeek API is unavailable)"""
-        return f"""# Technical Specification
+    def _generate_mock_tz(requirements: str, price: float, title: str = "Проект") -> str:
+        """
+        Fallback-генератор ТЗ (используется когда DeepSeek недоступен)
+        """
+        return f"""# Техническое задание
 
-## Project Overview
+## 📋 Описание проекта
+
 {requirements}
 
-## Scope of Work
-- **Requirement Analysis**: Detailed review of all requirements and stakeholder needs
-- **Design Phase**: UI/UX design, architecture planning, and technology selection
-- **Development**: Implementation using modern, scalable technologies
-- **Testing**: Comprehensive unit, integration, and acceptance testing
-- **Deployment**: Production deployment with monitoring and logging setup
+## 🎯 Цели и задачи
 
-## Deliverables
-1. **Source Code**: Clean, well-documented, production-ready codebase
-2. **Documentation**: Complete technical and user documentation
-3. **Testing Reports**: Comprehensive test coverage reports
-4. **Deployment Package**: Containerized application ready for deployment
-5. **Training Materials**: User guides and video tutorials
+- **Основная цель**: Выполнить работу согласно требованиям клиента
+- **Задачи**: 
+  - Детальный анализ всех требований и пожеланий
+  - Разработка качественного решения
+  - Тестирование и отладка
+  - Сдача результата с документацией
 
-## Technical Stack
-- **Frontend**: Modern JavaScript framework (React/Vue/Angular)
-- **Backend**: Scalable server architecture (Node.js/Python/Java)
-- **Database**: Optimized relational/NoSQL database
-- **DevOps**: CI/CD pipeline, Docker, cloud infrastructure
+## 🔧 Требования
 
-## Project Timeline
-- **Phase 1 (Week 1-2)**: Requirements gathering and system design
-- **Phase 2 (Week 3-4)**: Core functionality development
-- **Phase 3 (Week 5)**: Testing, bug fixes, and optimization
-- **Phase 4 (Week 6)**: Deployment, documentation, and handover
+### Функциональные требования
+- Полное соответствие описанию в запросе
+- Работоспособность всех заявленных функций
+- Интуитивно понятный интерфейс
 
-**Estimated Duration**: 6 weeks
+### Технические требования
+- Современный стек технологий
+- Оптимизированный и чистый код
+- Адаптивная вёрстка (для веб-проектов)
+- Кроссбраузерность (для веб-проектов)
 
-## Budget
-**Total Price**: ${price}
+## 📦 Ожидаемый результат
 
-## Payment Terms
-- **Milestone 1 (50%)**: Upon project start and design approval
-- **Milestone 2 (50%)**: Upon successful delivery and testing
+- ✅ Полностью рабочий продукт
+- ✅ Исходный код с комментариями
+- ✅ Документация по использованию
+- ✅ Инструкция по развёртыванию (если применимо)
 
-## Additional Terms
-- **Revisions**: Up to 2 rounds of revisions included
-- **Support**: 30 days post-launch support and bug fixes
-- **Maintenance**: Optional monthly maintenance plan available
-- **Source Code**: Full ownership transferred upon final payment
+## ⏰ Сроки и этапы
+
+| Этап | Срок | Описание |
+|------|------|----------|
+| **Этап 1** | 25% времени | Анализ требований и планирование |
+| **Этап 2** | 50% времени | Основная разработка |
+| **Этап 3** | 15% времени | Тестирование и доработка |
+| **Этап 4** | 10% времени | Сдача и документация |
+
+**Общий срок выполнения:** 2-4 недели (зависит от сложности)
+
+## 💰 Бюджет
+
+**Стоимость проекта:** ${price}
+
+**Условия оплаты:**
+- 💳 50% (${price/2}) - предоплата при старте проекта
+- 💳 50% (${price/2}) - при успешной сдаче работы
+
+## ✅ Критерии приёмки
+
+- [ ] Все функции из ТЗ реализованы и работают корректно
+- [ ] Код оптимизирован и задокументирован
+- [ ] Проведено тестирование на различных сценариях
+- [ ] Предоставлена полная документация
+- [ ] Исправлены все критичные ошибки
+
+## 📌 Дополнительные условия
+
+- **Правки**: Включено до 2-х раундов правок по техническому заданию
+- **Гарантия**: 14 дней бесплатной поддержки после сдачи
+- **Исходники**: Полная передача прав и исходного кода после финального платежа
+- **Конфиденциальность**: Полная конфиденциальность данных проекта
+- **Связь**: Регулярные обновления о ходе работы
+
+## 🤝 Что от вас потребуется
+
+- Своевременные ответы на уточняющие вопросы
+- Предоставление необходимых материалов (логотипы, тексты, доступы)
+- Финальное тестирование и обратная связь
 
 ---
-*This specification is generated based on your requirements. Please review and suggest any modifications before we proceed.*"""
+
+*📝 Это техническое задание сформировано автоматически на основе вашего запроса*  
+*✏️ Вы можете отредактировать любые пункты перед утверждением*
+
+**Следующий шаг**: Ознакомьтесь с ТЗ и подтвердите заказ для запуска работы! 🚀
+"""
 
 
 class OrderService:
-    """Business logic for orders"""
+    """Бизнес-логика для работы с заказами"""
     
     @staticmethod
     def create_order(service_id: str, client_id: str, agreed_tz: str) -> Order:
-        """Create new order"""
+        """Создать новый заказ"""
         try:
             service = Service.objects.get(id=service_id)
             
-            # Check balance via Auth service (simplified for MVP)
-            # In production: add JWT token validation and actual balance check
+            # В продакшене здесь будет:
+            # 1. Проверка баланса через Auth Service
+            # 2. Холдирование средств
+            # 3. Создание чата
+            # 4. Уведомления обеим сторонам
             
             order = Order.objects.create(
                 service=service,
@@ -141,4 +268,4 @@ class OrderService:
             return order
             
         except Service.DoesNotExist:
-            raise ValueError("Service not found")
+            raise ValueError("Услуга не найдена")
