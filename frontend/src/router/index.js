@@ -1,8 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/authStore'
 import SearchView from '../views/SearchView.vue'
 import ChatsView from '../views/ChatsView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
+import OnboardingView from '../views/OnboardingView.vue'
+import ServiceDetailView from '../views/ServiceDetailView.vue'
+// 1. ИМПОРТИРУЕМ КОМПОНЕНТ СОЗДАНИЯ
+import CreateServiceView from '../views/CreateServiceView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -17,8 +23,25 @@ const router = createRouter({
       component: SearchView
     },
     {
+      path: '/services/:id',
+      name: 'service-detail',
+      component: ServiceDetailView
+    },
+    {
+      path: '/create-service',
+      name: 'create-service',
+      component: CreateServiceView,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/chats',
       name: 'chats',
+      component: ChatsView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/chats/:id', 
+      name: 'chat-detail',
       component: ChatsView,
       meta: { requiresAuth: true }
     },
@@ -32,18 +55,51 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: RegisterView
+    },
+    {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: OnboardingView,
+      meta: { requiresAuth: true }
     }
   ]
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  const auth = useAuthStore()
   const token = localStorage.getItem('access_token')
-  
+
   if (to.meta.requiresAuth && !token) {
-    next('/login')
-  } else {
-    next()
+    return next('/login')
   }
+
+  if (token && !auth.user) {
+    try {
+      await auth.fetchProfile()
+    } catch (e) {
+      return next('/login')
+    }
+  }
+
+  if (auth.user) {
+    const isWorker = auth.user.role === 'worker'
+    const isProfileIncomplete = isWorker && (!auth.user.profile.skills || auth.user.profile.skills.length === 0)
+    
+    if (isProfileIncomplete && to.name !== 'onboarding') {
+      return next('/onboarding')
+    }
+    
+    if (!isProfileIncomplete && to.name === 'onboarding') {
+        return next('/')
+    }
+  }
+
+  next()
 })
 
 export default router

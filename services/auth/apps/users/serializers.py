@@ -5,7 +5,18 @@ from .models import User, Profile, Wallet
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ['avatar', 'bio', 'skills', 'rating']
+        fields = [
+            'full_name',       # <-- Было display_name
+            'company_name', 
+            'headline', 
+            'company_website', 
+            'hourly_rate',
+            'avatar', 
+            'bio', 
+            'skills', 
+            'rating'
+        ]
+        read_only_fields = ['rating']
 
 
 class WalletSerializer(serializers.ModelSerializer):

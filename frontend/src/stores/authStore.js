@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state) => !!state.accessToken,
+    isWorker: (state) => state.user?.role === 'worker'
   },
 
   actions: {
@@ -54,8 +55,27 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    async updateProfile(profileData) {
+        try {
+            const response = await axios.patch('/api/auth/profile/', profileData, {
+                headers: { Authorization: `Bearer ${this.accessToken}` }
+            })
+
+            if (response.data.status === 'success') {
+                this.user = response.data.data
+                return { success: true }
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: error.response?.data?.error || 'Update failed'
+            }
+        }
+    },
+
     async fetchProfile() {
       try {
+        if (!this.accessToken) return
         const response = await axios.get('/api/auth/profile/', {
           headers: { Authorization: `Bearer ${this.accessToken}` }
         })
@@ -73,6 +93,7 @@ export const useAuthStore = defineStore('auth', {
       this.refreshToken = tokens.refresh
       localStorage.setItem('access_token', tokens.access)
       localStorage.setItem('refresh_token', tokens.refresh)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.access}`
     },
 
     logout() {
@@ -81,6 +102,7 @@ export const useAuthStore = defineStore('auth', {
       this.refreshToken = null
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
+      delete axios.defaults.headers.common['Authorization']
     }
   }
 })

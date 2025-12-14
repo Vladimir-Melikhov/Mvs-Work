@@ -5,8 +5,12 @@ from .models import Service, Order
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = ['id', 'title', 'description', 'price', 'owner_id', 'tags', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = [
+            'id', 'title', 'description', 'price', 'owner_id', 
+            'owner_name', 'owner_avatar', 'ai_template',
+            'tags', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'owner_id', 'owner_name', 'owner_avatar']
 
 
 class OrderSerializer(serializers.ModelSerializer):

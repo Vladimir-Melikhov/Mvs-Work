@@ -32,14 +32,17 @@ onUnmounted(() => {
 <style scoped>
 .main-content {
   max-width: 1200px;
-  margin: 90px auto 20px;
+  /* БЫЛО: margin: 90px auto 20px; */
+  /* СТАЛО: 140px. Это (24px отступ сверху + 70px шапка + 46px воздух) */
+  margin: 140px auto 20px; 
   padding: 0 20px;
 }
 
 @media (max-width: 768px) {
   .main-content {
-    margin-top: 20px;
-    margin-bottom: 100px;
+    /* На мобилках шапка снизу, поэтому сверху отступ маленький */
+    margin-top: 40px; 
+    margin-bottom: 120px; /* Отступ под нижнее меню */
   }
 }
 </style>

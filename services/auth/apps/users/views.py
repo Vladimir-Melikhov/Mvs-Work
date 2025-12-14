@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ProfileSerializer
 from .services import AuthService
 
 
@@ -88,6 +88,33 @@ class ProfileView(APIView):
             'data': UserSerializer(request.user).data,
             'error': None
         }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        """Обновление профиля"""
+        try:
+            profile = request.user.profile
+            serializer = ProfileSerializer(profile, data=request.data, partial=True)
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'status': 'success',
+                    'data': UserSerializer(request.user).data,
+                    'error': None
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'status': 'error',
+                'error': serializer.errors,
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e),
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CheckBalanceView(APIView):

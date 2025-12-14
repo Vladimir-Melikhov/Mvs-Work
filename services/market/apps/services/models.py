@@ -8,7 +8,9 @@ class Service(models.Model):
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     owner_id = models.UUIDField(db_index=True)
-    ai_template = models.TextField(blank=True, null=True, help_text="AI prompt template for TZ generation")
+    owner_name = models.CharField(max_length=255, blank=True)
+    owner_avatar = models.TextField(blank=True, null=True)
+    ai_template = models.TextField(blank=True, null=True)
     tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -19,7 +21,6 @@ class Service(models.Model):
 
     def __str__(self) -> str:
         return self.title
-
 
 class Order(models.Model):
     STATUS_CHOICES = [

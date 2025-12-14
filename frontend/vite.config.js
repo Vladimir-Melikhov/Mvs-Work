@@ -12,13 +12,22 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:80',
+      '/api/auth': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true
+      },
+      '/api/market': {
+        target: 'http://127.0.0.1:8002', 
+        changeOrigin: true
+      },
+      '/api/chat': {
+        target: 'http://127.0.0.1:8003',
         changeOrigin: true
       },
       '/ws': {
-        target: 'ws://localhost:8003',
-        ws: true
+        target: 'ws://127.0.0.1:8003', 
+        ws: true,
+        changeOrigin: true
       }
     }
   }
