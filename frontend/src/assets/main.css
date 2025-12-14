@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-light: #f2f4f8;
+  --glass-white: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --primary-gradient: linear-gradient(135deg, #7000ff 0%, #00c6ff 100%);
+  --text-main: #1a1a2e;
+  --text-secondary: #71717a;
+  --accent-purple: #7000ff;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-light);
+  background-image: 
+    radial-gradient(circle at 0% 0%, rgba(112, 0, 255, 0.25) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(0, 198, 255, 0.15) 0%, transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--text-main);
+}
+
+.glass {
+  background: var(--glass-white);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+}
+
+.gradient-text {
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
