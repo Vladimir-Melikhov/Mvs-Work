@@ -68,10 +68,16 @@ CHANNEL_LAYERS = {
     },
 }
 
+SIMPLE_JWT = {
+    'SIGNING_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
+    'ALGORITHM': 'HS256',
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+}
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.messaging.authentication.StatelessJWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -80,6 +86,7 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ],
 }
+
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = DEBUG
