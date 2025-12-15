@@ -43,7 +43,7 @@
                <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Freelancer' }}</div>
                <div class="text-[10px] text-gray-500 font-bold uppercase">Level 1 Seller</div>
             </div>
-            <div class="text-[#7000ff] font-bold text-lg">${{ service.price }}</div>
+            <div class="text-[#7000ff] font-bold text-lg">{{ service.price }}₽</div>
           </div>
   
           <h3 class="text-xl font-bold text-[#1a1a2e] mb-2 leading-tight group-hover:text-[#7000ff] transition-colors line-clamp-2">

@@ -92,3 +92,5 @@ USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CHAT_SERVICE_URL = os.getenv('CHAT_SERVICE_URL', 'http://localhost:8003')

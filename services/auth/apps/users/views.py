@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ProfileSerializer
 from .services import AuthService
-
+from .models import User  # <--- ВОТ ЭТОГО НЕ ХВАТАЛО
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -129,3 +129,31 @@ class CheckBalanceView(APIView):
             'data': {'has_balance': has_balance},
             'error': None
         }, status=status.HTTP_200_OK)
+
+
+class BatchUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Получить публичные данные (имя, аватар) для списка ID"""
+        user_ids = request.data.get('user_ids', [])
+        users = User.objects.filter(id__in=list(set(user_ids)))
+        
+        data = []
+        for user in users:
+            try:
+                profile = user.profile
+                display_name = profile.company_name or profile.full_name or user.email.split('@')[0]
+                avatar = profile.avatar
+            except:
+                display_name = "Unknown User"
+                avatar = None
+            
+            data.append({
+                'id': str(user.id),
+                'name': display_name,
+                'avatar': avatar,
+                'role': user.role
+            })
+            
+        return Response({'status': 'success', 'data': data})

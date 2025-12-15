@@ -28,7 +28,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         """
         Поддержка фильтрации по owner_id для секции "Мои услуги"
         """
-        queryset = Service.objects.all()
+        queryset = Service.objects.all().order_by('-created_at')
         owner_id = self.request.query_params.get('owner_id')
         if owner_id:
             queryset = queryset.filter(owner_id=owner_id)
@@ -147,9 +147,6 @@ class OrderViewSet(viewsets.ViewSet):
     def preview_tz(self, request):
         """
         Генерация ТЗ с помощью AI
-        
-        Клиент отправляет свои требования, AI генерирует структурированное ТЗ
-        на основе шаблона воркера
         """
         serializer = GenerateTZSerializer(data=request.data)
         
@@ -161,9 +158,10 @@ class OrderViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # Генерация
             generated_tz = AIService.generate_tz(
                 service_id=serializer.validated_data['service_id'],
-                client_requirements=serializer.validated_data['raw_requirements']
+                client_requirements=serializer.validated_data['raw_requirements'] # Фронт шлет raw_requirements
             )
             
             return Response({
@@ -184,10 +182,12 @@ class OrderViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_order(self, request):
-        """Создать заказ с согласованным ТЗ"""
+        print("➡️ [Market] Начало создания заказа...") # DEBUG
+        
         serializer = CreateOrderSerializer(data=request.data)
         
         if not serializer.is_valid():
+            print(f"❌ [Market] Ошибка валидации: {serializer.errors}") # DEBUG
             return Response({
                 'status': 'error',
                 'error': serializer.errors,
@@ -195,11 +195,24 @@ class OrderViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # 1. Получаем чистый токен из заголовка (Это нужно для создания чата)
+            auth_header = request.headers.get('Authorization', '')
+            token = ''
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+            
+            if not token:
+                print("⚠️ [Market] Внимание! Токен не найден")
+
+            # 2. Создаем заказ, ПЕРЕДАВАЯ ТОКЕН (вот тут была ошибка missing argument)
             order = OrderService.create_order(
                 service_id=serializer.validated_data['service_id'],
                 client_id=request.user.id,
-                agreed_tz=serializer.validated_data['agreed_tz']
+                agreed_tz=serializer.validated_data['agreed_tz'],
+                auth_token=token  # <--- ДОБАВЛЕНО!
             )
+            
+            print(f"✅ [Market] Заказ {order.id} создан успешно") # DEBUG
 
             return Response({
                 'status': 'success',
@@ -208,6 +221,7 @@ class OrderViewSet(viewsets.ViewSet):
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
+            print(f"🔥 [Market] Критическая ошибка во view: {e}") # DEBUG
             return Response({
                 'status': 'error',
                 'error': str(e),
@@ -221,7 +235,8 @@ class OrderViewSet(viewsets.ViewSet):
         
         orders = Order.objects.filter(
             Q(client_id=user_id) | Q(worker_id=user_id)
-        )
+        ).order_by('-created_at')
+        
         serializer = OrderSerializer(orders, many=True)
         
         return Response({

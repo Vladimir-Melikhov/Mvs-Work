@@ -7,8 +7,8 @@ import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import OnboardingView from '../views/OnboardingView.vue'
 import ServiceDetailView from '../views/ServiceDetailView.vue'
-// 1. ИМПОРТИРУЕМ КОМПОНЕНТ СОЗДАНИЯ
 import CreateServiceView from '../views/CreateServiceView.vue'
+import ChatDetailView from '../views/ChatDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,7 +42,7 @@ const router = createRouter({
     {
       path: '/chats/:id', 
       name: 'chat-detail',
-      component: ChatsView,
+      component: ChatDetailView,
       meta: { requiresAuth: true }
     },
     {
