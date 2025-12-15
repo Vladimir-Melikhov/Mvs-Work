@@ -3,8 +3,12 @@
       <div class="w-full max-w-2xl glass p-10 rounded-[40px] relative">
         
         <div class="text-center mb-10">
-          <h1 class="text-3xl font-bold text-[#1a1a2e] mb-2">Новая услуга</h1>
-          <p class="text-gray-500 text-sm">Создайте объявление и начните зарабатывать</p>
+          <h1 class="text-3xl font-bold text-[#1a1a2e] mb-2">
+            {{ isEditing ? 'Редактирование услуги' : 'Новая услуга' }}
+          </h1>
+          <p class="text-gray-500 text-sm">
+            {{ isEditing ? 'Обновите информацию о вашем предложении' : 'Создайте объявление и начните зарабатывать' }}
+          </p>
         </div>
 
         <div class="space-y-6">
@@ -40,7 +44,7 @@
 
             <div>
               <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
-                Цена (Руб) <span class="text-[#7000ff]">*</span>
+                Минимальная цена за услугу (Руб) <span class="text-[#7000ff]">*</span>
               </label>
               <input 
                 v-model="form.price" 
@@ -64,18 +68,18 @@
             ></textarea>
           </div>
 
-          <div class="bg-yellow-50/50 border border-yellow-200/50 rounded-2xl p-4">
-            <label class="block text-xs font-bold text-yellow-700 uppercase tracking-wider mb-2 ml-1 flex items-center gap-2">
-              <span>📋 Требования к заказчику (Бриф)</span>
+          <div class="bg-[#7000ff]/5 border border-[#7000ff]/10 rounded-2xl p-6">
+            <label class="block text-xs font-bold text-[#7000ff] uppercase tracking-wider mb-2 ml-1">
+              Требования к заказчику (Бриф)
             </label>
-            <p class="text-xs text-gray-500 mb-3 ml-1">
+            <p class="text-xs text-gray-500 mb-4 ml-1 leading-relaxed">
                 Перечислите, что клиент <b>обязан</b> предоставить при заказе (цвета, референсы, доступы). 
                 Это будет показано клиенту перед оплатой, чтобы нейросеть составила точное ТЗ.
             </p>
             <textarea 
               v-model="form.ai_template" 
               rows="3"
-              class="w-full p-4 bg-white/40 rounded-xl border border-yellow-200 outline-none focus:bg-white/60 resize-none text-gray-700 shadow-sm placeholder:text-gray-400 text-sm"
+              class="w-full p-4 bg-white/50 rounded-xl border border-[#7000ff]/10 outline-none focus:bg-white/80 focus:border-[#7000ff]/30 resize-none text-[#1a1a2e] shadow-sm placeholder:text-gray-400 text-sm transition-all"
               placeholder="Пример: 1. Укажите цветовую гамму. 2. Пришлите ссылки на сайты, которые вам нравятся. 3. Есть ли у вас готовый логотип?"
             ></textarea>
           </div>
@@ -108,14 +112,14 @@
           </div>
 
           <button 
-            @click="createService" 
+            @click="submitForm" 
             :disabled="loading || !isFormValid"
             class="w-full py-4 rounded-2xl font-bold shadow-lg transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
             :class="isFormValid && !loading ? 'bg-[#1a1a2e] text-white hover:scale-[1.01]' : 'bg-gray-300 text-gray-500'"
           >
-            <span v-if="loading">⏳ Публикуем...</span>
-            <span v-else-if="!isFormValid">⚠️ Заполните обязательные поля</span>
-            <span v-else>🚀 Опубликовать услугу</span>
+            <span v-if="loading">⏳ {{ isEditing ? 'Сохранение...' : 'Публикация...' }}</span>
+            <span v-else-if="!isFormValid">Заполните обязательные поля</span>
+            <span v-else>{{ isEditing ? 'Сохранить изменения' : '🚀 Опубликовать услугу' }}</span>
           </button>
 
         </div>
@@ -124,26 +128,28 @@
   </template>
   
   <script setup>
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import axios from 'axios'
-  import { useRouter } from 'vue-router'
+  import { useRouter, useRoute } from 'vue-router'
   import { useAuthStore } from '../stores/authStore'
   
   const router = useRouter()
+  const route = useRoute()
   const auth = useAuthStore()
   
   const form = ref({
     title: '',
     description: '',
     price: '',
-    category: 'development', // Значение по умолчанию
-    ai_template: '', // Теперь это Бриф
+    category: 'development',
+    ai_template: '',
     tags: []
   })
   
   const newTag = ref('')
   const loading = ref(false)
   const error = ref('')
+  const isEditing = ref(false)
   
   // Валидация формы
   const isFormValid = computed(() => {
@@ -165,8 +171,40 @@
   const removeTag = (idx) => {
     form.value.tags.splice(idx, 1)
   }
+
+  // Загрузка данных для редактирования
+  const fetchServiceData = async () => {
+    if (route.name === 'edit-service' && route.params.id) {
+        isEditing.value = true
+        loading.value = true
+        try {
+            const res = await axios.get(`/api/market/services/${route.params.id}/`)
+            const data = res.data.data
+            // Проверка прав
+            if (String(data.owner_id) !== String(auth.user.id)) {
+                alert('Нет прав на редактирование')
+                router.push('/profile')
+                return
+            }
+            // Заполнение формы
+            form.value = {
+                title: data.title,
+                description: data.description,
+                price: data.price,
+                category: data.category || 'development',
+                ai_template: data.ai_template || '',
+                tags: data.tags || []
+            }
+        } catch (e) {
+            console.error("Fetch error", e)
+            error.value = "Ошибка загрузки данных услуги"
+        } finally {
+            loading.value = false
+        }
+    }
+  }
   
-  const createService = async () => {
+  const submitForm = async () => {
     if (!isFormValid.value) {
       error.value = "Пожалуйста, заполните все обязательные поля"
       return
@@ -183,22 +221,34 @@
         owner_avatar: auth.user.profile?.avatar || ''
       }
       
-      await axios.post('/api/market/services/', payload)
-      router.push('/profile')
+      if (isEditing.value) {
+          // UPDATE
+          await axios.patch(`/api/market/services/${route.params.id}/`, payload)
+          alert('Услуга успешно обновлена!')
+          router.push(`/services/${route.params.id}`)
+      } else {
+          // CREATE
+          await axios.post('/api/market/services/', payload)
+          router.push('/profile')
+      }
       
     } catch (e) {
-      console.error('Create service error:', e)
+      console.error('Save service error:', e)
       if (e.response?.data?.error) {
         error.value = typeof e.response.data.error === 'object' 
           ? Object.values(e.response.data.error).flat().join(', ')
           : e.response.data.error
       } else {
-        error.value = "Не удалось создать услугу. Попробуйте позже."
+        error.value = "Не удалось сохранить услугу. Попробуйте позже."
       }
     } finally {
       loading.value = false
     }
   }
+
+  onMounted(() => {
+      fetchServiceData()
+  })
   </script>
   
   <style scoped>

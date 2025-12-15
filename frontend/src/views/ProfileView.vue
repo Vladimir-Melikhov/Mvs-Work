@@ -5,7 +5,7 @@
         <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-[#7000ff]/10 to-[#00c6ff]/10 blur-2xl opacity-60"></div>
         
         <button @click="toggleEdit" class="absolute top-8 right-8 z-10 text-gray-400 hover:text-[#1a1a2e] text-sm font-bold transition-colors">
-          {{ isEditing ? 'Cancel' : 'Edit' }}
+          {{ isEditing ? 'Отмена' : 'Редактировать' }}
         </button>
   
         <div class="relative flex flex-col md:flex-row items-center gap-8 mt-4">
@@ -17,7 +17,7 @@
              </div>
              
              <div v-if="isEditing" class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40">
-               <input v-model="editForm.avatar" placeholder="Avatar URL" class="text-[10px] w-full p-1.5 bg-white/20 backdrop-blur-md border border-white/30 rounded-lg text-center outline-none shadow-md text-[#1a1a2e] placeholder-gray-500">
+               <input v-model="editForm.avatar" placeholder="URL аватара" class="text-[10px] w-full p-1.5 bg-white/20 backdrop-blur-md border border-white/30 rounded-lg text-center outline-none shadow-md text-[#1a1a2e] placeholder-gray-500">
              </div>
           </div>
   
@@ -25,10 +25,10 @@
             <div v-if="isEditing" class="flex flex-col items-center md:items-start gap-3">
                <div class="flex gap-4 mb-2" v-if="!isWorker">
                   <label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-[#1a1a2e]">
-                    <input type="radio" :value="false" v-model="isCompanyEdit" class="hidden"> Person
+                    <input type="radio" :value="false" v-model="isCompanyEdit" class="hidden"> Человек
                   </label>
                   <label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-[#1a1a2e]">
-                    <input type="radio" :value="true" v-model="isCompanyEdit" class="hidden"> Company
+                    <input type="radio" :value="true" v-model="isCompanyEdit" class="hidden"> Компания
                   </label>
                </div>
   
@@ -36,32 +36,32 @@
                  v-if="isCompanyEdit && !isWorker" 
                  v-model="editForm.company_name" 
                  class="text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
-                 placeholder="Company Name"
+                 placeholder="Название компании"
                >
                <input 
                  v-else 
                  v-model="editForm.full_name" 
                  class="text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
-                 placeholder="Your Name"
+                 placeholder="Ваше имя"
                >
                
                <input 
                  v-if="isWorker" 
                  v-model="editForm.headline" 
-                 placeholder="Professional Headline" 
+                 placeholder="Профессия / Заголовок" 
                  class="text-sm text-[#7000ff] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all font-medium"
                >
                <input 
                  v-else-if="isCompanyEdit" 
                  v-model="editForm.company_website" 
-                 placeholder="Website URL" 
+                 placeholder="Ссылка на сайт" 
                  class="text-sm text-[#7000ff] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all font-medium"
                >
             </div>
   
             <div v-else>
               <div class="inline-block px-3 py-1 rounded-full bg-white/20 border border-white/20 text-[#1a1a2e] text-[10px] font-bold uppercase tracking-wider mb-3 backdrop-blur-sm">
-                {{ isWorker ? (user?.profile?.headline || 'Freelancer') : 'Client' }}
+                {{ isWorker ? (user?.profile?.headline || 'Фрилансер') : 'Заказчик' }}
               </div>
               
               <h1 class="text-4xl font-bold text-[#1a1a2e] tracking-tight">
@@ -75,34 +75,34 @@
           </div>
   
           <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 text-center min-w-[180px] shadow-sm">
-            <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Balance</div>
-            <div class="text-3xl font-bold text-[#1a1a2e]">${{ user?.wallet?.balance || '0.00' }}</div>
-            <button class="mt-2 text-[10px] font-bold text-[#7000ff] hover:text-[#1a1a2e] transition-colors border border-[#7000ff]/20 px-3 py-1 rounded-full hover:bg-white/20">Top up</button>
+            <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Баланс</div>
+            <div class="text-3xl font-bold text-[#1a1a2e]">{{ user?.wallet?.balance || '0.00' }}₽</div>
+            <button class="mt-2 text-[10px] font-bold text-[#7000ff] hover:text-[#1a1a2e] transition-colors border border-[#7000ff]/20 px-3 py-1 rounded-full hover:bg-white/20">Пополнить</button>
           </div>
         </div>
         
         <div v-if="isEditing" class="mt-8 flex justify-end animate-fade-in">
            <button @click="saveProfile" class="bg-[#1a1a2e] text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-[#1a1a2e]/10 hover:scale-105 transition-transform border border-white/10">
-              Save Changes
+              Сохранить
            </button>
         </div>
       </div>
   
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="glass p-8 rounded-[32px]">
-          <h3 class="text-lg font-bold text-[#1a1a2e] mb-4 flex items-center gap-2">About</h3>
+          <h3 class="text-lg font-bold text-[#1a1a2e] mb-4 flex items-center gap-2">О себе</h3>
           <textarea 
             v-if="isEditing" 
             v-model="editForm.bio" 
             rows="5" 
             class="w-full p-4 bg-white/20 rounded-2xl border border-white/20 outline-none focus:bg-white/30 resize-none text-sm transition-all shadow-inner"
-            placeholder="Tell us about yourself..."
+            placeholder="Расскажите о себе..."
           ></textarea>
-          <p v-else class="text-gray-600 leading-relaxed whitespace-pre-wrap">{{ user?.profile?.bio || 'No bio provided.' }}</p>
+          <p v-else class="text-gray-600 leading-relaxed whitespace-pre-wrap">{{ user?.profile?.bio || 'Информация не заполнена.' }}</p>
         </div>
   
         <div v-if="isWorker" class="glass p-8 rounded-[32px]">
-          <h3 class="text-lg font-bold text-[#1a1a2e] mb-4">Skills</h3>
+          <h3 class="text-lg font-bold text-[#1a1a2e] mb-4">Навыки</h3>
           
           <div v-if="isEditing" class="space-y-4">
              <div class="flex flex-wrap gap-2">
@@ -113,7 +113,7 @@
              <input 
                 v-model="tempSkill" 
                 @keydown.enter.prevent="addSkill" 
-                placeholder="+ Add skill" 
+                placeholder="+ Добавить навык" 
                 class="w-full p-4 bg-white/20 rounded-2xl border border-white/20 outline-none text-sm focus:bg-white/30 transition-all shadow-inner placeholder-gray-500"
               >
           </div>
@@ -128,14 +128,14 @@
   
       <div v-if="isWorker" class="mt-8 animate-fade-in">
         <div class="flex items-center justify-between mb-6 px-2">
-           <h3 class="text-xl font-bold text-[#1a1a2e]">My Active Gigs</h3>
+           <h3 class="text-xl font-bold text-[#1a1a2e]">Активные услуги</h3>
            <router-link to="/create-service" class="text-xs font-bold text-[#7000ff] hover:underline bg-white/20 px-3 py-1 rounded-full border border-white/20">
-             + Create New
+             + Создать новую
            </router-link>
         </div>
   
         <div v-if="loadingServices" class="text-center py-10 opacity-50">
-          Loading...
+          Загрузка...
         </div>
   
         <div v-else-if="myServices.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -143,16 +143,17 @@
             v-for="service in myServices" 
             :key="service.id" 
             class="glass rounded-[32px] p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all"
+            @click="$router.push(`/services/${service.id}`)" 
           >
             <div class="flex items-center gap-3 mb-4">
                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold border border-white/30 overflow-hidden">
                  <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
-                 <span v-else>ME</span>
+                 <span v-else>Я</span>
                </div>
                <div class="flex-1 min-w-0">
-                  <div class="text-xs font-bold text-gray-400 uppercase">My Service</div>
+                  <div class="text-xs font-bold text-gray-400 uppercase">Моя услуга</div>
                </div>
-               <div class="text-[#7000ff] font-bold text-lg">${{ service.price }}</div>
+               <div class="text-[#7000ff] font-bold text-lg">{{ service.price }}₽</div>
             </div>
   
             <h3 class="text-lg font-bold text-[#1a1a2e] mb-2 leading-tight line-clamp-2">
@@ -171,15 +172,15 @@
         </div>
   
         <div v-else class="glass p-8 rounded-[32px] text-center border border-white/20 opacity-70">
-          <p class="font-bold text-[#1a1a2e] mb-2">No gigs yet</p>
-          <router-link to="/create-service" class="text-sm text-[#7000ff] hover:underline">Start selling your skills &rarr;</router-link>
+          <p class="font-bold text-[#1a1a2e] mb-2">Услуг пока нет</p>
+          <router-link to="/create-service" class="text-sm text-[#7000ff] hover:underline">Начать продавать свои навыки &rarr;</router-link>
         </div>
       </div>
       <button 
         @click="handleLogout" 
         class="mt-12 mx-auto block text-gray-400 hover:text-red-500 text-sm font-bold transition-colors opacity-60 hover:opacity-100"
       >
-        Sign Out
+        Выйти
       </button>
     </div>
   </template>
@@ -230,7 +231,7 @@
     }
     const res = await auth.updateProfile(editForm.value)
     if (res.success) isEditing.value = false
-    else alert("Save failed.")
+    else alert("Ошибка сохранения.")
   }
   
   const fetchMyServices = async () => {

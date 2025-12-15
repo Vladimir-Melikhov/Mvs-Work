@@ -2,7 +2,7 @@
     <div class="min-h-screen pt-4 pb-20 animate-fade-in">
       
       <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-[#1a1a2e] tracking-tight">Messages</h1>
+        <h1 class="text-4xl font-bold text-[#1a1a2e] tracking-tight">Сообщения</h1>
       </div>
   
       <div class="max-w-3xl mx-auto px-4">

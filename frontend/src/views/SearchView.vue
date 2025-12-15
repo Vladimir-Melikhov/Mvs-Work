@@ -2,7 +2,7 @@
     <div class="min-h-screen pt-4 pb-20">
       
       <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold text-[#1a1a2e] mb-6 tracking-tight">Find the perfect service</h1>
+        <h1 class="text-4xl font-bold text-[#1a1a2e] mb-6 tracking-tight">Поиск идеального исполнителя</h1>
         
         <div class="max-w-2xl mx-auto px-4 relative">
           <div class="glass p-2 rounded-full flex items-center shadow-xl transition-all focus-within:bg-white/20 focus-within:border-white/40 focus-within:shadow-2xl">
@@ -10,11 +10,11 @@
              <input 
                v-model="searchQuery"
                @input="handleSearch"
-               placeholder="What do you need done?" 
+               placeholder="Что нужно сделать?" 
                class="w-full bg-transparent border-none outline-none text-lg p-4 placeholder-gray-500 text-[#1a1a2e] font-medium"
              >
              <button class="bg-[#1a1a2e] text-white px-8 py-3 rounded-full font-bold hover:bg-[#7000ff] transition-colors shadow-md mr-1">
-               Search
+               Найти
              </button>
           </div>
         </div>
@@ -40,8 +40,8 @@
                <span v-else>{{ getInitials(service.owner_name) }}</span>
             </div>
             <div class="flex-1 min-w-0">
-               <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Freelancer' }}</div>
-               <div class="text-[10px] text-gray-500 font-bold uppercase">Level 1 Seller</div>
+               <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Фрилансер' }}</div>
+               <div class="text-[10px] text-gray-500 font-bold uppercase">Исполнитель</div>
             </div>
             <div class="text-[#7000ff] font-bold text-lg">{{ service.price }}₽</div>
           </div>
@@ -63,7 +63,7 @@
       
       <div v-if="services.length === 0" class="text-center py-20 opacity-50">
          <div class="text-6xl mb-4">🌪️</div>
-         <p class="font-bold">No services found.</p>
+         <p class="font-bold">Услуги не найдены.</p>
       </div>
   
     </div>

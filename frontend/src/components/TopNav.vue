@@ -3,7 +3,7 @@
       
       <nav class="w-full max-w-[1200px] h-[70px] bg-white/10 backdrop-blur-3xl border border-white/20 rounded-full flex items-center px-8 justify-between shadow-lg shadow-black/5 transition-all hover:bg-white/20">
         
-        <router-link to="/" class="text-2xl font-bold bg-gradient-to-r from-[#7000ff] to-[#00c6ff] bg-clip-text text-transparent hover:opacity-80 transition-opacity tracking-tight filter drop-shadow-sm">
+        <router-link to="/" class="text-2xl font-bold text-[#1a1a2e] hover:opacity-80 transition-opacity tracking-tight">
           Mvs-Work
         </router-link>
   
@@ -13,7 +13,7 @@
             class="px-6 py-2.5 rounded-full text-gray-700 font-semibold text-sm transition-all hover:bg-white/10 hover:text-[#1a1a2e]" 
             active-class="bg-gray-900/5 border border-white/30 text-[#1a1a2e] shadow-inner backdrop-blur-md"
           >
-            Search
+            Поиск
           </router-link>
           
           <router-link 
@@ -21,7 +21,7 @@
             class="px-6 py-2.5 rounded-full text-gray-700 font-semibold text-sm transition-all hover:bg-white/10 hover:text-[#1a1a2e]" 
             active-class="bg-gray-900/5 border border-white/30 text-[#1a1a2e] shadow-inner backdrop-blur-md"
           >
-            Chats
+            Чаты
           </router-link>
           
           <router-link 
@@ -29,7 +29,7 @@
             class="px-6 py-2.5 rounded-full text-gray-700 font-semibold text-sm transition-all hover:bg-white/10 hover:text-[#1a1a2e]" 
             active-class="bg-gray-900/5 border border-white/30 text-[#1a1a2e] shadow-inner backdrop-blur-md"
           >
-            Profile
+            Профиль
           </router-link>
   
           <router-link 

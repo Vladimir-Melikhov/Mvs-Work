@@ -33,6 +33,14 @@ const router = createRouter({
       component: CreateServiceView,
       meta: { requiresAuth: true }
     },
+    // --- НОВЫЙ МАРШРУТ ДЛЯ РЕДАКТИРОВАНИЯ ---
+    {
+      path: '/my-services/edit/:id',
+      name: 'edit-service',
+      component: CreateServiceView, // Используем тот же компонент
+      meta: { requiresAuth: true }
+    },
+    // ----------------------------------------
     {
       path: '/chats',
       name: 'chats',
