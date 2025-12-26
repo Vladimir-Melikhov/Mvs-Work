@@ -18,10 +18,6 @@
           <h2 class="text-lg font-bold text-[#1a1a2e] leading-tight tracking-tight">
               {{ partner ? partner.name : 'Загрузка...' }}
           </h2>
-          <p class="text-[11px] text-gray-500 font-medium opacity-80 flex items-center gap-1.5">
-             <span v-if="isConnected" class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-             {{ isConnected ? 'В сети' : 'Подключение...' }}
-          </p>
         </div>
       </div>
   

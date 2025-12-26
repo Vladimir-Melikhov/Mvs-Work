@@ -33,7 +33,7 @@
                 </span>
               </div>
               <p class="text-gray-600 text-sm truncate group-hover:text-[#1a1a2e] transition-colors">
-                <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">You: </span>
+                <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">Вы: </span>
                 {{ chat.last_message ? chat.last_message.text : 'No messages yet' }}
               </p>
             </div>
@@ -67,7 +67,7 @@
   const auth = useAuthStore()
   const chats = ref([]) 
   const loading = ref(false)
-  const usersMap = ref({}) // Кэш пользователей { id: {name, avatar} }
+  const usersMap = ref({})
   
   const fetchChats = async () => {
     loading.value = true

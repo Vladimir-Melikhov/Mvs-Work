@@ -2,7 +2,7 @@
     <div class="min-h-screen pt-4 pb-20">
       
       <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold text-[#1a1a2e] mb-6 tracking-tight">Поиск идеального исполнителя</h1>
+        <h1 class="text-4xl font-bold text-[#1a1a2e] mb-6 tracking-tight">Поиск идеального исполнителя + AI</h1>
         
         <div class="max-w-2xl mx-auto px-4 relative">
           <div class="glass p-2 rounded-full flex items-center shadow-xl transition-all focus-within:bg-white/20 focus-within:border-white/40 focus-within:shadow-2xl">
