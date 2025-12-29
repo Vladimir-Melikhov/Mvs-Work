@@ -6,8 +6,7 @@ class Room(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     members = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # Связь со сделкой (если есть)
+
     deal_id = models.UUIDField(null=True, blank=True, db_index=True)
 
     class Meta:
