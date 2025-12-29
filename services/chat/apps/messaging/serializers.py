@@ -5,7 +5,7 @@ from .models import Room, Message
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ['id', 'sender_id', 'text', 'attachments', 'is_system', 'created_at']
+        fields = ['id', 'sender_id', 'text', 'message_type', 'deal_data', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -14,8 +14,8 @@ class RoomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Room
-        fields = ['id', 'members', 'last_message', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'members', 'last_message', 'created_at', 'deal_id']
+        read_only_fields = ['id', 'created_at']
 
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
