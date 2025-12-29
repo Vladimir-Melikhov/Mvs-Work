@@ -2,7 +2,8 @@ import os
 import requests
 import json
 from django.conf import settings
-from .models import Service, Order
+from .models import Service, Deal
+
 
 class AIService:
     """
@@ -110,29 +111,31 @@ class OrderService:
     """Бизнес-логика работы с заказами"""
     
     @staticmethod
-    def create_order(service_id: str, client_id: str, agreed_tz: str, auth_token: str) -> Order:
+    def create_order(service_id: str, client_id: str, agreed_tz: str, auth_token: str):
         try:
             service = Service.objects.get(id=service_id)
             
-            # 1. Создаем заказ
-            order = Order.objects.create(
-                service=service, client_id=client_id, worker_id=service.owner_id,
-                agreed_tz=agreed_tz, price=service.price, status='pending'
+            # 1. Создаем заказ (Deal)
+            order = Deal.objects.create(
+                service=service, 
+                client_id=client_id, 
+                worker_id=service.owner_id,
+                description=agreed_tz,  # ТЗ в description
+                price=service.price, 
+                status='pending'
             )
             
             # 2. Создаем чат и отправляем ТЗ
             try:
                 chat_url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/"
                 headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
-                
+
                 resp = requests.post(chat_url, headers=headers, json={'member_ids': [str(client_id), str(service.owner_id)]}, timeout=5)
-                
+
                 if resp.status_code == 201:
                     room_id = resp.json()['data']['id']
-                    
                     # Отправляем сообщение в чат
                     tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz}"
-                    
                     # Если ТЗ огромное, обрезаем для первого сообщения (полное есть в деталях заказа)
                     if len(agreed_tz) > 2000:
                         tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz[:1500]}...\n\n_(Полное ТЗ доступно в деталях заказа)_"
@@ -145,7 +148,7 @@ class OrderService:
                     )
             except Exception as e:
                 print(f"Chat error: {e}")
-            
+
             return order
         except Service.DoesNotExist:
             raise ValueError("Service not found")

@@ -41,7 +41,7 @@ class RoomViewSet(viewsets.ViewSet):
         except Room.DoesNotExist:
             return Response({'error': 'Комната не найдена'}, status=404)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='create_room')
     def create_room(self, request):
         """Создать комнату между двумя пользователями"""
         user1_id = str(request.user.id)
@@ -147,4 +147,3 @@ class RoomViewSet(viewsets.ViewSet):
             return Response({'error': 'Комната не найдена'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-        
