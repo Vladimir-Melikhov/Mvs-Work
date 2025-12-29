@@ -25,22 +25,33 @@
       <div class="flex justify-center gap-3 mt-8 flex-wrap px-4">
          <button 
            v-for="cat in categories" 
-           :key="cat" 
-           @click="filterByCategory(cat)"
-           class="px-5 py-2 rounded-full glass-chip text-sm font-bold text-gray-600 hover:bg-white/30 hover:text-[#1a1a2e] transition-all border border-white/20"
+           :key="cat.value" 
+           @click="toggleCategory(cat.value)"
+           class="px-5 py-2 rounded-full text-sm font-bold transition-all border"
+           :class="selectedCategories.includes(cat.value) 
+             ? 'bg-[#7000ff] text-white border-[#7000ff] shadow-lg' 
+             : 'glass-chip text-gray-600 hover:bg-white/30 hover:text-[#1a1a2e] border-white/20'"
          >
-           {{ cat }}
+           {{ cat.label }}
          </button>
          <button 
+           v-if="selectedCategories.length > 0"
            @click="clearFilters"
-           class="px-5 py-2 rounded-full glass-chip text-sm font-bold text-[#7000ff] hover:bg-white/30 transition-all border border-[#7000ff]/20"
+           class="px-5 py-2 rounded-full glass-chip text-sm font-bold text-red-500 hover:bg-red-50 transition-all border border-red-200"
          >
-           Все услуги
+           ✕ Сбросить
          </button>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+    <!-- Индикатор загрузки -->
+    <div v-if="loading" class="text-center py-20">
+      <div class="inline-block w-12 h-12 border-4 border-[#7000ff]/30 border-t-[#7000ff] rounded-full animate-spin"></div>
+      <p class="mt-4 text-gray-500">Загрузка...</p>
+    </div>
+
+    <!-- Результаты поиска -->
+    <div v-else-if="services.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
       
       <div 
         v-for="service in services" 
@@ -55,7 +66,7 @@
           </div>
           <div class="flex-1 min-w-0">
              <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Фрилансер' }}</div>
-             <div class="text-[10px] text-gray-500 font-bold uppercase">Исполнитель</div>
+             <div class="text-[10px] text-gray-500 font-bold uppercase">{{ service.category || 'Услуга' }}</div>
           </div>
           <div class="text-[#7000ff] font-bold text-lg">{{ service.price }}₽</div>
         </div>
@@ -75,7 +86,8 @@
       </div>
     </div>
     
-    <div v-if="services.length === 0" class="text-center py-20 opacity-50">
+    <!-- Пустое состояние -->
+    <div v-else class="text-center py-20 opacity-50">
        <div class="text-6xl mb-4">🌪️</div>
        <p class="font-bold text-[#1a1a2e] mb-2">Услуги не найдены</p>
        <p class="text-gray-500 text-sm">Попробуйте изменить запрос или очистить фильтры</p>
@@ -85,17 +97,32 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 
 const services = ref([])
-const allServices = ref([]) // Храним все услуги для фильтрации
+const allServices = ref([])
 const searchQuery = ref('')
-const categories = ['Design', 'Development', 'Writing', 'Marketing', 'AI']
+const loading = ref(false)
+const selectedCategories = ref([])
+
+const categories = [
+  { label: 'Design', value: 'design' },
+  { label: 'Development', value: 'development' },
+  { label: 'Copywriting', value: 'copywriting' },
+  { label: 'Marketing', value: 'marketing' }
+]
 
 const fetchServices = async () => {
+  loading.value = true
   try {
-    const res = await axios.get('/api/market/services/')
+    // Если есть выбранные категории, добавляем их как параметр
+    let url = '/api/market/services/'
+    if (selectedCategories.value.length > 0) {
+      url += `?categories=${selectedCategories.value.join(',')}`
+    }
+    
+    const res = await axios.get(url)
     if (res.data.status === 'success') {
       allServices.value = res.data.data
       services.value = res.data.data
@@ -105,6 +132,8 @@ const fetchServices = async () => {
     }
   } catch (e) {
     console.error(e)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -116,12 +145,11 @@ const handleSearch = () => {
   const query = searchQuery.value.toLowerCase().trim()
   
   if (!query) {
-    // Если поиск пустой - показываем все
     services.value = allServices.value
     return
   }
   
-  // Фильтруем по названию, описанию и тегам
+  // Фильтруем по названию, описанию, тегам и категории
   services.value = allServices.value.filter(service => {
     const titleMatch = service.title.toLowerCase().includes(query)
     const descMatch = service.description.toLowerCase().includes(query)
@@ -132,15 +160,27 @@ const handleSearch = () => {
   })
 }
 
-const filterByCategory = (category) => {
-  searchQuery.value = category
-  handleSearch()
+const toggleCategory = (category) => {
+  const index = selectedCategories.value.indexOf(category)
+  if (index > -1) {
+    // Убираем категорию
+    selectedCategories.value.splice(index, 1)
+  } else {
+    // Добавляем категорию
+    selectedCategories.value.push(category)
+  }
 }
 
 const clearFilters = () => {
   searchQuery.value = ''
-  services.value = allServices.value
+  selectedCategories.value = []
+  fetchServices()
 }
+
+// Следим за изменением категорий и перезагружаем услуги
+watch(selectedCategories, () => {
+  fetchServices()
+}, { deep: true })
 
 onMounted(() => {
   fetchServices()

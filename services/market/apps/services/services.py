@@ -2,7 +2,8 @@ import os
 import requests
 import json
 from django.conf import settings
-from .models import Service, Order
+from .models import Service
+# Order больше не импортируем, так как модели нет
 
 class AIService:
     """
@@ -104,48 +105,4 @@ class AIService:
     def _generate_mock_tz(requirements: str, price: float, title: str) -> str:
         """Заглушка, если нейросеть недоступна"""
         return f"# ТЗ: {title}\n\n## Задача\n{requirements}\n\n## Бюджет\n${price}\n\n_Примечание: AI временно недоступен, это автоматический черновик._"
-
-
-class OrderService:
-    """Бизнес-логика работы с заказами"""
     
-    @staticmethod
-    def create_order(service_id: str, client_id: str, agreed_tz: str, auth_token: str) -> Order:
-        try:
-            service = Service.objects.get(id=service_id)
-            
-            # 1. Создаем заказ
-            order = Order.objects.create(
-                service=service, client_id=client_id, worker_id=service.owner_id,
-                agreed_tz=agreed_tz, price=service.price, status='pending'
-            )
-            
-            # 2. Создаем чат и отправляем ТЗ
-            try:
-                chat_url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/"
-                headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
-                
-                resp = requests.post(chat_url, headers=headers, json={'member_ids': [str(client_id), str(service.owner_id)]}, timeout=5)
-                
-                if resp.status_code == 201:
-                    room_id = resp.json()['data']['id']
-                    
-                    # Отправляем сообщение в чат
-                    tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz}"
-                    
-                    # Если ТЗ огромное, обрезаем для первого сообщения (полное есть в деталях заказа)
-                    if len(agreed_tz) > 2000:
-                        tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz[:1500]}...\n\n_(Полное ТЗ доступно в деталях заказа)_"
-
-                    requests.post(
-                        f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{room_id}/send_message/",
-                        headers=headers,
-                        json={'sender_id': str(client_id), 'text': tz_msg, 'is_system': False},
-                        timeout=5
-                    )
-            except Exception as e:
-                print(f"Chat error: {e}")
-            
-            return order
-        except Service.DoesNotExist:
-            raise ValueError("Service not found")
