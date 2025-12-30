@@ -160,7 +160,7 @@ const generateTZ = async () => {
   loading.value = true
   
   try {
-    const res = await axios.post('/api/market/orders/preview/', {
+    const res = await axios.post('/api/market/deals/generate-tz/', {
       service_id: props.service.id,
       raw_requirements: requirements.value
     })
