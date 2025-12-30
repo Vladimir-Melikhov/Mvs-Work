@@ -32,7 +32,6 @@ class DealService:
         Предложить условия сделки.
         Отправляет интерактивную карточку в чат с кнопкой подтверждения.
         """
-        # Сохраняем старую версию в историю
         if deal.price > 0:
             deal.history.append({
                 'timestamp': timezone.now().isoformat(),
@@ -121,12 +120,11 @@ class DealService:
             status='held',
             payment_provider='stub'
         )
-        
+
         deal.status = 'active'
         deal.activated_at = timezone.now()
         deal.save()
-        
-        # Отправляем карточку активации
+
         deal_data = {
             'deal_id': str(deal.id),
             'title': deal.title,
@@ -251,9 +249,9 @@ class DealService:
             deal_data=deal_data,
             auth_token=auth_token
         )
-        
+
         return deal
-    
+
     @staticmethod
     def _send_deal_message(chat_room_id: str, sender_id: str, message_type: str, text: str, deal_data: dict, auth_token: str):
         """Отправить интерактивное сообщение о сделке в чат"""

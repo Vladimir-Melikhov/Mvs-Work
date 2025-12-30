@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from decimal import Decimal  # ✅ Добавлен обязательный импорт
 from .models import Service, Deal, Transaction
 
 
@@ -51,11 +52,13 @@ class DealSerializer(serializers.ModelSerializer):
     
     def get_commission(self, obj):
         """Вычислить комиссию 8%"""
-        return float(obj.price * 0.08)
+        # ✅ ИСПРАВЛЕНО: теперь умножаем Decimal на Decimal
+        return float(obj.price * Decimal('0.08'))
     
     def get_total(self, obj):
         """Вычислить итоговую сумму с комиссией"""
-        return float(obj.price * 1.08)
+        # ✅ ИСПРАВЛЕНО: теперь умножаем Decimal на Decimal
+        return float(obj.price * Decimal('1.08'))
 
 
 class ProposeDealSerializer(serializers.Serializer):

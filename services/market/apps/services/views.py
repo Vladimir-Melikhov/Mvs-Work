@@ -20,7 +20,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     """Управление услугами"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
-    
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
@@ -28,18 +28,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Service.objects.all().order_by('-created_at')
-        
-        # Фильтрация по владельцу
+
         owner_id = self.request.query_params.get('owner_id')
         if owner_id:
             queryset = queryset.filter(owner_id=owner_id)
-        
-        # Фильтрация по категории
-        category = self.request.query_params.get('category')
-        if category:
-            queryset = queryset.filter(category=category)
-        
-        # Поиск по названию и описанию
+
+        cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
+
+        if cats_param:
+            cat_list = cats_param.split(',')
+            queryset = queryset.filter(category__in=cat_list)
+
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -47,13 +46,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 Q(description__icontains=search) |
                 Q(tags__contains=[search])
             )
-        
+
         return queryset
 
     def list(self, request):
         services = self.get_queryset()
         serializer = self.get_serializer(services, many=True)
-        
+
         return Response({
             'status': 'success',
             'data': serializer.data,
@@ -64,7 +63,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         try:
             service = self.get_object()
             serializer = self.get_serializer(service)
-            
+
             return Response({
                 'status': 'success',
                 'data': serializer.data,
@@ -79,7 +78,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        
+
         if not serializer.is_valid():
             return Response({
                 'status': 'error',
@@ -101,25 +100,25 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        
+
         if str(instance.owner_id) != str(request.user.id):
             return Response({
                 'status': 'error',
                 'error': 'Вы не можете редактировать чужую услугу',
                 'data': None
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         serializer = self.get_serializer(instance, data=request.data, partial=True)
-        
+
         if not serializer.is_valid():
             return Response({
                 'status': 'error',
                 'error': serializer.errors,
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         serializer.save()
-        
+
         return Response({
             'status': 'success',
             'data': serializer.data,
@@ -128,22 +127,22 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        
+
         if str(instance.owner_id) != str(request.user.id):
             return Response({
                 'status': 'error',
                 'error': 'Вы не можете удалить чужую услугу',
                 'data': None
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         instance.delete()
-        
+
         return Response({
             'status': 'success',
             'data': {'message': 'Услуга успешно удалена'},
             'error': None
         })
-    
+
     @action(detail=False, methods=['get'], url_path='categories')
     def categories(self, request):
         """Получить список всех категорий с количеством услуг"""
@@ -178,29 +177,27 @@ class DealViewSet(viewsets.ViewSet):
     def list(self, request):
         """Получить все сделки пользователя (история)"""
         user_id = request.user.id
-        
         deals = Deal.objects.filter(
             Q(client_id=user_id) | Q(worker_id=user_id)
         ).order_by('-created_at')
-        
+
         serializer = DealSerializer(deals, many=True)
-        
+
         return Response({
             'status': 'success',
             'data': serializer.data,
             'error': None
         })
-    
+
     def retrieve(self, request, pk=None):
         """Получить конкретную сделку"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
-            
-            # Проверка прав
+
             if user_id not in [str(deal.client_id), str(deal.worker_id)]:
                 return Response({'error': 'Нет прав'}, status=403)
-            
+
             serializer = DealSerializer(deal)
             return Response({
                 'status': 'success',
@@ -208,18 +205,17 @@ class DealViewSet(viewsets.ViewSet):
             })
         except Deal.DoesNotExist:
             return Response({'error': 'Сделка не найдена'}, status=404)
-    
+
     @action(detail=False, methods=['get'], url_path='by-chat/(?P<chat_room_id>[^/.]+)')
     def by_chat(self, request, chat_room_id=None):
         """Получить сделку для конкретного чата"""
         try:
             deal = Deal.objects.get(chat_room_id=chat_room_id)
             user_id = str(request.user.id)
-            
-            # Проверка прав
+
             if user_id not in [str(deal.client_id), str(deal.worker_id)]:
                 return Response({'error': 'Нет прав'}, status=403)
-            
+
             serializer = DealSerializer(deal)
             return Response({
                 'status': 'success',
@@ -228,9 +224,9 @@ class DealViewSet(viewsets.ViewSet):
         except Deal.DoesNotExist:
             return Response({
                 'status': 'success',
-                'data': None  # Сделки еще нет для этого чата
+                'data': None
             })
-    
+
     @action(detail=False, methods=['post'], url_path='propose')
     def propose(self, request):
         """
@@ -240,18 +236,17 @@ class DealViewSet(viewsets.ViewSet):
         chat_room_id = request.data.get('chat_room_id')
         if not chat_room_id:
             return Response({'error': 'chat_room_id обязателен'}, status=400)
-        
+
         serializer = ProposeDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
-        
+
         try:
             import requests as req
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
-            # Получаем участников чата
-            chat_url = f"http://localhost:8002/api/chat/rooms/{chat_room_id}/"
+
+            chat_url = f"http://localhost:8003/api/chat/rooms/{chat_room_id}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
             
             if chat_response.status_code != 200:
@@ -259,8 +254,7 @@ class DealViewSet(viewsets.ViewSet):
             
             chat_data = chat_response.json()
             members = chat_data['data']['members']
-            
-            # Определяем кто клиент, кто воркер
+
             proposer_id = str(request.user.id)
             other_member = [m for m in members if str(m) != proposer_id][0]
             
@@ -305,10 +299,10 @@ class DealViewSet(viewsets.ViewSet):
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
-            
+
             if user_id not in [str(deal.client_id), str(deal.worker_id)]:
                 return Response({'error': 'Нет прав'}, status=403)
-            
+
             if str(deal.proposed_by) == user_id:
                 return Response({'error': 'Вы уже подтвердили (вы предложили)'}, status=400)
             
@@ -441,6 +435,6 @@ class DealViewSet(viewsets.ViewSet):
                     'message': 'ТЗ сгенерировано'
                 }
             })
-            
+
         except Exception as e:
             return Response({'error': str(e)}, status=400)

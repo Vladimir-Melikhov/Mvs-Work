@@ -46,17 +46,16 @@ class RoomViewSet(viewsets.ViewSet):
         """Создать комнату между двумя пользователями"""
         user1_id = str(request.user.id)
         user2_id = request.data.get('user2_id')
-        
+
         if not user2_id:
             return Response({'error': 'user2_id обязателен'}, status=400)
-        
-        # Проверяем существующую комнату
+
         existing_room = Room.objects.filter(
             members__contains=[user1_id]
         ).filter(
             members__contains=[user2_id]
         ).first()
-        
+
         if existing_room:
             serializer = RoomSerializer(existing_room)
             return Response({
@@ -64,11 +63,10 @@ class RoomViewSet(viewsets.ViewSet):
                 'data': serializer.data,
                 'message': 'Комната уже существует'
             })
-        
-        # Создаем новую
+
         room = Room.objects.create(members=[user1_id, user2_id])
         serializer = RoomSerializer(room)
-        
+
         return Response({
             'status': 'success',
             'data': serializer.data,

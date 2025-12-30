@@ -202,14 +202,23 @@ const createOrder = async () => {
   creating.value = true
   
   try {
-    await axios.post('/api/market/orders/create/', {
-      service_id: props.service.id,
-      agreed_tz: generatedTz.value
+    const chatRes = await axios.post('/api/chat/rooms/create_room/', {
+      user2_id: props.service.owner_id
     })
     
-    alert('🎉 Заказ успешно создан!')
+    const chatRoomId = chatRes.data.data.id
+
+    await axios.post('/api/market/deals/propose/', {
+      chat_room_id: chatRoomId,
+      title: props.service.title,
+      description: generatedTz.value,
+      price: props.service.price
+    })
+    
+    alert('🎉 Предложение сделки отправлено исполнителю!')
     emit('close')
-    router.push('/chats')
+
+    router.push(`/chats/${chatRoomId}`)
     
   } catch (e) {
     console.error('Order creation error:', e)
