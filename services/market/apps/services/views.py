@@ -244,13 +244,12 @@ class DealViewSet(viewsets.ViewSet):
         serializer = ProposeDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
-        
+
         try:
             import requests as req
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
-            # Получаем участников чата
+
             chat_url = f"http://localhost:8002/api/chat/rooms/{chat_room_id}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
             
@@ -428,6 +427,13 @@ class DealViewSet(viewsets.ViewSet):
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
         
+<<<<<<< HEAD
+        return Response({
+            'status': 'success',
+            'data': serializer.data,
+            'error': None
+        }, status=status.HTTP_200_OK)
+=======
         try:
             generated_tz = AIService.generate_tz(
                 service_id=serializer.validated_data['service_id'],
@@ -444,3 +450,4 @@ class DealViewSet(viewsets.ViewSet):
             
         except Exception as e:
             return Response({'error': str(e)}, status=400)
+>>>>>>> 95c282bac7c7130fb992e805104d4659067be1a4
