@@ -28,7 +28,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Service.objects.all().order_by('-created_at')
-
+        
+        # Фильтрация по владельцу
         owner_id = self.request.query_params.get('owner_id')
         if owner_id:
             queryset = queryset.filter(owner_id=owner_id)
@@ -36,6 +37,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
 
         if cats_param:
+
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
 
