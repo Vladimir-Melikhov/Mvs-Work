@@ -48,12 +48,16 @@ class DealService:
         deal.proposed_by = proposer_id
         deal.proposed_at = timezone.now()
         
-        # Определяем роли
+        # Определяем роли и правильно устанавливаем подтверждения
         is_client = str(proposer_id) == str(deal.client_id)
         
-        # Сбрасываем подтверждения
-        deal.client_confirmed = is_client
-        deal.worker_confirmed = not is_client
+        # Кто предложил - тот автоматически подтвердил
+        if is_client:
+            deal.client_confirmed = True
+            deal.worker_confirmed = False
+        else:
+            deal.worker_confirmed = True
+            deal.client_confirmed = False
         
         deal.status = 'proposed'
         deal.save()
@@ -70,6 +74,8 @@ class DealService:
             'commission': f"{commission:.2f}",
             'total': f"{total:.2f}",
             'proposer_id': str(proposer_id),
+            'client_id': str(deal.client_id),
+            'worker_id': str(deal.worker_id),
             'client_confirmed': deal.client_confirmed,
             'worker_confirmed': deal.worker_confirmed,
             'status': 'proposed'

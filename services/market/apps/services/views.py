@@ -258,17 +258,25 @@ class DealViewSet(viewsets.ViewSet):
             members = chat_data['data']['members']
 
             proposer_id = str(request.user.id)
+            proposer_role = request.user.role  # 'client' или 'worker'
             other_member = [m for m in members if str(m) != proposer_id][0]
             
             # Проверяем есть ли уже сделка для этого чата
             try:
                 deal = Deal.objects.get(chat_room_id=chat_room_id)
+                # Если сделка уже есть, роли уже определены
                 client_id = deal.client_id
                 worker_id = deal.worker_id
             except Deal.DoesNotExist:
-                # Новая сделка - кто предложил = клиент
-                client_id = proposer_id
-                worker_id = other_member
+                # Новая сделка - определяем роли по полю role пользователя
+                if proposer_role == 'client':
+                    # Клиент предлагает -> он клиент, другой воркер
+                    client_id = proposer_id
+                    worker_id = other_member
+                else:
+                    # Воркер предлагает -> он воркер, другой клиент
+                    worker_id = proposer_id
+                    client_id = other_member
             
             deal = DealService.get_or_create_deal_for_chat(
                 chat_room_id=chat_room_id,
