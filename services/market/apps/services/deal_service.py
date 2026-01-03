@@ -7,31 +7,34 @@ from django.conf import settings
 
 class DealService:
     """
-    Сервис управления сделками - строгая бизнес-логика
-    
-    ЖИЗНЕННЫЙ ЦИКЛ СДЕЛКИ:
-    1. draft → Сделка создана, но еще не предложена
-    2. proposed → Одна сторона предложила условия, ждем второй стороны
-    3. active → Обе подтвердили, деньги захолдированы
-    4. completion_requested → Одна сторона запросила завершение
-    5. completed → Обе подтвердили завершение, деньги переведены
-    6. cancelled → Сделка отменена
+    1. Предложение условий (можно менять ДО оплаты)
+    2. Согласование обеими сторонами
+    3. Оплата (после этого условия ЗАМОРОЖЕНЫ)
+    4. Выполнение работы
+    5. Сдача работы
+    6. Проверка + возможные доработки
+    7. Принятие и завершение
+
+    ЗАЩИТА:
+    - После оплаты нельзя менять цену/ТЗ напрямую
+    - Изменения возможны только через отмену + новый заказ
+    - Или через механизм "запроса изменений" (требует согласия)
     """
-    
-    COMMISSION_RATE = Decimal('0.08')  # 8%
-    
+
+    COMMISSION_RATE = Decimal('0.05')
+
     @staticmethod
-    def get_or_create_deal_for_chat(chat_room_id: str, client_id: str, worker_id: str) -> Deal:
+    def get_or_create_deal(chat_room_id: str, client_id: str, worker_id: str) -> Deal:
         """
-        Получить или создать сделку для чата.
-        Роли определяются ОДИН РАЗ при создании и НЕ МЕНЯЮТСЯ.
+        Получить или создать заказ для чата.
+        Роли определяются ОДИН РАЗ при создании.
         """
         deal, created = Deal.objects.get_or_create(
             chat_room_id=chat_room_id,
             defaults={
                 'client_id': client_id,
                 'worker_id': worker_id,
-                'title': 'Новая сделка',
+                'title': 'Новый заказ',
                 'description': 'Условия обсуждаются',
                 'price': Decimal('0.00'),
                 'status': 'draft'
@@ -39,48 +42,39 @@ class DealService:
         )
         return deal
     
-    @staticmethod
-    def can_propose(deal: Deal, proposer_id: str) -> tuple[bool, str]:
-        """Проверка: можно ли предложить условия"""
-        # Нельзя редактировать активные/завершенные сделки
-        if deal.status in ['active', 'completion_requested', 'completed']:
-            return False, f"Сделка в статусе '{deal.status}' не может быть изменена"
-        
-        # Нельзя редактировать отмененную сделку
-        if deal.status == 'cancelled':
-            return False, "Отмененную сделку нельзя редактировать"
-        
-        # Только участники сделки могут предлагать условия
-        if str(proposer_id) not in [str(deal.client_id), str(deal.worker_id)]:
-            return False, "Вы не являетесь участником этой сделки"
-        
-        return True, "OK"
+    # ============================================================
+    # ЭТАП 1: ПРЕДЛОЖЕНИЕ И СОГЛАСОВАНИЕ (ДО ОПЛАТЫ)
+    # ============================================================
     
     @staticmethod
-    def propose_deal(deal: Deal, proposer_id: str, title: str, description: str, price: Decimal, auth_token: str):
+    def propose_terms(deal: Deal, proposer_id: str, title: str, description: str, price: Decimal, auth_token: str):
         """
-        Предложить условия сделки.
+        Предложить или изменить условия заказа.
         
         ПРАВИЛА:
-        - Можно редактировать только в статусе draft/proposed
-        - Кто предложил - автоматически подтвердил
-        - Вторая сторона должна подтвердить
-        - ✅ ОБНОВЛЯЕТ старую карточку вместо создания новой
+        - Можно менять ТОЛЬКО до оплаты
+        - Кто предложил → автоматически согласен
+        - Вторая сторона должна согласиться заново
         """
-        # Валидация
-        can_propose, error = DealService.can_propose(deal, proposer_id)
-        if not can_propose:
-            raise ValueError(error)
+        # ✅ ЗАЩИТА: Нельзя менять после оплаты
+        if deal.payment_completed:
+            raise ValueError("❌ Нельзя изменить условия после оплаты. Отмените заказ и создайте новый.")
         
-        # Сохраняем старую версию в историю (если была)
+        if deal.status not in ['draft', 'pending_payment']:
+            raise ValueError(f"❌ Нельзя изменить условия в статусе '{deal.status}'")
+        
+        # Проверка прав
+        if str(proposer_id) not in [str(deal.client_id), str(deal.worker_id)]:
+            raise ValueError("❌ Вы не участник этого заказа")
+        
+        # Сохраняем в историю предыдущую версию
         if deal.price > 0:
             deal.history.append({
                 'timestamp': timezone.now().isoformat(),
-                'proposed_by': str(deal.proposed_by) if deal.proposed_by else None,
-                'title': deal.title,
-                'description': deal.description,
-                'price': str(deal.price),
-                'status': deal.status
+                'action': 'terms_changed',
+                'by': str(proposer_id),
+                'old_title': deal.title,
+                'old_price': str(deal.price),
             })
         
         # Обновляем условия
@@ -90,144 +84,72 @@ class DealService:
         deal.proposed_by = proposer_id
         deal.proposed_at = timezone.now()
         
-        # Сбрасываем подтверждения и устанавливаем для предложившего
+        # Сбрасываем согласия и устанавливаем для предложившего
         is_client = str(proposer_id) == str(deal.client_id)
+        deal.client_agreed = is_client
+        deal.worker_agreed = not is_client
         
-        if is_client:
-            deal.client_confirmed = True
-            deal.worker_confirmed = False
-        else:
-            deal.worker_confirmed = True
-            deal.client_confirmed = False
-        
-        deal.status = 'proposed'
+        deal.status = 'pending_payment'  # Теперь ждем согласия второй стороны
         deal.save()
         
-        # Отправляем интерактивную карточку в чат
-        commission = float(price) * 0.08
-        total = float(price) + commission
-        
-        deal_data = {
-            'deal_id': str(deal.id),
-            'title': title,
-            'description': description,
-            'price': str(price),
-            'commission': f"{commission:.2f}",
-            'total': f"{total:.2f}",
-            'proposer_id': str(proposer_id),
-            'proposer_role': 'client' if is_client else 'worker',
-            'client_id': str(deal.client_id),
-            'worker_id': str(deal.worker_id),
-            'client_confirmed': deal.client_confirmed,
-            'worker_confirmed': deal.worker_confirmed,
-            'status': 'proposed'
-        }
-        
-        # ✅ ОБНОВЛЯЕМ или создаем карточку
-        message_id = DealService._send_or_update_deal_message(
-            deal=deal,
-            sender_id=proposer_id,
-            message_type='deal_proposal',
-            text=f'💼 Новое предложение сделки: {title}',
-            deal_data=deal_data,
-            auth_token=auth_token
-        )
-        
-        # Сохраняем ID сообщения
-        if message_id:
-            deal.last_deal_message_id = message_id
-            deal.save(update_fields=['last_deal_message_id'])
+        # Отправляем карточку в чат
+        DealService._send_deal_card(deal, proposer_id, 'proposal', auth_token)
         
         return deal
     
     @staticmethod
-    def can_confirm(deal: Deal, confirmer_id: str) -> tuple[bool, str]:
-        """Проверка: можно ли подтвердить сделку"""
-        # Подтверждать можно только предложенную сделку
-        if deal.status != 'proposed':
-            return False, f"Сделка не в статусе 'proposed' (текущий: {deal.status})"
-        
-        # Только участники могут подтверждать
-        if str(confirmer_id) not in [str(deal.client_id), str(deal.worker_id)]:
-            return False, "Вы не являетесь участником этой сделки"
-        
-        # Нельзя подтверждать, если ты сам предложил
-        if str(confirmer_id) == str(deal.proposed_by):
-            return False, "Вы уже подтвердили условия (вы их предложили)"
-        
-        # Проверяем, не подтверждено ли уже
-        is_client = str(confirmer_id) == str(deal.client_id)
-        already_confirmed = deal.client_confirmed if is_client else deal.worker_confirmed
-        
-        if already_confirmed:
-            return False, "Вы уже подтвердили эту сделку"
-        
-        return True, "OK"
-    
-    @staticmethod
-    def confirm_deal(deal: Deal, confirmer_id: str, auth_token: str):
+    def agree_terms(deal: Deal, user_id: str, auth_token: str):
         """
-        Подтвердить сделку.
-        Если обе стороны подтвердили → активируем и холдируем деньги.
-        ✅ ОБНОВЛЯЕТ карточку вместо создания новой
+        Согласиться с предложенными условиями.
+        Если обе стороны согласны → можно оплачивать
         """
-        # Валидация
-        can_confirm, error = DealService.can_confirm(deal, confirmer_id)
-        if not can_confirm:
-            raise ValueError(error)
+        if deal.payment_completed:
+            raise ValueError("❌ Заказ уже оплачен")
         
-        # Подтверждаем от имени подтверждающего
-        is_client = str(confirmer_id) == str(deal.client_id)
+        if str(user_id) not in [str(deal.client_id), str(deal.worker_id)]:
+            raise ValueError("❌ Вы не участник заказа")
         
+        # Нельзя согласиться, если ты сам предложил
+        if str(user_id) == str(deal.proposed_by):
+            raise ValueError("✅ Вы уже согласны (вы предложили условия)")
+        
+        # Устанавливаем согласие
+        is_client = str(user_id) == str(deal.client_id)
         if is_client:
-            deal.client_confirmed = True
+            deal.client_agreed = True
         else:
-            deal.worker_confirmed = True
+            deal.worker_agreed = True
         
         deal.save()
         
-        # Если обе стороны подтвердили - активируем
-        if deal.client_confirmed and deal.worker_confirmed:
-            return DealService._activate_deal(deal, auth_token)
+        # Если обе стороны согласны → переходим к оплате
+        if deal.client_agreed and deal.worker_agreed:
+            deal.status = 'pending_payment'
+            deal.save()
+            DealService._send_deal_card(deal, user_id, 'both_agreed', auth_token)
         else:
-            # ✅ ОБНОВЛЯЕМ карточку с новым статусом подтверждений
-            deal_data = {
-                'deal_id': str(deal.id),
-                'title': deal.title,
-                'description': deal.description,
-                'price': str(deal.price),
-                'commission': f"{float(deal.price) * 0.08:.2f}",
-                'total': f"{float(deal.price) * 1.08:.2f}",
-                'proposer_id': str(deal.proposed_by),
-                'client_id': str(deal.client_id),
-                'worker_id': str(deal.worker_id),
-                'client_confirmed': deal.client_confirmed,
-                'worker_confirmed': deal.worker_confirmed,
-                'status': 'proposed'
-            }
-            
-            message_id = DealService._send_or_update_deal_message(
-                deal=deal,
-                sender_id=confirmer_id,
-                message_type='deal_proposal',
-                text='✅ Условия подтверждены. Ожидаем второй стороны...',
-                deal_data=deal_data,
-                auth_token=auth_token
-            )
-            
-            if message_id:
-                deal.last_deal_message_id = message_id
-                deal.save(update_fields=['last_deal_message_id'])
+            DealService._send_deal_card(deal, user_id, 'agreed', auth_token)
         
         return deal
     
+    # ============================================================
+    # ЭТАП 2: ОПЛАТА И АКТИВАЦИЯ
+    # ============================================================
+    
     @staticmethod
-    def _activate_deal(deal: Deal, auth_token: str):
+    def pay_and_start(deal: Deal, client_id: str, auth_token: str):
         """
-        Активация сделки - холдирование денег и системное сообщение
-        ✅ ОБНОВЛЯЕТ карточку
+        Клиент оплачивает заказ.
+        После этого условия ЗАМОРОЖЕНЫ, начинается работа.
         """
-        # TODO: Реальная проверка баланса клиента через Auth Service
+        if deal.payment_completed:
+            raise ValueError("❌ Заказ уже оплачен")
+        
+        if str(client_id) != str(deal.client_id):
+            raise ValueError("❌ Оплатить может только клиент")
+        
+        if not (deal.client_agreed and deal.worker_agreed):
+            raise ValueError("❌ Обе стороны должны согласиться перед оплатой")
         
         # Создаем транзакцию холдирования
         commission = deal.price * DealService.COMMISSION_RATE
@@ -241,257 +163,270 @@ class DealService:
             payment_provider='stub'
         )
         
-        # TODO: Реальное холдирование через Auth Service
-
-        deal.status = 'active'
-        deal.activated_at = timezone.now()
+        # TODO: Реальное холдирование через платежную систему
+        
+        # Помечаем как оплаченный и запускаем работу
+        deal.payment_completed = True
+        deal.payment_completed_at = timezone.now()
+        deal.status = 'in_progress'
+        deal.history.append({
+            'timestamp': timezone.now().isoformat(),
+            'action': 'paid',
+            'amount': str(total),
+        })
         deal.save()
-
-        deal_data = {
-            'deal_id': str(deal.id),
-            'title': deal.title,
-            'price': str(deal.price),
-            'commission': str(commission),
-            'total': str(total),
-            'status': 'active',
-            'activated_at': deal.activated_at.isoformat()
-        }
         
-        # ✅ ОБНОВЛЯЕМ карточку
-        message_id = DealService._send_or_update_deal_message(
-            deal=deal,
-            sender_id=deal.client_id,
-            message_type='deal_activated',
-            text=f'🎉 Сделка активирована! {total}₽ захолдированы.',
-            deal_data=deal_data,
-            auth_token=auth_token
-        )
+        DealService._send_deal_card(deal, client_id, 'paid', auth_token)
         
-        if message_id:
-            deal.last_deal_message_id = message_id
-            deal.save(update_fields=['last_deal_message_id'])
+        return deal
+    
+    # ============================================================
+    # ЭТАП 3: ВЫПОЛНЕНИЕ И СДАЧА РАБОТЫ
+    # ============================================================
+    
+    @staticmethod
+    def deliver_work(deal: Deal, worker_id: str, delivery_message: str, auth_token: str):
+        """
+        Воркер сдает работу на проверку.
+        """
+        if str(worker_id) != str(deal.worker_id):
+            raise ValueError("❌ Сдать работу может только исполнитель")
+        
+        if deal.status != 'in_progress':
+            raise ValueError(f"❌ Нельзя сдать работу в статусе '{deal.status}'")
+        
+        deal.status = 'delivered'
+        deal.delivered_at = timezone.now()
+        deal.delivery_message = delivery_message
+        deal.history.append({
+            'timestamp': timezone.now().isoformat(),
+            'action': 'delivered',
+            'message': delivery_message,
+        })
+        deal.save()
+        
+        DealService._send_deal_card(deal, worker_id, 'delivered', auth_token)
         
         return deal
     
     @staticmethod
-    def can_request_completion(deal: Deal, requester_id: str) -> tuple[bool, str]:
-        """Проверка: можно ли запросить завершение"""
-        if deal.status != 'active':
-            return False, f"Сделка не активна (текущий статус: {deal.status})"
-        
-        if str(requester_id) not in [str(deal.client_id), str(deal.worker_id)]:
-            return False, "Вы не являетесь участником этой сделки"
-        
-        return True, "OK"
-    
-    @staticmethod
-    def request_completion(deal: Deal, requester_id: str, auth_token: str):
+    def request_revision(deal: Deal, client_id: str, revision_reason: str, auth_token: str):
         """
-        Запрос на завершение
-        ✅ ОБНОВЛЯЕТ карточку
+        Клиент запрашивает доработку (если есть лимит).
         """
-        can_request, error = DealService.can_request_completion(deal, requester_id)
-        if not can_request:
-            raise ValueError(error)
+        if str(client_id) != str(deal.client_id):
+            raise ValueError("❌ Запросить правки может только клиент")
         
-        # Сохраняем информацию о запросе
-        deal.status = 'completion_requested'
-        deal.completion_requested_by = requester_id
-        deal.completion_requested_at = timezone.now()
+        if deal.status != 'delivered':
+            raise ValueError("❌ Запросить правки можно только после сдачи работы")
+        
+        if deal.revision_count >= deal.max_revisions:
+            raise ValueError(f"❌ Исчерпан лимит доработок ({deal.max_revisions})")
+        
+        deal.status = 'in_progress'
+        deal.revision_count += 1
+        deal.history.append({
+            'timestamp': timezone.now().isoformat(),
+            'action': 'revision_requested',
+            'reason': revision_reason,
+            'revision_number': deal.revision_count,
+        })
         deal.save()
         
-        is_client = str(requester_id) == str(deal.client_id)
-        
-        deal_data = {
-            'deal_id': str(deal.id),
-            'title': deal.title,
-            'price': str(deal.price),
-            'requester_id': str(requester_id),
-            'requester_role': 'client' if is_client else 'worker',
-            'status': 'completion_requested'
-        }
-        
-        # ✅ ОБНОВЛЯЕМ карточку
-        message_id = DealService._send_or_update_deal_message(
-            deal=deal,
-            sender_id=requester_id,
-            message_type='deal_completion_request',
-            text='🎯 Запрос на завершение сделки',
-            deal_data=deal_data,
-            auth_token=auth_token
-        )
-        
-        if message_id:
-            deal.last_deal_message_id = message_id
-            deal.save(update_fields=['last_deal_message_id'])
+        DealService._send_deal_card(deal, client_id, 'revision_requested', auth_token)
         
         return deal
     
-    @staticmethod
-    def can_complete(deal: Deal, completer_id: str) -> tuple[bool, str]:
-        """Проверка: можно ли завершить сделку"""
-        if deal.status != 'completion_requested':
-            return False, f"Нет запроса на завершение (текущий статус: {deal.status})"
-        
-        if str(completer_id) not in [str(deal.client_id), str(deal.worker_id)]:
-            return False, "Вы не являетесь участником этой сделки"
-        
-        if str(completer_id) == str(deal.completion_requested_by):
-            return False, "Вы уже запросили завершение. Ждем подтверждения второй стороны."
-        
-        return True, "OK"
+    # ============================================================
+    # ЭТАП 4: ЗАВЕРШЕНИЕ
+    # ============================================================
     
     @staticmethod
-    def complete_deal(deal: Deal, completer_id: str, auth_token: str):
+    def complete_deal(deal: Deal, client_id: str, completion_message: str, auth_token: str):
         """
-        Завершить сделку
-        ✅ ОБНОВЛЯЕТ карточку
+        Клиент принимает работу и завершает заказ.
+        Деньги переводятся исполнителю.
         """
-        can_complete, error = DealService.can_complete(deal, completer_id)
-        if not can_complete:
-            raise ValueError(error)
+        if str(client_id) != str(deal.client_id):
+            raise ValueError("❌ Завершить заказ может только клиент")
         
+        if deal.status != 'delivered':
+            raise ValueError("❌ Завершить можно только сданный заказ")
+        
+        if not deal.payment_completed:
+            raise ValueError("❌ Заказ не был оплачен")
+        
+        # Переводим деньги исполнителю
         transaction = deal.transactions.filter(status='held').first()
-        if not transaction:
-            raise ValueError("Транзакция не найдена")
+        if transaction:
+            transaction.status = 'captured'
+            transaction.save()
         
-        transaction.status = 'captured'
-        transaction.save()
+        # TODO: Реальный перевод средств воркеру
         
         deal.status = 'completed'
         deal.completed_at = timezone.now()
+        deal.completion_message = completion_message
+        deal.history.append({
+            'timestamp': timezone.now().isoformat(),
+            'action': 'completed',
+            'message': completion_message,
+        })
         deal.save()
         
-        # TODO: Реальное пополнение баланса воркера
-        
-        deal_data = {
-            'deal_id': str(deal.id),
-            'title': deal.title,
-            'price': str(deal.price),
-            'status': 'completed',
-            'completed_at': deal.completed_at.isoformat()
-        }
-        
-        # ✅ ОБНОВЛЯЕМ карточку
-        message_id = DealService._send_or_update_deal_message(
-            deal=deal,
-            sender_id=completer_id,
-            message_type='deal_completed',
-            text=f'🎉 Сделка завершена! {deal.price}₽ переведены исполнителю.',
-            deal_data=deal_data,
-            auth_token=auth_token
-        )
-        
-        if message_id:
-            deal.last_deal_message_id = message_id
-            deal.save(update_fields=['last_deal_message_id'])
+        DealService._send_deal_card(deal, client_id, 'completed', auth_token)
         
         return deal
     
-    @staticmethod
-    def can_cancel(deal: Deal, canceller_id: str) -> tuple[bool, str]:
-        """Проверка: можно ли отменить сделку"""
-        if deal.status == 'completed':
-            return False, "Нельзя отменить завершенную сделку"
-        
-        if str(canceller_id) not in [str(deal.client_id), str(deal.worker_id)]:
-            return False, "Вы не являетесь участником этой сделки"
-        
-        return True, "OK"
+    # ============================================================
+    # ОТМЕНА
+    # ============================================================
     
     @staticmethod
     def cancel_deal(deal: Deal, canceller_id: str, reason: str, auth_token: str):
         """
-        Отменить сделку
-        ✅ ОБНОВЛЯЕТ карточку
+        Отменить заказ.
+        Если был оплачен → возврат средств клиенту.
         """
-        can_cancel, error = DealService.can_cancel(deal, canceller_id)
-        if not can_cancel:
-            raise ValueError(error)
+        if deal.status == 'completed':
+            raise ValueError("❌ Нельзя отменить завершенный заказ")
         
-        was_active = deal.status in ['active', 'completion_requested']
+        if str(canceller_id) not in [str(deal.client_id), str(deal.worker_id)]:
+            raise ValueError("❌ Вы не участник заказа")
         
-        if was_active:
+        was_paid = deal.payment_completed
+        
+        # Если был оплачен → возвращаем деньги
+        if was_paid:
             transaction = deal.transactions.filter(status='held').first()
             if transaction:
                 transaction.status = 'refunded'
                 transaction.save()
-                # TODO: Реальный возврат средств
+            # TODO: Реальный возврат средств
         
         deal.status = 'cancelled'
         deal.cancelled_by = canceller_id
+        deal.cancelled_at = timezone.now()
         deal.cancellation_reason = reason
+        deal.history.append({
+            'timestamp': timezone.now().isoformat(),
+            'action': 'cancelled',
+            'by': str(canceller_id),
+            'reason': reason,
+            'refunded': was_paid,
+        })
         deal.save()
         
-        is_client = str(canceller_id) == str(deal.client_id)
+        DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
         
-        deal_data = {
-            'deal_id': str(deal.id),
-            'title': deal.title,
-            'price': str(deal.price),
-            'canceller_id': str(canceller_id),
-            'canceller_role': 'client' if is_client else 'worker',
-            'reason': reason,
-            'was_active': was_active,
-            'status': 'cancelled'
-        }
-        
-        refund_text = f" Средства возвращены клиенту." if was_active else ""
-        
-        # ✅ ОБНОВЛЯЕМ карточку
-        message_id = DealService._send_or_update_deal_message(
-            deal=deal,
-            sender_id=canceller_id,
-            message_type='deal_cancelled',
-            text=f'❌ Сделка отменена.{refund_text}',
-            deal_data=deal_data,
-            auth_token=auth_token
-        )
-        
-        if message_id:
-            deal.last_deal_message_id = message_id
-            deal.save(update_fields=['last_deal_message_id'])
-
         return deal
-
+    
+    # ============================================================
+    # ЗАПРОС ИЗМЕНЕНИЙ (после оплаты)
+    # ============================================================
+    
     @staticmethod
-    def _send_or_update_deal_message(deal: Deal, sender_id: str, message_type: str, text: str, deal_data: dict, auth_token: str):
+    def request_change(deal: Deal, requester_id: str, change_reason: str, auth_token: str):
         """
-        ✅ ОБНОВЛЯЕТ существующую карточку или создает новую
+        Запросить изменение условий после оплаты.
+        Требует согласия второй стороны + отмена текущего + новый заказ.
         
-        Если у сделки есть last_deal_message_id - обновляем старое сообщение
-        Иначе - создаем новое
+        Это сложный процесс, лучше просто отменить и создать новый.
+        """
+        if not deal.payment_completed:
+            raise ValueError("❌ До оплаты можно менять условия напрямую")
         
-        Returns: message_id (str) или None
+        if str(requester_id) not in [str(deal.client_id), str(deal.worker_id)]:
+            raise ValueError("❌ Вы не участник заказа")
+        
+        deal.change_request_by = requester_id
+        deal.change_request_reason = change_reason
+        deal.change_request_pending = True
+        deal.save()
+        
+        DealService._send_deal_card(deal, requester_id, 'change_requested', auth_token)
+        
+        return deal
+    
+    # ============================================================
+    # HELPER: Отправка интерактивной карточки в чат
+    # ============================================================
+    
+    @staticmethod
+    def _send_deal_card(deal: Deal, sender_id: str, action_type: str, auth_token: str):
+        """
+        Отправляет или обновляет интерактивную карточку заказа в чате.
         """
         try:
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
-            headers = {
-                'Authorization': f'Bearer {auth_token}',
-                'Content-Type': 'application/json'
+            
+            # Данные для карточки
+            commission = float(deal.price * DealService.COMMISSION_RATE)
+            total = float(deal.price) + commission
+            
+            deal_data = {
+                'deal_id': str(deal.id),
+                'title': deal.title,
+                'description': deal.description[:200] + '...' if len(deal.description) > 200 else deal.description,
+                'price': str(deal.price),
+                'commission': f"{commission:.2f}",
+                'total': f"{total:.2f}",
+                'status': deal.status,
+                'client_id': str(deal.client_id),
+                'worker_id': str(deal.worker_id),
+                'client_agreed': deal.client_agreed,
+                'worker_agreed': deal.worker_agreed,
+                'payment_completed': deal.payment_completed,
+                'revision_count': deal.revision_count,
+                'max_revisions': deal.max_revisions,
+                'can_edit': deal.can_edit_terms(),
+                'can_pay': deal.can_pay(),
+                'can_deliver': deal.can_deliver(),
+                'can_request_revision': deal.can_request_revision(),
+                'can_complete': deal.can_complete(),
+                'can_cancel': deal.can_cancel(),
             }
+            
+            # Текст сообщения в зависимости от действия
+            message_texts = {
+                'proposal': f'📋 Предложение заказа: {deal.title}',
+                'agreed': '✅ Условия приняты. Ожидаем второй стороны...',
+                'both_agreed': '🎉 Обе стороны согласны! Ожидаем оплату...',
+                'paid': f'💳 Заказ оплачен! {total}₽ захолдированы. Можно начинать работу.',
+                'delivered': '📦 Работа сдана на проверку',
+                'revision_requested': f'🔄 Запрошена доработка ({deal.revision_count}/{deal.max_revisions})',
+                'completed': '🎉 Заказ завершен! Деньги переведены исполнителю.',
+                'cancelled': '❌ Заказ отменен',
+                'change_requested': '⚠️ Запрошено изменение условий после оплаты',
+            }
+            
+            text = message_texts.get(action_type, '📋 Обновление заказа')
             
             payload = {
                 'sender_id': str(sender_id),
-                'message_type': message_type,
+                'message_type': 'deal_card',
                 'text': text,
                 'deal_data': deal_data
             }
             
-            # ✅ Если есть старое сообщение - обновляем его
+            # Если есть старое сообщение → обновляем
             if deal.last_deal_message_id:
                 payload['update_message_id'] = str(deal.last_deal_message_id)
+            
+            headers = {
+                'Authorization': f'Bearer {auth_token}',
+                'Content-Type': 'application/json'
+            }
             
             response = requests.post(url, headers=headers, json=payload, timeout=5)
             
             if response.status_code == 200:
                 response_data = response.json()
                 if response_data.get('status') == 'success':
-                    return response_data.get('data', {}).get('id')
-            else:
-                print(f"⚠️ Failed to send deal message: {response.text}")
-                return None
-                
+                    message_id = response_data.get('data', {}).get('id')
+                    if message_id:
+                        deal.last_deal_message_id = message_id
+                        deal.save(update_fields=['last_deal_message_id'])
+            
         except Exception as e:
-            print(f"🔥 Error sending deal message: {e}")
-            return None
+            print(f"🔥 Error sending deal card: {e}")

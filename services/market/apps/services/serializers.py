@@ -29,8 +29,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 class DealSerializer(serializers.ModelSerializer):
     service = ServiceSerializer(read_only=True)
     transactions = TransactionSerializer(many=True, read_only=True)
-    
-    # Дополнительные вычисляемые поля
+
     commission = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
     
@@ -40,9 +39,9 @@ class DealSerializer(serializers.ModelSerializer):
             'id', 'chat_room_id', 'client_id', 'worker_id',
             'service', 'title', 'description', 'price',
             'status', 'proposed_by', 'proposed_at',
-            'client_confirmed', 'worker_confirmed',
+            'client_agreed', 'worker_agreed',
             'history', 'created_at', 'updated_at',
-            'activated_at', 'completed_at',
+            'payment_completed_at', 'completed_at',
             'transactions', 'commission', 'total'
         ]
         read_only_fields = [

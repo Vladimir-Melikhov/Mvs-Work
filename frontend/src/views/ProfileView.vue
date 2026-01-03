@@ -1,6 +1,5 @@
 <template>
   <div class="animate-fade-in pb-20 pt-4">
-    
     <div class="glass p-8 rounded-[40px] relative overflow-hidden mb-8 group">
       <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-[#7000ff]/10 to-[#00c6ff]/10 blur-2xl opacity-60"></div>
       
@@ -9,7 +8,6 @@
       </button>
 
       <div class="relative flex flex-col md:flex-row items-center gap-8 mt-4">
-        
         <div class="w-32 h-32 rounded-full p-1.5 shadow-xl border border-white/20 relative">
            <img v-if="user?.profile?.avatar" :src="user.profile.avatar" class="w-full h-full rounded-full object-cover">
            <div v-else class="w-full h-full rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-4xl font-bold">
@@ -126,7 +124,6 @@
       </div>
     </div>
 
-    <!-- УСЛУГИ (только для воркеров) -->
     <div v-if="isWorker" class="mt-8 animate-fade-in">
       <div class="flex items-center justify-between mb-6 px-2">
          <h3 class="text-xl font-bold text-[#1a1a2e]">Активные услуги</h3>
@@ -178,7 +175,6 @@
       </div>
     </div>
 
-    <!-- ✅ ИСТОРИЯ СДЕЛОК (для ВСЕХ) -->
     <div class="mt-8 animate-fade-in">
       <DealsHistory />
     </div>
