@@ -20,14 +20,19 @@ class Service(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Владелец услуги
     owner_id = models.UUIDField(db_index=True)
     owner_name = models.CharField(max_length=255, blank=True)
     owner_avatar = models.TextField(blank=True, null=True)
+
     ai_template = models.TextField(
         blank=True, 
         null=True,
         help_text="Требования к клиенту (что он должен предоставить)"
     )
+    
+    # Категория и теги
     category = models.CharField(
         max_length=50, 
         choices=CATEGORY_CHOICES, 
@@ -35,9 +40,8 @@ class Service(models.Model):
         db_index=True,
         help_text="Категория услуги для фильтрации"
     )
-    tags = models.JSONField(default=list,
-                            blank=True,
-                            help_text="Теги для поиска")
+    tags = models.JSONField(default=list, blank=True, help_text="Теги для поиска")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -58,18 +62,18 @@ class Deal(models.Model):
     УЛУЧШЕННАЯ МОДЕЛЬ ЗАКАЗА
     """
     STATUS_CHOICES = [
-        ('draft', 'Черновик'),
-        ('pending_payment', 'Ожидает оплаты'),
-        ('in_progress', 'В работе'),
-        ('revision_requested', 'Нужна доработка'),
-        ('delivered', 'Сдан на проверку'),
-        ('completed', 'Завершен'),
-        ('cancelled', 'Отменен'),
-        ('disputed', 'Спор'),
+        ('draft', 'Черновик'),                      # Только создан, еще не предложен
+        ('pending_payment', 'Ожидает оплаты'),      # Условия согласованы, ждем оплату
+        ('in_progress', 'В работе'),                # Оплачен, воркер выполняет
+        ('revision_requested', 'Нужна доработка'),  # Клиент запросил правки
+        ('delivered', 'Сдан на проверку'),          # Воркер сдал работу
+        ('completed', 'Завершен'),                  # Клиент принял, деньги переведены
+        ('cancelled', 'Отменен'),                   # Отменен любой стороной
+        ('disputed', 'Спор'),                       # Открыт спор (будущая функция)
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    chat_room_id = models.UUIDField(unique=True, db_index=True)
+    chat_room_id = models.UUIDField(db_index=True)
     client_id = models.UUIDField(db_index=True)
     worker_id = models.UUIDField(db_index=True)
     service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, blank=True)
@@ -124,17 +128,18 @@ class Deal(models.Model):
     def can_deliver(self) -> bool:
         """Может ли воркер сдать работу"""
         return self.status == 'in_progress' and self.payment_completed
-
+    
     def can_request_revision(self) -> bool:
         """Может ли клиент запросить доработку"""
         return self.status == 'delivered' and self.revision_count < self.max_revisions
-
+    
     def can_complete(self) -> bool:
         """Может ли клиент завершить и принять работу"""
         return self.status == 'delivered' and self.payment_completed
-
+    
     def can_cancel(self) -> bool:
         """Можно ли отменить"""
+        # До завершения можно отменить в любой момент
         return self.status not in ['completed', 'disputed']
 
 
@@ -146,6 +151,7 @@ class Transaction(models.Model):
         ('captured', 'Списано'),
         ('refunded', 'Возвращено'),
     ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)

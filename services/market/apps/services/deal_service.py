@@ -7,6 +7,8 @@ from django.conf import settings
 
 class DealService:
     """
+    УЛУЧШЕННАЯ ВЕРСИЯ с поддержкой множественных заказов в одном чате
+    
     1. Предложение условий (можно менять ДО оплаты)
     2. Согласование обеими сторонами
     3. Оплата (после этого условия ЗАМОРОЖЕНЫ)
@@ -26,19 +28,17 @@ class DealService:
     @staticmethod
     def get_or_create_deal(chat_room_id: str, client_id: str, worker_id: str) -> Deal:
         """
-        Получить или создать заказ для чата.
-        Роли определяются ОДИН РАЗ при создании.
+        ✅ ИСПРАВЛЕНО: Теперь всегда создаем НОВЫЙ заказ
+        Старая логика с get_or_create не давала создать второй заказ
         """
-        deal, created = Deal.objects.get_or_create(
+        deal = Deal.objects.create(
             chat_room_id=chat_room_id,
-            defaults={
-                'client_id': client_id,
-                'worker_id': worker_id,
-                'title': 'Новый заказ',
-                'description': 'Условия обсуждаются',
-                'price': Decimal('0.00'),
-                'status': 'draft'
-            }
+            client_id=client_id,
+            worker_id=worker_id,
+            title='Новый заказ',
+            description='Условия обсуждаются',
+            price=Decimal('0.00'),
+            status='draft'
         )
         return deal
     
