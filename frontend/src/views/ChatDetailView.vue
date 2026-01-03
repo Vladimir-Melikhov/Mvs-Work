@@ -333,7 +333,18 @@ const connectWebSocket = () => {
   
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data)
-    if (data.type === 'message') {
+    
+    // ✅ Обработка обновления существующего сообщения
+    if (data.type === 'message_updated') {
+      const updatedMsg = data.data
+      const index = messages.value.findIndex(m => String(m.id) === String(updatedMsg.id))
+      if (index !== -1) {
+        // Обновляем существующее сообщение
+        messages.value[index] = { ...messages.value[index], ...updatedMsg }
+      }
+    }
+    // Обработка нового сообщения
+    else if (data.type === 'message') {
       messages.value.push(data.data)
       scrollToBottom()
     }

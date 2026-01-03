@@ -97,8 +97,16 @@ class RoomViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def send_deal_message(self, request, pk=None):
         """
-        Отправить интерактивное сообщение о сделке в комнату.
-        Вызывается из Market Service через DealService.
+        Отправить или обновить интерактивное сообщение о сделке в комнату.
+        
+        ✅ НОВОЕ: Поддержка обновления существующего сообщения
+        
+        Параметры:
+        - sender_id: ID отправителя
+        - message_type: Тип сообщения (deal_proposal, deal_activated и т.д.)
+        - text: Текст сообщения
+        - deal_data: JSON с данными сделки
+        - update_message_id (опционально): ID сообщения для обновления
         """
         try:
             room = Room.objects.get(id=pk)
@@ -107,8 +115,48 @@ class RoomViewSet(viewsets.ViewSet):
             message_type = request.data.get('message_type', 'system')
             text = request.data.get('text', '')
             deal_data = request.data.get('deal_data', {})
+            update_message_id = request.data.get('update_message_id')  # ✅ НОВОЕ
             
-            # Создаем сообщение
+            # ✅ Если нужно обновить существующее сообщение
+            if update_message_id:
+                try:
+                    message = Message.objects.get(id=update_message_id, room=room)
+                    
+                    # Обновляем данные
+                    message.text = text
+                    message.message_type = message_type
+                    message.deal_data = deal_data
+                    message.save()
+                    
+                    # Отправляем обновление через WebSocket
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'chat_{pk}',
+                        {
+                            'type': 'message_updated',  # ✅ Новый тип события
+                            'message': {
+                                'id': str(message.id),
+                                'room_id': str(message.room_id),
+                                'sender_id': str(message.sender_id),
+                                'text': message.text,
+                                'message_type': message.message_type,
+                                'deal_data': message.deal_data,
+                                'created_at': message.created_at.isoformat(),
+                            }
+                        }
+                    )
+                    
+                    return Response({
+                        'status': 'success',
+                        'data': MessageSerializer(message).data,
+                        'message': 'Сообщение обновлено'
+                    })
+                    
+                except Message.DoesNotExist:
+                    # Если сообщение не найдено - создаем новое
+                    pass
+            
+            # ✅ Создаем новое сообщение
             message = Message.objects.create(
                 room=room,
                 sender_id=sender_id,

@@ -67,6 +67,7 @@ class Deal(models.Model):
         ('draft', 'Черновик'),
         ('proposed', 'Предложена'),
         ('active', 'Активна'),
+        ('completion_requested', 'Запрос завершения'),
         ('completed', 'Завершена'),
         ('cancelled', 'Отменена'),
     ]
@@ -108,8 +109,19 @@ class Deal(models.Model):
     # Когда сделка была активирована (обе стороны подтвердили)
     activated_at = models.DateTimeField(null=True, blank=True)
     
+    # ✅ НОВЫЕ ПОЛЯ для запроса завершения
+    completion_requested_by = models.UUIDField(null=True, blank=True)
+    completion_requested_at = models.DateTimeField(null=True, blank=True)
+    
     # Когда завершена
     completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # ✅ НОВЫЕ ПОЛЯ для отмены
+    cancelled_by = models.UUIDField(null=True, blank=True)
+    cancellation_reason = models.TextField(null=True, blank=True)
+    
+    # ✅ НОВОЕ ПОЛЕ - ID последнего сообщения с карточкой сделки (для обновления)
+    last_deal_message_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = 'deals'

@@ -49,9 +49,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def chat_message(self, event):
-        """Обработчик для отправки сообщений клиентам"""
+        """Обработчик для отправки новых сообщений клиентам"""
         await self.send(text_data=json.dumps({
             'type': 'message',
+            'data': event['message']
+        }))
+    
+    async def message_updated(self, event):
+        """
+        ✅ НОВЫЙ обработчик для обновления существующих сообщений
+        Отправляет клиентам команду обновить сообщение вместо добавления нового
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'message_updated',
             'data': event['message']
         }))
 
