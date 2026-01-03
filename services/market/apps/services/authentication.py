@@ -8,7 +8,7 @@ class RemoteUser:
     """
     def __init__(self, token):
         self.id = token.get('user_id')
-        self.pk = self.id  # Django часто использует pk вместо id
+        self.pk = self.id
         self.email = token.get('email', '')
         self.role = token.get('role', 'client')
         self.is_authenticated = True
@@ -19,14 +19,13 @@ class RemoteUser:
     def __str__(self):
         return f"RemoteUser({self.email})"
 
+
 class StatelessJWTAuthentication(JWTAuthentication):
     """
-    Кастомная аутентификация: проверяет подпись токена, 
-    но НЕ лезет в базу данных за пользователем.
+    Кастомная аутентификация: проверяет подпись токена,
     """
     def get_user(self, validated_token):
         try:
-            # Вместо похода в БД, просто возвращаем объект RemoteUser с данными из токена
             return RemoteUser(validated_token)
         except Exception as e:
             raise AuthenticationFailed('Error creating user from token')

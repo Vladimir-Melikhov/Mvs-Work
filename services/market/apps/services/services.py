@@ -16,16 +16,12 @@ class AIService:
         try:
             service = Service.objects.get(id=service_id)
             api_key = os.getenv('IO_NET_API_KEY')
-            
-            # URL API io.net (serverless)
             base_url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
-            
-            # Если ключа нет — возвращаем заглушку
+
             if not api_key:
                 print("⚠️ [Market] Нет IO_NET_API_KEY")
                 return AIService._generate_mock_tz(client_requirements, service.price, service.title)
 
-            # --- СТРОГИЙ СИСТЕМНЫЙ ПРОМПТ ---
             system_instruction = """Ты — строгий технический документатор.
 Твоя задача — составить ТЗ, объединив "Требования исполнителя" (Бриф) и "Ответы заказчика".
 
@@ -43,9 +39,7 @@ class AIService:
 ## 4. Дизайн и Контент (Реальные пожелания: цвета, референсы)
 ## 5. Вопросы и Уточнения (Чего не хватает для работы)"""
 
-            # Требования фрилансера (Бриф)
             freelancer_reqs = service.ai_template if service.ai_template else "Исполнитель не указал жестких требований."
-            
             user_content = f"""
 ДАННЫЕ ДЛЯ ТЗ:
 
@@ -69,7 +63,7 @@ class AIService:
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_content}
                 ],
-                "temperature": 0.3, # Низкая температура для отсутствия фантазий
+                "temperature": 0.3,
                 "max_tokens": 8000
             }
 
@@ -81,9 +75,7 @@ class AIService:
                 data = response.json()
                 try:
                     raw_content = data['choices'][0]['message']['content']
-                    
-                    # --- ОЧИСТКА ОТ <think> ---
-                    # DeepSeek-R1 пишет свои мысли в тегах <think>...</think>. Нам они в ТЗ не нужны.
+
                     if "</think>" in raw_content:
                         final_tz = raw_content.split("</think>")[-1].strip()
                     else:
@@ -109,23 +101,20 @@ class AIService:
 
 class OrderService:
     """Бизнес-логика работы с заказами"""
-    
+
     @staticmethod
     def create_order(service_id: str, client_id: str, agreed_tz: str, auth_token: str):
         try:
             service = Service.objects.get(id=service_id)
-            
-            # 1. Создаем заказ (Deal)
+
             order = Deal.objects.create(
                 service=service, 
                 client_id=client_id, 
                 worker_id=service.owner_id,
-                description=agreed_tz,  # ТЗ в description
+                description=agreed_tz,
                 price=service.price, 
                 status='pending'
             )
-            
-            # 2. Создаем чат и отправляем ТЗ
             try:
                 chat_url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/"
                 headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
@@ -134,9 +123,7 @@ class OrderService:
 
                 if resp.status_code == 201:
                     room_id = resp.json()['data']['id']
-                    # Отправляем сообщение в чат
                     tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz}"
-                    # Если ТЗ огромное, обрезаем для первого сообщения (полное есть в деталях заказа)
                     if len(agreed_tz) > 2000:
                         tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz[:1500]}...\n\n_(Полное ТЗ доступно в деталях заказа)_"
 

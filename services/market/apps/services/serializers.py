@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from decimal import Decimal  # ✅ Добавлен обязательный импорт
+from decimal import Decimal
 from .models import Service, Deal, Transaction
 
 
@@ -32,7 +32,7 @@ class DealSerializer(serializers.ModelSerializer):
 
     commission = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Deal
         fields = [
@@ -48,15 +48,13 @@ class DealSerializer(serializers.ModelSerializer):
             'id', 'chat_room_id', 'created_at', 'updated_at',
             'activated_at', 'completed_at', 'proposed_by', 'proposed_at'
         ]
-    
+
     def get_commission(self, obj):
         """Вычислить комиссию 8%"""
-        # ✅ ИСПРАВЛЕНО: теперь умножаем Decimal на Decimal
         return float(obj.price * Decimal('0.08'))
-    
+
     def get_total(self, obj):
         """Вычислить итоговую сумму с комиссией"""
-        # ✅ ИСПРАВЛЕНО: теперь умножаем Decimal на Decimal
         return float(obj.price * Decimal('1.08'))
 
 

@@ -26,7 +26,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Service.objects.all().order_by('-created_at')
-        
+
         owner_id = self.request.query_params.get('owner_id')
         if owner_id:
             queryset = queryset.filter(owner_id=owner_id)
@@ -94,8 +94,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
 class DealViewSet(viewsets.ViewSet):
     """
-    ✅ УЛУЧШЕННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ
-    Новая четкая логика как на Avito/Fiverr
+    УЛУЧШЕННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ
     """
     permission_classes = [IsAuthenticated]
 
@@ -138,10 +137,6 @@ class DealViewSet(viewsets.ViewSet):
         except Deal.DoesNotExist:
             return Response({'status': 'success', 'data': None})
 
-    # ============================================================
-    # ✅ НОВЫЕ ENDPOINTS С УЛУЧШЕННОЙ ЛОГИКОЙ
-    # ============================================================
-
     @action(detail=False, methods=['post'], url_path='propose')
     def propose(self, request):
         """
@@ -161,21 +156,19 @@ class DealViewSet(viewsets.ViewSet):
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
-            # Получаем данные чата
             chat_url = f"http://localhost:8003/api/chat/rooms/{chat_room_id}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
-            
+
             if chat_response.status_code != 200:
                 return Response({'error': 'Не удалось получить данные чата'}, status=400)
-            
+
             chat_data = chat_response.json()
             members = chat_data['data']['members']
 
             proposer_id = str(request.user.id)
             proposer_role = request.user.role
             other_member = [m for m in members if str(m) != proposer_id][0]
-            
-            # Определяем роли
+
             try:
                 deal = Deal.objects.get(chat_room_id=chat_room_id)
                 client_id = deal.client_id
@@ -187,15 +180,13 @@ class DealViewSet(viewsets.ViewSet):
                 else:
                     worker_id = proposer_id
                     client_id = other_member
-            
-            # Создаем или получаем заказ
+
             deal = DealService.get_or_create_deal(
                 chat_room_id=chat_room_id,
                 client_id=client_id,
                 worker_id=worker_id
             )
-            
-            # Предлагаем условия
+
             deal = DealService.propose_terms(
                 deal=deal,
                 proposer_id=proposer_id,
@@ -204,19 +195,19 @@ class DealViewSet(viewsets.ViewSet):
                 price=serializer.validated_data['price'],
                 auth_token=token
             )
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': 'Условия предложены. Ожидаем согласия второй стороны.'
             })
-            
+
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=True, methods=['post'], url_path='agree')
     def agree(self, request, pk=None):
-        """✅ Согласиться с условиями"""
+        """Согласиться с условиями"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
@@ -236,54 +227,54 @@ class DealViewSet(viewsets.ViewSet):
                 'data': DealSerializer(deal).data,
                 'message': message
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
-        """💳 Оплатить заказ (только клиент)"""
+        """Оплатить заказ (только клиент)"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
+
             deal = DealService.pay_and_start(deal, user_id, token)
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': 'Заказ оплачен! Средства захолдированы. Исполнитель может начинать работу.'
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=True, methods=['post'], url_path='deliver')
     def deliver(self, request, pk=None):
-        """📦 Сдать работу (только воркер)"""
+        """Сдать работу (только воркер)"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
             delivery_message = request.data.get('delivery_message', '')
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
+
             deal = DealService.deliver_work(deal, user_id, delivery_message, token)
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': 'Работа сдана на проверку!'
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
@@ -296,23 +287,23 @@ class DealViewSet(viewsets.ViewSet):
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
             revision_reason = request.data.get('revision_reason', '')
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
+
             deal = DealService.request_revision(deal, user_id, revision_reason, token)
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': f'Доработка запрошена ({deal.revision_count}/{deal.max_revisions})'
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
         """🎉 Принять работу и завершить (только клиент)"""
@@ -320,63 +311,60 @@ class DealViewSet(viewsets.ViewSet):
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
             completion_message = request.data.get('completion_message', 'Спасибо!')
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
+
             deal = DealService.complete_deal(deal, user_id, completion_message, token)
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': 'Заказ завершен! Деньги переведены исполнителю.'
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
-        """❌ Отменить заказ"""
+        """Отменить заказ"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
             reason = request.data.get('reason', 'Не указана')
-            
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
             deal = DealService.cancel_deal(deal, user_id, reason, token)
-            
             message = 'Заказ отменен'
             if deal.payment_completed:
                 message += '. Средства возвращены клиенту.'
-            
+
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
                 'message': message
             })
-            
+
         except Deal.DoesNotExist:
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-    
+
     @action(detail=False, methods=['post'], url_path='generate-tz')
     def generate_tz(self, request):
         """AI-генерация ТЗ"""
         service_id = request.data.get('service_id')
         raw_requirements = request.data.get('raw_requirements')
-        
+
         if not service_id or not raw_requirements:
             return Response({'error': 'service_id и raw_requirements обязательны'}, status=400)
-        
+
         try:
             generated_tz = AIService.generate_tz(service_id, raw_requirements)
-            
+
             return Response({
                 'status': 'success',
                 'data': {'generated_tz': generated_tz}
