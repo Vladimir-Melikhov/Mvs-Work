@@ -1,21 +1,26 @@
 <template>
-  <div class="deal-card-wrapper w-full flex justify-center my-6 px-4">
-    <div class="deal-card glass rounded-[32px] p-6 max-w-md w-full border-2 shadow-2xl" :class="borderColor">
+  <div 
+    :class="sidebarMode ? 'h-full' : 'deal-card-wrapper w-full flex justify-center my-6 px-4'"
+  >
+    <div 
+      class="deal-card glass rounded-[32px] p-6 border-2 shadow-2xl"
+      :class="[borderColor, sidebarMode ? 'w-full h-full flex flex-col' : 'max-w-md w-full']"
+    >
       
       <div class="flex items-center gap-3 mb-4">
-        <div class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl shadow-lg" :class="statusIconBg">
+        <div class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl shadow-lg shrink-0" :class="statusIconBg">
           {{ statusIcon }}
         </div>
-        <div>
+        <div class="flex-1 min-w-0">
           <div class="text-xs font-bold uppercase tracking-wider" :class="statusTextColor">
             {{ statusLabel }}
           </div>
-          <div class="text-lg font-bold text-[#1a1a2e]">{{ dealData.title }}</div>
+          <div class="text-lg font-bold text-[#1a1a2e] truncate">{{ dealData.title }}</div>
         </div>
       </div>
 
       <!-- PRICE INFO -->
-      <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 mb-4 border border-purple-200">
+      <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 mb-4 border border-purple-200 shrink-0">
         <div class="space-y-1 text-sm">
           <div class="flex justify-between">
             <span class="text-gray-600">Стоимость работы:</span>
@@ -33,7 +38,7 @@
       </div>
 
       <!-- AGREEMENT STATUS (для pending_payment) -->
-      <div v-if="dealData.status === 'pending_payment' && !dealData.payment_completed" class="mb-4">
+      <div v-if="dealData.status === 'pending_payment' && !dealData.payment_completed" class="mb-4 shrink-0">
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
           <div class="text-xs font-bold text-blue-800 mb-2">Согласование условий:</div>
           <div class="flex items-center gap-3 text-sm">
@@ -53,14 +58,30 @@
       </div>
 
       <!-- REVISION INFO (для доработок) -->
-      <div v-if="dealData.revision_count > 0" class="mb-4">
+      <div v-if="dealData.revision_count > 0" class="mb-4 shrink-0">
         <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
           <span class="font-bold text-orange-800">🔄 Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
         </div>
       </div>
 
+      <!-- ✅ РЕЗУЛЬТАТ РАБОТЫ (когда статус delivered) -->
+      <div v-if="dealData.status === 'delivered' && dealData.delivery_message" class="mb-4 shrink-0">
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+          <div class="text-xs font-bold text-green-800 uppercase tracking-wider mb-2">📦 Результат работы</div>
+          <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+        </div>
+      </div>
+
+      <!-- ✅ РЕЗУЛЬТАТ (для завершенных заказов) -->
+      <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="mb-4 shrink-0">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">✅ Работа завершена</div>
+          <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+        </div>
+      </div>
+
       <!-- ACTIONS -->
-      <div class="space-y-2">
+      <div class="space-y-2" :class="sidebarMode ? 'mt-auto' : ''">
         
         <!-- ✅ СОГЛАСИТЬСЯ С УСЛОВИЯМИ (до оплаты) -->
         <button 
@@ -228,7 +249,8 @@ import { useAuthStore } from '../stores/authStore'
 
 const props = defineProps({
   message: Object,
-  dealData: Object
+  dealData: Object,
+  sidebarMode: Boolean  // ✅ Новый проп для режима боковой панели
 })
 
 const emit = defineEmits(['deal-action', 'edit-deal'])
@@ -311,7 +333,6 @@ const statusTextColor = computed(() => {
 // ✅ ПОКАЗЫВАЕМ КНОПКИ В ЗАВИСИМОСТИ ОТ СТАТУСА И РОЛИ
 
 const showAgreeButton = computed(() => {
-  // Показываем только если я НЕ согласен, но могу согласиться
   if (props.dealData.status !== 'pending_payment') return false
   if (props.dealData.payment_completed) return false
   
@@ -322,7 +343,6 @@ const showAgreeButton = computed(() => {
 })
 
 const showPayButton = computed(() => {
-  // Только клиент может оплатить, когда обе стороны согласны
   return isClient.value && 
          props.dealData.status === 'pending_payment' && 
          props.dealData.client_agreed && 
@@ -331,34 +351,28 @@ const showPayButton = computed(() => {
 })
 
 const showDeliverButton = computed(() => {
-  // Воркер может сдать работу только в статусе in_progress
   return isWorker.value && props.dealData.status === 'in_progress'
 })
 
 const showCompleteButton = computed(() => {
-  // Клиент может принять работу только в статусе delivered
   return isClient.value && props.dealData.status === 'delivered'
 })
 
 const showRevisionButton = computed(() => {
-  // Клиент может запросить доработку если есть лимит
   return isClient.value && 
          props.dealData.status === 'delivered' &&
          props.dealData.revision_count < props.dealData.max_revisions
 })
 
 const showEditButton = computed(() => {
-  // Можно редактировать только до оплаты
   return props.dealData.can_edit && !props.dealData.payment_completed
 })
 
 const showCancelButton = computed(() => {
-  // Отменить можно почти всегда (кроме завершенных)
   return props.dealData.can_cancel && props.dealData.status !== 'completed'
 })
 
 const showWaitingInfo = computed(() => {
-  // Показываем инфо если уже согласился, но ждем второй стороны
   if (props.dealData.status !== 'pending_payment') return false
   if (props.dealData.payment_completed) return false
   

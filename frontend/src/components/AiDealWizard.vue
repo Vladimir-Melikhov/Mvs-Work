@@ -15,8 +15,8 @@
             Ai
           </div>
           <div>
-            <h2 class="text-2xl font-bold text-[#1a1a2e]">AI-ассистент заказа</h2>
-            <p class="text-sm text-gray-500">Опишите вашу задачу, AI создаст ТЗ</p>
+            <h2 class="text-2xl font-bold text-[#1a1a2e]">Оформление заказа</h2>
+            <p class="text-sm text-gray-500">Опишите вашу задачу</p>
           </div>
         </div>
 
@@ -50,20 +50,39 @@
             ></textarea>
           </label>
 
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
-            <div class="font-bold mb-1">💡 Совет:</div>
-            <div>Чем подробнее вы опишете задачу, тем точнее будет техническое задание. Укажите желаемые функции, сроки, стиль, примеры.</div>
+          <label class="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+            <input 
+              type="checkbox" 
+              v-model="useAI" 
+              class="mt-1 w-5 h-5 text-[#7000ff] rounded border-gray-300 focus:ring-2 focus:ring-[#7000ff]/20"
+            >
+            <div>
+              <div class="font-bold text-[#1a1a2e] mb-1">
+                ✨ Использовать AI для создания ТЗ
+              </div>
+              <div class="text-xs text-gray-600">
+                Нейросеть структурирует ваше описание в профессиональное техническое задание с учетом требований исполнителя
+              </div>
+            </div>
+          </label>
+
+          <div v-if="!useAI" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+            <div class="font-bold mb-1">⚠️ Без AI:</div>
+            <div>Ваш текст будет отправлен "как есть" без структурирования. Убедитесь, что все важные детали указаны.</div>
           </div>
         </div>
 
         <button 
-          @click="generateTZ" 
+          @click="handleNext" 
           :disabled="!requirements.trim() || loading"
           class="w-full mt-6 bg-[#7000ff] hover:bg-[#5500cc] text-white py-4 rounded-xl font-bold shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
         >
           <span v-if="loading">⏳ Генерируем...</span>
+          <span v-else-if="useAI">
+            <span class="text-xl">✨</span> Сгенерировать ТЗ с AI
+          </span>
           <span v-else>
-            <span class="text-xl">✨</span> Сгенерировать ТЗ с помощью AI
+            Далее →
           </span>
         </button>
       </div>
@@ -90,10 +109,37 @@
           </div>
         </div>
 
-        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
-          <div class="prose prose-sm max-w-none">
-            <div v-html="formatMarkdown(generatedTz)" class="text-sm leading-relaxed"></div>
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-bold text-gray-700">Техническое задание</label>
+            <button 
+              v-if="!editing"
+              @click="editing = true" 
+              class="text-xs font-bold text-[#7000ff] hover:underline flex items-center gap-1"
+            >
+              <span>✏️</span> Редактировать
+            </button>
+            <button 
+              v-else
+              @click="editing = false" 
+              class="text-xs font-bold text-green-600 hover:underline flex items-center gap-1"
+            >
+              <span>✅</span> Готово
+            </button>
           </div>
+
+          <div v-if="!editing" class="bg-gray-50 border border-gray-200 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
+            <div class="prose prose-sm max-w-none">
+              <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed"></div>
+            </div>
+          </div>
+
+          <textarea 
+            v-else
+            v-model="editableTz"
+            rows="15"
+            class="w-full p-4 bg-white border border-[#7000ff] rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/20 text-sm font-mono leading-relaxed"
+          ></textarea>
         </div>
 
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
@@ -108,7 +154,7 @@
         
         <div class="flex gap-4">
           <button 
-            @click="step = 1" 
+            @click="step = 1; editing = false" 
             class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-gray-700"
           >
             ← Назад
@@ -143,6 +189,9 @@ const emit = defineEmits(['close'])
 const step = ref(1)
 const requirements = ref('')
 const generatedTz = ref('')
+const editableTz = ref('')  // Текст, который пойдет в заказ
+const editing = ref(false)  // Режим редактирования
+const useAI = ref(true)     // Чекбокс AI
 const loading = ref(false)
 const creating = ref(false)
 
@@ -153,9 +202,21 @@ const placeholderText = computed(() => {
   return 'Например:\n\nМне нужен сайт для моей кофейни. Хочу:\n- Галерею с фотографиями\n- Меню с ценами\n- Форму обратной связи'
 })
 
-const generateTZ = async () => {
+// Логика кнопки "Далее/Сгенерировать"
+const handleNext = async () => {
   if (!requirements.value.trim()) return
   
+  if (useAI.value) {
+    // Если чекбокс стоит — генерируем
+    await generateTZ()
+  } else {
+    // Если чекбокс снят — копируем текст как есть
+    editableTz.value = requirements.value
+    step.value = 3
+  }
+}
+
+const generateTZ = async () => {
   step.value = 2
   loading.value = true
   
@@ -167,16 +228,16 @@ const generateTZ = async () => {
     
     if (res.data.status === 'success') {
       generatedTz.value = res.data.data.generated_tz
+      editableTz.value = res.data.data.generated_tz // Записываем результат AI в редактируемое поле
       step.value = 3
     } else {
       throw new Error('Ошибка генерации')
     }
   } catch (e) {
     console.error('TZ generation error:', e)
-    setTimeout(() => {
-      generatedTz.value = generateFallbackTZ()
-      step.value = 3
-    }, 1500)
+    // Фоллбэк, если AI упал
+    editableTz.value = generateFallbackTZ()
+    step.value = 3
   } finally {
     loading.value = false
   }
@@ -202,22 +263,25 @@ const createOrder = async () => {
   creating.value = true
   
   try {
+    // 1. Создаем комнату чата
     const chatRes = await axios.post('/api/chat/rooms/create_room/', {
       user2_id: props.service.owner_id
     })
     
     const chatRoomId = chatRes.data.data.id
 
+    // 2. Предлагаем сделку (отправляем editableTz — то, что в итоге подтвердил юзер)
     await axios.post('/api/market/deals/propose/', {
       chat_room_id: chatRoomId,
       title: props.service.title,
-      description: generatedTz.value,
+      description: editableTz.value,
       price: props.service.price
     })
     
     alert('🎉 Предложение сделки отправлено исполнителю!')
     emit('close')
 
+    // 3. Переходим в чат
     router.push(`/chats/${chatRoomId}`)
     
   } catch (e) {

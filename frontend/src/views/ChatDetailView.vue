@@ -1,58 +1,52 @@
 <template>
-  <div class="h-[calc(100vh-150px)] flex flex-col max-w-5xl mx-auto pt-4 pb-2 px-4">
+  <!-- Desktop: двухколоночный layout -->
+  <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
-    <div class="glass px-6 py-3 rounded-[24px] flex items-center gap-4 mb-3 border border-white/60 shadow-sm shrink-0">
-      <button 
-        @click="$router.push('/chats')" 
-        class="w-9 h-9 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 text-[#1a1a2e] transition-all font-bold"
-      >
-        ←
-      </button>
-      
-      <div class="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
-        <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
-        <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
-      </div>
-      
-      <div class="flex-1">
-        <h2 class="text-lg font-bold text-[#1a1a2e]">
-          {{ partner ? partner.name : 'Загрузка...' }}
-        </h2>
-      </div>
-    </div>
-
-    <div 
-      ref="messagesContainer"
-      class="flex-1 glass rounded-[32px] p-6 overflow-y-auto space-y-4 mb-3 border border-white/40 scroll-smooth"
-    >
-      <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
-        <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
+    <!-- Левая часть: Чат -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Шапка чата -->
+      <div class="glass px-6 py-3 rounded-[24px] flex items-center gap-4 mb-3 border border-white/60 shadow-sm shrink-0">
+        <button 
+          @click="$router.push('/chats')" 
+          class="w-9 h-9 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 text-[#1a1a2e] transition-all font-bold"
+        >
+          ←
+        </button>
+        
+        <div class="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
+          <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
+          <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
+        </div>
+        
+        <div class="flex-1">
+          <h2 class="text-lg font-bold text-[#1a1a2e]">
+            {{ partner ? partner.name : 'Загрузка...' }}
+          </h2>
+        </div>
       </div>
 
-      <div v-else-if="messages.length === 0" class="text-center py-20 text-gray-400">
-        <div class="text-5xl mb-3 opacity-30">👋</div>
-        <p class="text-sm font-medium">Начните диалог или предложите сделку</p>
-      </div>
-
+      <!-- История сообщений (ТОЛЬКО текстовые) -->
       <div 
-        v-for="msg in messages" 
-        :key="msg.id" 
-        class="animate-scale-in"
+        ref="messagesContainer"
+        class="flex-1 glass rounded-[32px] p-6 overflow-y-auto space-y-4 mb-3 border border-white/40 scroll-smooth"
       >
-        <DealMessage 
-          v-if="msg.message_type !== 'text'"
-          :message="msg"
-          :deal-data="msg.deal_data"
-          @deal-action="refreshMessages"
-        />
+        <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
+          <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
+        </div>
+
+        <div v-else-if="textMessages.length === 0" class="text-center py-20 text-gray-400">
+          <div class="text-5xl mb-3 opacity-30">👋</div>
+          <p class="text-sm font-medium">Начните диалог</p>
+        </div>
 
         <div 
-          v-else
-          class="flex flex-col"
+          v-for="msg in textMessages" 
+          :key="msg.id" 
+          class="animate-scale-in flex flex-col"
           :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
         >
           <div 
-            class="max-w-[85%] md:max-w-[70%] px-5 py-3 text-[15px] leading-relaxed shadow-sm"
+            class="max-w-[75%] px-5 py-3 text-[15px] leading-relaxed shadow-sm"
             :class="isMyMessage(msg) 
               ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
@@ -68,90 +62,233 @@
           </div>
         </div>
       </div>
+
+      <!-- Поле ввода -->
+      <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
+        <input 
+          v-model="newMessage" 
+          @keydown.enter="sendMessage"
+          type="text" 
+          placeholder="Напишите сообщение..." 
+          class="flex-1 bg-transparent border-none outline-none px-6 py-3.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-[15px]"
+        >
+        <button 
+          @click="sendMessage"
+          :disabled="!newMessage.trim() || !isConnected"
+          class="w-12 h-12 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] hover:scale-105 transition-all disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+          </svg>
+        </button>
+      </div>
     </div>
 
-    <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
-      <input 
-        v-model="newMessage" 
-        @keydown.enter="sendMessage"
-        type="text" 
-        placeholder="Напишите сообщение..." 
-        class="flex-1 bg-transparent border-none outline-none px-6 py-3.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-[15px]"
-      >
+    <!-- Правая часть: Карточка заказа (если есть) -->
+    <div v-if="activeDeal" class="w-96 shrink-0">
+      <DealMessage 
+        :message="dealMessage"
+        :deal-data="activeDeal"
+        @deal-action="refreshMessages"
+        @edit-deal="showDealModal = true"
+        sidebar-mode
+      />
+    </div>
+    <div v-else class="w-96 shrink-0 glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center">
+      <div class="text-5xl mb-3 opacity-30">📋</div>
+      <p class="text-sm text-gray-500 mb-4">Заказ еще не создан</p>
       <button 
-        @click="sendMessage"
-        :disabled="!newMessage.trim() || !isConnected"
-        class="w-12 h-12 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] hover:scale-105 transition-all disabled:opacity-50"
+        @click="showDealModal = true"
+        class="bg-[#7000ff] text-white px-6 py-2 rounded-xl font-bold hover:bg-[#5500cc] transition-colors"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-        </svg>
+        + Создать заказ
       </button>
     </div>
 
-    <teleport to="body">
-      <div v-if="showDealModal" class="fixed inset-0 bg-black/30 z-[200] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-          
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-2xl font-bold text-[#1a1a2e]">
-              Новая сделка
-            </h3>
-            <button @click="showDealModal = false" class="text-3xl text-gray-400 hover:text-gray-600">×</button>
-          </div>
+  </div>
 
-          <div class="space-y-4 mb-6">
-            <div>
-              <label class="block text-sm font-bold mb-2 text-gray-700">Название</label>
-              <input 
-                v-model="dealForm.title" 
-                class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-              >
-            </div>
+  <!-- Mobile: стандартный вид с переключением -->
+  <div class="md:hidden h-[calc(100vh-150px)] flex flex-col px-4 pt-4 pb-2">
+    
+    <!-- Шапка с переключателем -->
+    <div class="glass px-4 py-3 rounded-[24px] flex items-center gap-3 mb-3 border border-white/60 shadow-sm shrink-0">
+      <button 
+        @click="$router.push('/chats')" 
+        class="w-9 h-9 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 text-[#1a1a2e] transition-all font-bold"
+      >
+        ←
+      </button>
+      
+      <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
+        <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
+        <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
+      </div>
+      
+      <div class="flex-1 min-w-0">
+        <h2 class="text-base font-bold text-[#1a1a2e] truncate">
+          {{ partner ? partner.name : 'Загрузка...' }}
+        </h2>
+      </div>
+
+      <!-- Кнопка переключения на заказ (если есть) -->
+      <button 
+        v-if="activeDeal"
+        @click="mobileShowDeal = !mobileShowDeal"
+        class="w-9 h-9 flex items-center justify-center rounded-full transition-all font-bold"
+        :class="mobileShowDeal ? 'bg-[#7000ff] text-white' : 'bg-white/40 text-[#1a1a2e]'"
+      >
+        📋
+      </button>
+    </div>
+
+    <!-- Контент: чат или заказ -->
+    <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0">
+      <!-- Сообщения -->
+      <div 
+        ref="messagesContainer"
+        class="flex-1 glass rounded-[32px] p-4 overflow-y-auto space-y-3 mb-3 border border-white/40 scroll-smooth"
+      >
+        <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
+          <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
+        </div>
+
+        <div v-else-if="textMessages.length === 0" class="text-center py-20 text-gray-400">
+          <div class="text-5xl mb-3 opacity-30">👋</div>
+          <p class="text-sm font-medium">Начните диалог</p>
+        </div>
+
+        <div 
+          v-for="msg in textMessages" 
+          :key="msg.id" 
+          class="animate-scale-in flex flex-col"
+          :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
+        >
+          <div 
+            class="max-w-[85%] px-4 py-2.5 text-sm leading-relaxed shadow-sm"
+            :class="isMyMessage(msg) 
+              ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
+              : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
+          >
+            <div class="whitespace-pre-wrap">{{ msg.text }}</div>
             
-            <div>
-              <label class="block text-sm font-bold mb-2 text-gray-700">Цена (₽)</label>
-              <input 
-                v-model="dealForm.price" 
-                type="number"
-                class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-              >
+            <div 
+              class="text-[9px] mt-1 font-medium opacity-60 text-right"
+              :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
+            >
+              {{ formatTime(msg.created_at) }}
             </div>
-            
-            <div>
-              <label class="block text-sm font-bold mb-2 text-gray-700">Техническое задание</label>
-              <textarea 
-                v-model="dealForm.description" 
-                rows="6"
-                class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-              ></textarea>
-            </div>
-
-            <div v-if="dealForm.price" class="bg-purple-50 rounded-xl p-4 border border-purple-200">
-              <div class="text-sm space-y-1">
-                <div class="flex justify-between">
-                  <span>Стоимость: {{ dealForm.price }}₽</span>
-                </div>
-                <div class="flex justify-between pt-2 border-t border-purple-300">
-                  <span class="font-bold">Итого: {{ (parseFloat(dealForm.price) * 1.08).toFixed(2) }}₽</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-3">
-            <button @click="showDealModal = false" class="flex-1 border-2 py-3 rounded-xl font-bold">Отмена</button>
-            <button @click="proposeDeal" :disabled="proposing" class="flex-1 bg-[#1a1a2e] text-white py-3 rounded-xl font-bold">Предложить</button>
           </div>
         </div>
       </div>
-    </teleport>
+
+      <!-- Поле ввода -->
+      <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
+        <input 
+          v-model="newMessage" 
+          @keydown.enter="sendMessage"
+          type="text" 
+          placeholder="Сообщение..." 
+          class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm"
+        >
+        <button 
+          @click="sendMessage"
+          :disabled="!newMessage.trim() || !isConnected"
+          class="w-11 h-11 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] transition-all disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile: Карточка заказа -->
+    <div v-else class="flex-1 overflow-y-auto">
+      <DealMessage 
+        v-if="activeDeal"
+        :message="dealMessage"
+        :deal-data="activeDeal"
+        @deal-action="refreshMessages"
+        @edit-deal="showDealModal = true"
+        sidebar-mode
+      />
+      <div v-else class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
+        <div class="text-5xl mb-3 opacity-30">📋</div>
+        <p class="text-sm text-gray-500 mb-4">Заказ еще не создан</p>
+        <button 
+          @click="showDealModal = true; mobileShowDeal = false"
+          class="bg-[#7000ff] text-white px-6 py-2 rounded-xl font-bold"
+        >
+          + Создать заказ
+        </button>
+      </div>
+    </div>
 
   </div>
+
+  <!-- Модалка создания/редактирования заказа -->
+  <teleport to="body">
+    <div v-if="showDealModal" class="fixed inset-0 bg-black/30 z-[200] flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+        
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-2xl font-bold text-[#1a1a2e]">
+            Новая сделка
+          </h3>
+          <button @click="showDealModal = false" class="text-3xl text-gray-400 hover:text-gray-600">×</button>
+        </div>
+
+        <div class="space-y-4 mb-6">
+          <div>
+            <label class="block text-sm font-bold mb-2 text-gray-700">Название</label>
+            <input 
+              v-model="dealForm.title" 
+              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
+            >
+          </div>
+          
+          <div>
+            <label class="block text-sm font-bold mb-2 text-gray-700">Цена (₽)</label>
+            <input 
+              v-model="dealForm.price" 
+              type="number"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
+            >
+          </div>
+          
+          <div>
+            <label class="block text-sm font-bold mb-2 text-gray-700">Техническое задание</label>
+            <textarea 
+              v-model="dealForm.description" 
+              rows="6"
+              class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
+            ></textarea>
+          </div>
+
+          <div v-if="dealForm.price" class="bg-purple-50 rounded-xl p-4 border border-purple-200">
+            <div class="text-sm space-y-1">
+              <div class="flex justify-between">
+                <span>Стоимость: {{ dealForm.price }}₽</span>
+              </div>
+              <div class="flex justify-between pt-2 border-t border-purple-300">
+                <span class="font-bold">Итого: {{ (parseFloat(dealForm.price) * 1.08).toFixed(2) }}₽</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button @click="showDealModal = false" class="flex-1 border-2 py-3 rounded-xl font-bold">Отмена</button>
+          <button @click="proposeDeal" :disabled="proposing" class="flex-1 bg-[#1a1a2e] text-white py-3 rounded-xl font-bold">Предложить</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
@@ -167,10 +304,30 @@ const isConnected = ref(false)
 const partner = ref(null)
 const showDealModal = ref(false)
 const proposing = ref(false)
+const mobileShowDeal = ref(false)
 let socket = null
 const roomId = route.params.id
 
 const dealForm = ref({ title: '', description: '', price: '' })
+
+// ✅ Вычисляем только ТЕКСТОВЫЕ сообщения
+const textMessages = computed(() => {
+  return messages.value.filter(m => m.message_type === 'text')
+})
+
+// ✅ Находим АКТИВНЫЙ заказ (последнее deal-сообщение)
+const activeDeal = computed(() => {
+  const dealMessages = messages.value.filter(m => m.message_type !== 'text')
+  if (dealMessages.length === 0) return null
+  return dealMessages[dealMessages.length - 1].deal_data
+})
+
+// ✅ Сообщение для карточки (нужно для emit событий)
+const dealMessage = computed(() => {
+  const dealMessages = messages.value.filter(m => m.message_type !== 'text')
+  if (dealMessages.length === 0) return null
+  return dealMessages[dealMessages.length - 1]
+})
 
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
