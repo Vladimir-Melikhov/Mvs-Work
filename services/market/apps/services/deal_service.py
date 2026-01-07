@@ -188,6 +188,7 @@ class DealService:
     def deliver_work(deal: Deal, worker_id: str, delivery_message: str, auth_token: str):
         """
         Воркер сдает работу на проверку.
+        ✅ ИСПРАВЛЕНО: Теперь также отправляет результат в чат как текстовое сообщение
         """
         if str(worker_id) != str(deal.worker_id):
             raise ValueError("❌ Сдать работу может только исполнитель")
@@ -205,6 +206,15 @@ class DealService:
         })
         deal.save()
         
+        # ✅ Отправляем результат работы в чат как обычное сообщение
+        DealService._send_text_message(
+            chat_room_id=deal.chat_room_id,
+            sender_id=worker_id,
+            text=f"📦 **РЕЗУЛЬТАТ РАБОТЫ**\n\n{delivery_message}",
+            auth_token=auth_token
+        )
+        
+        # Обновляем карточку заказа
         DealService._send_deal_card(deal, worker_id, 'delivered', auth_token)
         
         return deal
@@ -349,6 +359,35 @@ class DealService:
         return deal
     
     # ============================================================
+    # HELPER: Отправка текстового сообщения в чат
+    # ============================================================
+    
+    @staticmethod
+    def _send_text_message(chat_room_id: str, sender_id: str, text: str, auth_token: str):
+        """
+        ✅ НОВЫЙ метод: Отправляет обычное текстовое сообщение в чат
+        """
+        try:
+            url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{chat_room_id}/send_deal_message/"
+            
+            payload = {
+                'sender_id': str(sender_id),
+                'message_type': 'text',
+                'text': text,
+                'deal_data': None
+            }
+            
+            headers = {
+                'Authorization': f'Bearer {auth_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            requests.post(url, headers=headers, json=payload, timeout=5)
+            
+        except Exception as e:
+            print(f"🔥 Error sending text message: {e}")
+    
+    # ============================================================
     # HELPER: Отправка интерактивной карточки в чат
     # ============================================================
     
@@ -379,6 +418,7 @@ class DealService:
                 'payment_completed': deal.payment_completed,
                 'revision_count': deal.revision_count,
                 'max_revisions': deal.max_revisions,
+                'delivery_message': deal.delivery_message or '',
                 'can_edit': deal.can_edit_terms(),
                 'can_pay': deal.can_pay(),
                 'can_deliver': deal.can_deliver(),
