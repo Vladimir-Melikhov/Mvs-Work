@@ -25,7 +25,6 @@
         </div>
       </div>
 
-      <!-- История сообщений (ТОЛЬКО текстовые) -->
       <div 
         ref="messagesContainer"
         class="flex-1 glass rounded-[32px] p-6 overflow-y-auto space-y-4 mb-3 border border-white/40 scroll-smooth"
@@ -63,7 +62,6 @@
         </div>
       </div>
 
-      <!-- Поле ввода -->
       <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
         <input 
           v-model="newMessage" 
@@ -84,17 +82,10 @@
       </div>
     </div>
 
-    <!-- Правая часть: Список заказов -->
     <div class="w-96 shrink-0 flex flex-col">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
-        <button 
-          @click="showDealModal = true"
-          class="bg-[#7000ff] text-white px-6 py-2 rounded-xl font-bold hover:bg-[#5500cc] transition-colors"
-        >
-          + Создать заказ
-        </button>
       </div>
 
       <div v-else class="flex flex-col gap-3 overflow-y-auto">
@@ -103,7 +94,6 @@
           :key="deal.deal_id"
           class="glass rounded-[24px] border border-white/40 overflow-hidden"
         >
-          <!-- Заголовок с кнопкой раскрытия -->
           <div 
             @click="toggleDeal(index)"
             class="p-4 cursor-pointer hover:bg-white/20 transition-all flex items-center justify-between"
@@ -127,7 +117,6 @@
             </div>
           </div>
 
-          <!-- Раскрывающееся содержимое -->
           <div 
             v-if="expandedDealIndex === index"
             class="border-t border-white/20"
@@ -136,31 +125,17 @@
               :message="dealMessages.find(m => m.deal_data?.deal_id === deal.deal_id)"
               :deal-data="deal"
               @deal-action="refreshMessages"
-              @edit-deal="showDealModal = true"
               sidebar-mode
             />
           </div>
         </div>
-
-        <!-- Кнопка добавить новый заказ -->
-        <button 
-          @click="showDealModal = true"
-          class="glass rounded-[24px] p-4 border border-white/40 hover:bg-white/20 transition-all flex items-center justify-center gap-2 text-[#7000ff] font-bold"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Создать новый заказ
-        </button>
       </div>
     </div>
 
   </div>
 
-  <!-- Mobile: стандартный вид с переключением -->
   <div class="md:hidden h-[calc(100vh-150px)] flex flex-col px-4 pt-4 pb-2">
     
-    <!-- Шапка с переключателем -->
     <div class="glass px-4 py-3 rounded-[24px] flex items-center gap-3 mb-3 border border-white/60 shadow-sm shrink-0">
       <button 
         @click="$router.push('/chats')" 
@@ -180,7 +155,6 @@
         </h2>
       </div>
 
-      <!-- Кнопка переключения на заказы -->
       <button 
         v-if="activeDeals.length > 0"
         @click="mobileShowDeal = !mobileShowDeal"
@@ -194,9 +168,7 @@
       </button>
     </div>
 
-    <!-- Контент: чат или заказы -->
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0">
-      <!-- Сообщения -->
       <div 
         ref="messagesContainer"
         class="flex-1 glass rounded-[32px] p-4 overflow-y-auto space-y-3 mb-3 border border-white/40 scroll-smooth"
@@ -260,12 +232,6 @@
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
-        <button 
-          @click="showDealModal = true; mobileShowDeal = false"
-          class="bg-[#7000ff] text-white px-6 py-2 rounded-xl font-bold"
-        >
-          + Создать заказ
-        </button>
       </div>
 
       <div v-else>
@@ -305,85 +271,14 @@
               :message="dealMessages.find(m => m.deal_data?.deal_id === deal.deal_id)"
               :deal-data="deal"
               @deal-action="refreshMessages"
-              @edit-deal="showDealModal = true"
               sidebar-mode
             />
           </div>
         </div>
-
-        <button 
-          @click="showDealModal = true; mobileShowDeal = false"
-          class="glass rounded-[24px] p-4 border border-white/40 hover:bg-white/20 transition-all flex items-center justify-center gap-2 text-[#7000ff] font-bold w-full"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Создать новый заказ
-        </button>
       </div>
     </div>
 
   </div>
-
-  <!-- Модалка создания заказа -->
-  <teleport to="body">
-    <div v-if="showDealModal" class="fixed inset-0 bg-black/30 z-[200] flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-        
-        <div class="flex items-center justify-between mb-6">
-          <h3 class="text-2xl font-bold text-[#1a1a2e]">
-            Новая сделка
-          </h3>
-          <button @click="showDealModal = false" class="text-3xl text-gray-400 hover:text-gray-600">×</button>
-        </div>
-
-        <div class="space-y-4 mb-6">
-          <div>
-            <label class="block text-sm font-bold mb-2 text-gray-700">Название</label>
-            <input 
-              v-model="dealForm.title" 
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-            >
-          </div>
-          
-          <div>
-            <label class="block text-sm font-bold mb-2 text-gray-700">Цена (₽)</label>
-            <input 
-              v-model="dealForm.price" 
-              type="number"
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-            >
-          </div>
-          
-          <div>
-            <label class="block text-sm font-bold mb-2 text-gray-700">Техническое задание</label>
-            <textarea 
-              v-model="dealForm.description" 
-              rows="6"
-              class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/30"
-            ></textarea>
-          </div>
-
-          <div v-if="dealForm.price" class="bg-purple-50 rounded-xl p-4 border border-purple-200">
-            <div class="text-sm space-y-1">
-              <div class="flex justify-between">
-                <span>Стоимость: {{ dealForm.price }}₽</span>
-              </div>
-              <div class="flex justify-between pt-2 border-t border-purple-300">
-                <span class="font-bold">Итого: {{ (parseFloat(dealForm.price) * 1.08).toFixed(2) }}₽</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex gap-3">
-          <button @click="showDealModal = false" class="flex-1 border-2 py-3 rounded-xl font-bold">Отмена</button>
-          <button @click="proposeDeal" :disabled="proposing" class="flex-1 bg-[#1a1a2e] text-white py-3 rounded-xl font-bold">Предложить</button>
-        </div>
-      </div>
-    </div>
-  </teleport>
-
 </template>
 
 <script setup>
@@ -401,26 +296,22 @@ const newMessage = ref('')
 const loading = ref(true)
 const isConnected = ref(false)
 const partner = ref(null)
-const showDealModal = ref(false)
-const proposing = ref(false)
 const mobileShowDeal = ref(false)
-const expandedDealIndex = ref(0) // Первый заказ раскрыт по умолчанию
+const expandedDealIndex = ref(0)
 let socket = null
 const roomId = route.params.id
 
-const dealForm = ref({ title: '', description: '', price: '' })
-
-// ✅ Вычисляем только ТЕКСТОВЫЕ сообщения
+// Вычисляем только ТЕКСТОВЫЕ сообщения
 const textMessages = computed(() => {
   return messages.value.filter(m => m.message_type === 'text')
 })
 
-// ✅ Все deal-сообщения (может быть несколько)
+// Все deal-сообщения
 const dealMessages = computed(() => {
   return messages.value.filter(m => m.message_type !== 'text')
 })
 
-// ✅ Все активные заказы (берем deal_data из каждого deal-сообщения)
+// Все активные заказы
 const activeDeals = computed(() => {
   return dealMessages.value
     .map(m => m.deal_data)
@@ -434,9 +325,8 @@ const getInitials = (name) => name ? name.substring(0, 1).toUpperCase() : 'U'
 
 const getStatusLabel = (status) => {
   const labels = {
-    'draft': 'Черновик',
-    'pending_payment': 'Ожидает оплаты',
-    'in_progress': 'В работе',
+    'pending': 'Ожидает оплаты',
+    'paid': 'В работе',
     'delivered': 'Сдано',
     'completed': 'Завершено',
     'cancelled': 'Отменено',
@@ -495,15 +385,6 @@ const sendMessage = () => {
   if (!newMessage.value.trim() || !isConnected.value) return
   socket.send(JSON.stringify({ type: 'message', sender_id: auth.user.id, text: newMessage.value }))
   newMessage.value = ''
-}
-
-const proposeDeal = async () => {
-  proposing.value = true
-  try {
-    await axios.post('/api/market/deals/propose/', { chat_room_id: roomId, ...dealForm.value })
-    showDealModal.value = false
-    refreshMessages()
-  } catch (e) { alert(e.message) } finally { proposing.value = false }
 }
 
 onMounted(() => {

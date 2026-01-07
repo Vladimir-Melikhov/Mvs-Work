@@ -51,7 +51,6 @@
             ></textarea>
           </label>
 
-          <!-- ✅ ЧЕКБОКС AI-ГЕНЕРАЦИИ -->
           <label class="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
             <input 
               type="checkbox" 
@@ -63,14 +62,14 @@
                 ✨ Использовать AI для создания ТЗ
               </div>
               <div class="text-xs text-gray-600">
-                Нейросеть структурирует ваше описание в профессиональное техническое задание с учетом требований исполнителя
+                Нейросеть структурирует ваше описание в профессиональное техническое задание
               </div>
             </div>
           </label>
 
           <div v-if="!useAI" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
             <div class="font-bold mb-1">⚠️ Без AI:</div>
-            <div>Ваш текст будет отправлен "как есть" без структурирования. Убедитесь, что все важные детали указаны.</div>
+            <div>Ваш текст будет отправлен "как есть" без структурирования.</div>
           </div>
         </div>
 
@@ -113,7 +112,6 @@
           </div>
         </div>
 
-        <!-- ✅ РЕДАКТИРУЕМОЕ ТЗ -->
         <div class="mb-6">
           <div class="flex items-center justify-between mb-2">
             <label class="text-sm font-bold text-gray-700">Техническое задание</label>
@@ -133,14 +131,12 @@
             </button>
           </div>
 
-          <!-- Режим просмотра -->
           <div v-if="!editing" class="bg-gray-50 border border-gray-200 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
             <div class="prose prose-sm max-w-none">
               <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed"></div>
             </div>
           </div>
 
-          <!-- Режим редактирования -->
           <textarea 
             v-else
             v-model="editableTz"
@@ -154,7 +150,7 @@
             <div class="text-xl">⚠️</div>
             <div class="text-sm text-amber-800">
               <div class="font-bold mb-1">Важно:</div>
-              <div>Внимательно проверьте ТЗ перед подтверждением. После создания заказа изменить условия можно будет только по согласованию с исполнителем.</div>
+              <div>Внимательно проверьте ТЗ перед подтверждением. После оплаты изменить условия будет нельзя.</div>
             </div>
           </div>
         </div>
@@ -196,9 +192,9 @@ const emit = defineEmits(['close'])
 const step = ref(1)
 const requirements = ref('')
 const generatedTz = ref('')
-const editableTz = ref('')  // ✅ Редактируемая версия ТЗ
-const editing = ref(false)  // ✅ Режим редактирования
-const useAI = ref(true)     // ✅ Чекбокс AI (по умолчанию включен)
+const editableTz = ref('')
+const editing = ref(false)
+const useAI = ref(true)
 const loading = ref(false)
 const creating = ref(false)
 
@@ -213,10 +209,8 @@ const handleNext = async () => {
   if (!requirements.value.trim()) return
   
   if (useAI.value) {
-    // С AI — генерируем ТЗ
     await generateTZ()
   } else {
-    // Без AI — используем текст как есть
     editableTz.value = requirements.value
     step.value = 3
   }
@@ -234,14 +228,13 @@ const generateTZ = async () => {
     
     if (res.data.status === 'success') {
       generatedTz.value = res.data.data.generated_tz
-      editableTz.value = res.data.data.generated_tz  // ✅ Копируем в редактируемое поле
+      editableTz.value = res.data.data.generated_tz
       step.value = 3
     } else {
       throw new Error('Ошибка генерации')
     }
   } catch (e) {
     console.error('TZ generation error:', e)
-    // Фоллбэк
     editableTz.value = generateFallbackTZ()
     step.value = 3
   } finally {
@@ -269,45 +262,37 @@ const createOrder = async () => {
   creating.value = true
   
   try {
+    // Создаём или получаем чат
     const chatRes = await axios.post('/api/chat/rooms/create_room/', {
       user2_id: props.service.owner_id
     })
     
     const chatRoomId = chatRes.data.data.id
 
-    // ✅ СНАЧАЛА отправляем ТЗ в чат как текстовое сообщение
-    try {
-      await axios.post(`/api/chat/rooms/${chatRoomId}/messages/`, {
-        text: `📋 **ТЕХНИЧЕСКОЕ ЗАДАНИЕ**\n\n${editableTz.value}`,
-        message_type: 'text'
-      })
-    } catch (msgError) {
-      console.warn('ТЗ не отправлено:', msgError)
-    }
-
-    // Затем создаем карточку сделки
-    await axios.post('/api/market/deals/propose/', {
+    // Создаём заказ
+    await axios.post('/api/market/deals/create/', {
       chat_room_id: chatRoomId,
       title: props.service.title,
       description: editableTz.value,
       price: props.service.price
     })
     
-    alert('🎉 Предложение сделки отправлено исполнителю!')
+    alert('🎉 Заказ создан! Переходим в чат.')
     emit('close')
-
     router.push(`/chats/${chatRoomId}`)
     
   } catch (e) {
     console.error('Order creation error:', e)
     let errorMsg = 'Ошибка создания заказа.'
-    if (e.response && e.response.data) {
-        if (typeof e.response.data.error === 'string') {
-            errorMsg = e.response.data.error
-        } else if (typeof e.response.data.error === 'object') {
-            errorMsg = JSON.stringify(e.response.data.error)
-        }
+    
+    if (e.response?.data?.error) {
+      if (typeof e.response.data.error === 'string') {
+        errorMsg = e.response.data.error
+      } else if (typeof e.response.data.error === 'object') {
+        errorMsg = JSON.stringify(e.response.data.error)
+      }
     }
+    
     alert('❌ ' + errorMsg)
   } finally {
     creating.value = false
