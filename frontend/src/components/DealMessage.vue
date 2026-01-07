@@ -138,9 +138,9 @@
                 :key="star"
                 @click="rating = star"
                 class="text-3xl transition-transform hover:scale-110"
-                :class="star <= rating ? 'text-yellow-400' : 'text-gray-300'"
               >
-                ⭐
+                <span v-if="star <= rating" class="text-yellow-400">⭐</span>
+                <span v-else class="text-gray-300">⭐</span>
               </button>
             </div>
           </div>

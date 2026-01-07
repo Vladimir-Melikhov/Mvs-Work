@@ -66,6 +66,23 @@
               {{ user?.profile?.company_name || user?.profile?.full_name || user?.email }}
             </h1>
             
+            <!-- ✅ НОВОЕ: Рейтинг для воркеров -->
+            <div v-if="isWorker && workerRating > 0" class="flex items-center gap-2 mt-2 justify-center md:justify-start">
+              <div class="flex">
+                <span 
+                  v-for="star in 5" 
+                  :key="star"
+                  class="text-lg"
+                  :class="star <= Math.round(workerRating) ? 'text-yellow-400' : 'text-gray-300'"
+                >
+                  ⭐
+                </span>
+              </div>
+              <div class="text-sm text-gray-600">
+                <span class="font-bold">{{ workerRating.toFixed(1) }}</span> ({{ totalReviews }} отзывов)
+              </div>
+            </div>
+            
             <a v-if="user?.profile?.company_website" :href="user.profile.company_website" target="_blank" class="text-sm text-gray-500 hover:text-[#7000ff] block mt-1 transition-colors">
               {{ user.profile.company_website.replace('https://', '') }}
             </a>
@@ -179,6 +196,11 @@
       <DealsHistory />
     </div>
 
+    <!-- ✅ НОВОЕ: Секция отзывов -->
+    <div v-if="isWorker" class="mt-8 animate-fade-in">
+      <ReviewsSection :worker-id="String(user.id)" @reviews-loaded="onReviewsLoaded" />
+    </div>
+
     <button 
       @click="handleLogout" 
       class="mt-12 mx-auto block text-gray-400 hover:text-red-500 text-sm font-bold transition-colors opacity-60 hover:opacity-100"
@@ -194,6 +216,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import DealsHistory from '../components/DealsHistory.vue'
+import ReviewsSection from '../components/ReviewsSection.vue' // ✅ НОВЫЙ ИМПОРТ
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -207,6 +230,10 @@ const editForm = ref({})
 
 const myServices = ref([])
 const loadingServices = ref(false)
+
+// ✅ НОВОЕ: Рейтинг воркера
+const workerRating = ref(0)
+const totalReviews = ref(0)
 
 const userInitials = computed(() => user.value?.email?.substring(0, 2).toUpperCase() || 'ME')
 
@@ -253,6 +280,12 @@ const fetchMyServices = async () => {
   } finally {
     loadingServices.value = false
   }
+}
+
+// ✅ НОВОЕ: Обработчик загрузки отзывов
+const onReviewsLoaded = (data) => {
+  workerRating.value = data.averageRating
+  totalReviews.value = data.totalReviews
 }
 
 const handleLogout = () => {
