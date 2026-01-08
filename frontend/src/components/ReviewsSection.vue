@@ -8,9 +8,9 @@
               v-for="star in 5" 
               :key="star"
               class="text-2xl"
-              :class="star <= Math.round(averageRating) ? 'text-yellow-400' : 'text-gray-300'"
             >
-              ⭐
+              <span v-if="star <= Math.round(averageRating)" class="text-yellow-400">⭐</span>
+              <span v-else class="text-gray-300">☆</span>
             </span>
           </div>
           <div class="text-sm">
@@ -52,9 +52,9 @@
                 v-for="star in 5" 
                 :key="star"
                 class="text-lg"
-                :class="star <= review.rating ? 'text-yellow-400' : 'text-gray-300'"
               >
-                ⭐
+                <span v-if="star <= review.rating" class="text-yellow-400">⭐</span>
+                <span v-else class="text-gray-300">☆</span>
               </span>
             </div>
           </div>

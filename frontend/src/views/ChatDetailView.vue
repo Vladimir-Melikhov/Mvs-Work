@@ -82,13 +82,14 @@
       </div>
     </div>
 
-    <div class="w-96 shrink-0 flex flex-col">
-      <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
+    <!-- ✅ ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
+    <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
+      <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center min-h-[300px]">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
       </div>
 
-      <div v-else class="flex flex-col gap-3 overflow-y-auto">
+      <div v-else class="space-y-3 pb-4">
         <div 
           v-for="(deal, index) in activeDeals" 
           :key="deal.deal_id"
@@ -134,6 +135,7 @@
 
   </div>
 
+  <!-- MOBILE VERSION -->
   <div class="md:hidden h-[calc(100vh-150px)] flex flex-col px-4 pt-4 pb-2">
     
     <div class="glass px-4 py-3 rounded-[24px] flex items-center gap-3 mb-3 border border-white/60 shadow-sm shrink-0">
@@ -206,7 +208,6 @@
         </div>
       </div>
 
-      <!-- Поле ввода -->
       <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
         <input 
           v-model="newMessage" 
@@ -227,7 +228,6 @@
       </div>
     </div>
 
-    <!-- Mobile: Список заказов -->
     <div v-else class="flex-1 overflow-y-auto space-y-3">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
@@ -301,17 +301,14 @@ const expandedDealIndex = ref(0)
 let socket = null
 const roomId = route.params.id
 
-// Вычисляем только ТЕКСТОВЫЕ сообщения
 const textMessages = computed(() => {
   return messages.value.filter(m => m.message_type === 'text')
 })
 
-// Все deal-сообщения
 const dealMessages = computed(() => {
   return messages.value.filter(m => m.message_type !== 'text')
 })
 
-// Все активные заказы
 const activeDeals = computed(() => {
   return dealMessages.value
     .map(m => m.deal_data)
@@ -396,7 +393,35 @@ onUnmounted(() => { if (socket) socket.close() })
 </script>
 
 <style scoped>
-.glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(30px); }
-@keyframes scale-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-.animate-scale-in { animation: scale-in 0.15s ease forwards; }
+.glass { 
+  background: rgba(255, 255, 255, 0.7); 
+  backdrop-filter: blur(30px); 
+}
+
+@keyframes scale-in { 
+  from { opacity: 0; transform: scale(0.98); } 
+  to { opacity: 1; transform: scale(1); } 
+}
+
+.animate-scale-in { 
+  animation: scale-in 0.15s ease forwards; 
+}
+
+/* ✅ СТИЛИ СКРОЛЛБАРА для правой колонки */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(112, 0, 255, 0.3);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(112, 0, 255, 0.5);
+}
 </style>

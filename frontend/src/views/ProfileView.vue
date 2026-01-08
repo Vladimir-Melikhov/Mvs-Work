@@ -73,9 +73,9 @@
                   v-for="star in 5" 
                   :key="star"
                   class="text-lg"
-                  :class="star <= Math.round(workerRating) ? 'text-yellow-400' : 'text-gray-300'"
                 >
-                  ⭐
+                  <span v-if="star <= Math.round(workerRating)" class="text-yellow-400">⭐</span>
+                  <span v-else class="text-gray-300">☆</span>
                 </span>
               </div>
               <div class="text-sm text-gray-600">

@@ -1,13 +1,19 @@
 <template>
   <div 
-    :class="sidebarMode ? 'h-full' : 'deal-card-wrapper w-full flex justify-center my-6 px-4'"
+    :class="sidebarMode ? '' : 'deal-card-wrapper w-full flex justify-center my-6 px-4'"
   >
     <div 
       class="deal-card glass rounded-[32px] p-6 border-2 shadow-2xl"
-      :class="[borderColor, sidebarMode ? 'w-full h-full flex flex-col' : 'max-w-md w-full']"
+      :class="[
+        borderColor, 
+        sidebarMode 
+          ? 'w-full max-h-[500px] flex flex-col' 
+          : 'max-w-md w-full'
+      ]"
     >
       
-      <div class="flex items-center gap-3 mb-4">
+      <!-- Заголовок (НЕ прокручивается) -->
+      <div class="flex items-center gap-3 mb-4 shrink-0">
         <div class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl shadow-lg shrink-0" :class="statusIconBg">
           {{ statusIcon }}
         </div>
@@ -19,90 +25,101 @@
         </div>
       </div>
 
-      <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 mb-4 border border-purple-200 shrink-0">
-        <div class="space-y-1 text-sm">
-          <div class="flex justify-between">
-            <span class="text-gray-600">Стоимость работы:</span>
-            <span class="font-bold">{{ dealData.price }}₽</span>
+      <!-- ✅ ПРОКРУТКА: Только в sidebar режиме -->
+      <div 
+        :class="sidebarMode 
+          ? 'flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin min-h-0' 
+          : 'space-y-4'"
+      >
+
+        <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 border border-purple-200 shrink-0">
+          <div class="space-y-1 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Стоимость работы:</span>
+              <span class="font-bold">{{ dealData.price }}₽</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Комиссия сервиса (5%):</span>
+              <span class="font-bold">{{ dealData.commission }}₽</span>
+            </div>
+            <div class="flex justify-between pt-2 border-t border-purple-200">
+              <span class="font-bold">Итого к оплате:</span>
+              <span class="font-bold text-lg text-purple-600">{{ dealData.total }}₽</span>
+            </div>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Комиссия сервиса (5%):</span>
-            <span class="font-bold">{{ dealData.commission }}₽</span>
+        </div>
+
+        <!-- REVISION INFO -->
+        <div v-if="dealData.revision_count > 0" class="shrink-0">
+          <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
+            <span class="font-bold text-orange-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
           </div>
-          <div class="flex justify-between pt-2 border-t border-purple-200">
-            <span class="font-bold">Итого к оплате:</span>
-            <span class="font-bold text-lg text-purple-600">{{ dealData.total }}₽</span>
+        </div>
+
+        <!-- РЕЗУЛЬТАТ РАБОТЫ -->
+        <div v-if="dealData.status === 'delivered' && dealData.delivery_message" class="shrink-0">
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Результат работы</div>
+            <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
           </div>
         </div>
-      </div>
 
-      <!-- REVISION INFO -->
-      <div v-if="dealData.revision_count > 0" class="mb-4 shrink-0">
-        <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
-          <span class="font-bold text-orange-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
+        <!-- ЗАВЕРШЁННАЯ РАБОТА -->
+        <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="shrink-0">
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Работа завершена</div>
+            <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+          </div>
         </div>
-      </div>
 
-      <!-- РЕЗУЛЬТАТ РАБОТЫ -->
-      <div v-if="dealData.status === 'delivered' && dealData.delivery_message" class="mb-4 shrink-0">
-        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
-          <div class="text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Результат работы</div>
-          <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+        <!-- КНОПКИ -->
+        <div class="space-y-2 pb-2" :class="sidebarMode ? '' : 'mt-auto'">
+
+          <button 
+            v-if="showPayButton"
+            @click="payDeal"
+            :disabled="loading"
+            class="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          >
+            <span v-if="loading">Обработка...</span>
+            <span v-else>Оплатить заказ ({{ dealData.total }}₽)</span>
+          </button>
+
+          <button 
+            v-if="showDeliverButton"
+            @click="showDeliveryModal = true"
+            class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+          >
+            Сдать работу
+          </button>
+
+          <button 
+            v-if="showCompleteButton"
+            @click="showCompletionModal = true"
+            class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+          >
+            Принять работу и завершить
+          </button>
+
+          <button 
+            v-if="showRevisionButton"
+            @click="showRevisionModal = true"
+            class="w-full border-2 border-orange-300 text-orange-600 py-2 rounded-xl font-bold hover:bg-orange-50 transition-all"
+          >
+            Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
+          </button>
+
+          <button 
+            v-if="showCancelButton"
+            @click="showCancelModal = true"
+            class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all"
+          >
+            Отменить заказ
+          </button>
         </div>
+
       </div>
-
-      <!-- ЗАВЕРШЁННАЯ РАБОТА -->
-      <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="mb-4 shrink-0">
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Работа завершена</div>
-          <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
-        </div>
-      </div>
-
-      <div class="space-y-2" :class="sidebarMode ? 'mt-auto' : ''">
-
-        <button 
-          v-if="showPayButton"
-          @click="payDeal"
-          :disabled="loading"
-          class="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-        >
-          <span v-if="loading">Обработка...</span>
-          <span v-else>Оплатить заказ ({{ dealData.total }}₽)</span>
-        </button>
-
-        <button 
-          v-if="showDeliverButton"
-          @click="showDeliveryModal = true"
-          class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
-        >
-          Сдать работу
-        </button>
-
-        <button 
-          v-if="showCompleteButton"
-          @click="showCompletionModal = true"
-          class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
-        >
-          Принять работу и завершить
-        </button>
-
-        <button 
-          v-if="showRevisionButton"
-          @click="showRevisionModal = true"
-          class="w-full border-2 border-orange-300 text-orange-600 py-2 rounded-xl font-bold hover:bg-orange-50 transition-all"
-        >
-          Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
-        </button>
-
-        <button 
-          v-if="showCancelButton"
-          @click="showCancelModal = true"
-          class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all"
-        >
-          Отменить заказ
-        </button>
-      </div>
+      <!-- ✅ КОНЕЦ ПРОКРУТКИ -->
 
     </div>
 
@@ -133,6 +150,7 @@
           <div class="mb-4">
             <label class="block text-sm font-bold mb-2">Оценка работы</label>
             <div class="flex gap-2 justify-center">
+              <!-- ✅ ИСПРАВЛЕННЫЕ ЗВЁЗДЫ -->
               <button 
                 v-for="star in 5" 
                 :key="star"
@@ -140,7 +158,7 @@
                 class="text-3xl transition-transform hover:scale-110"
               >
                 <span v-if="star <= rating" class="text-yellow-400">⭐</span>
-                <span v-else class="text-gray-300">⭐</span>
+                <span v-else class="text-gray-300">☆</span>
               </button>
             </div>
           </div>
@@ -404,5 +422,23 @@ const cancelDeal = async () => {
 .glass {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
+}
+
+/* ✅ СТИЛИ СКРОЛЛБАРА - только для sidebar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(112, 0, 255, 0.3);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(112, 0, 255, 0.5);
 }
 </style>
