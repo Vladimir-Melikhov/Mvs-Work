@@ -150,6 +150,12 @@ class Deal(models.Model):
         """Можно ли отменить"""
         return self.status in ['pending', 'paid', 'delivered']
 
+    # ✅ НОВОЕ СВОЙСТВО
+    @property
+    def can_update_price(self) -> bool:
+        """Можно ли изменить цену (только исполнитель, только до оплаты)"""
+        return self.status == 'pending'
+
 
 class Transaction(models.Model):
     """Финансовая транзакция"""

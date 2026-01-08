@@ -197,6 +197,40 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
+    # ============================================================
+    # ✅ НОВЫЙ ENDPOINT: ИЗМЕНЕНИЕ ЦЕНЫ
+    # ============================================================
+    
+    @action(detail=True, methods=['patch'], url_path='update-price')
+    def update_price(self, request, pk=None):
+        """Изменить цену заказа (только исполнитель, только до оплаты)"""
+        try:
+            deal = Deal.objects.get(id=pk)
+            new_price = request.data.get('price')
+
+            if not new_price:
+                return Response({'error': 'Укажите новую цену'}, status=400)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.update_price(deal, str(request.user.id), new_price, token)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': f'Цена изменена на {new_price}₽'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    # ============================================================
+    # ОСТАЛЬНЫЕ ENDPOINTS БЕЗ ИЗМЕНЕНИЙ
+    # ============================================================
+
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
         """Оплатить заказ"""

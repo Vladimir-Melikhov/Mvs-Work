@@ -66,20 +66,36 @@
               {{ user?.profile?.company_name || user?.profile?.full_name || user?.email }}
             </h1>
             
-            <!-- ✅ НОВОЕ: Рейтинг для воркеров -->
-            <div v-if="isWorker && workerRating > 0" class="flex items-center gap-2 mt-2 justify-center md:justify-start">
-              <div class="flex">
-                <span 
-                  v-for="star in 5" 
-                  :key="star"
-                  class="text-lg"
-                >
-                  <span v-if="star <= Math.round(workerRating)" class="text-yellow-400">⭐</span>
-                  <span v-else class="text-gray-300">☆</span>
-                </span>
+            <div v-if="isWorker && workerRating > 0" class="flex items-center gap-3 mt-3 justify-center md:justify-start">
+              <div class="flex gap-1">
+                <div v-for="i in 5" :key="i" class="relative w-4 h-4">
+                  <svg class="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient :id="'grad-' + i">
+                        <stop offset="0%" stop-color="#7000ff" />
+                        <stop 
+                          :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" 
+                          stop-color="#7000ff" 
+                        />
+                        <stop 
+                          :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" 
+                          stop-color="#e5e7eb" 
+                        />
+                        <stop offset="100%" stop-color="#e5e7eb" />
+                      </linearGradient>
+                    </defs>
+                    <path 
+                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
+                      :fill="'url(#grad-' + i + ')'"
+                    />
+                  </svg>
+                </div>
               </div>
-              <div class="text-sm text-gray-600">
-                <span class="font-bold">{{ workerRating.toFixed(1) }}</span> ({{ totalReviews }} отзывов)
+              
+              <div class="text-xs font-bold text-gray-500 flex items-center gap-1">
+                <span class="text-[#1a1a2e] text-sm">{{ workerRating.toFixed(1) }}</span>
+                <span class="w-1 h-1 rounded-full bg-gray-300"></span>
+                <span>{{ totalReviews }} отзывов</span>
               </div>
             </div>
             
@@ -196,7 +212,6 @@
       <DealsHistory />
     </div>
 
-    <!-- ✅ НОВОЕ: Секция отзывов -->
     <div v-if="isWorker" class="mt-8 animate-fade-in">
       <ReviewsSection :worker-id="String(user.id)" @reviews-loaded="onReviewsLoaded" />
     </div>
@@ -216,7 +231,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import DealsHistory from '../components/DealsHistory.vue'
-import ReviewsSection from '../components/ReviewsSection.vue' // ✅ НОВЫЙ ИМПОРТ
+import ReviewsSection from '../components/ReviewsSection.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -231,7 +246,6 @@ const editForm = ref({})
 const myServices = ref([])
 const loadingServices = ref(false)
 
-// ✅ НОВОЕ: Рейтинг воркера
 const workerRating = ref(0)
 const totalReviews = ref(0)
 
@@ -282,10 +296,9 @@ const fetchMyServices = async () => {
   }
 }
 
-// ✅ НОВОЕ: Обработчик загрузки отзывов
 const onReviewsLoaded = (data) => {
-  workerRating.value = data.averageRating
-  totalReviews.value = data.totalReviews
+  workerRating.value = Number(data.averageRating) || 0
+  totalReviews.value = Number(data.totalReviews) || 0
 }
 
 const handleLogout = () => {

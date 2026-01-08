@@ -61,6 +61,46 @@ class DealService:
 
         return deal
 
+    # ============================================================
+    # ✅ НОВОЕ: ИЗМЕНЕНИЕ ЦЕНЫ
+    # ============================================================
+    
+    @staticmethod
+    @transaction.atomic
+    def update_price(deal: Deal, worker_id: str, new_price: Decimal, auth_token: str):
+        """
+        Изменить цену заказа (только исполнитель, только до оплаты)
+        """
+        if str(worker_id) != str(deal.worker_id):
+            raise ValueError("Изменить цену может только исполнитель")
+
+        if deal.status != 'pending':
+            raise ValueError(f"Нельзя изменить цену в статусе '{deal.status}'")
+
+        if new_price <= 0:
+            raise ValueError("Цена должна быть больше нуля")
+
+        old_price = deal.price
+        deal.price = new_price
+        deal.save()
+
+        # Отправляем уведомление в чат
+        DealService._send_text_message(
+            chat_room_id=deal.chat_room_id,
+            sender_id=worker_id,
+            text=f"💰 **ЦЕНА ИЗМЕНЕНА**\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
+            auth_token=auth_token
+        )
+
+        # Обновляем карточку заказа
+        DealService._send_deal_card(deal, worker_id, 'price_updated', auth_token)
+
+        return deal
+
+    # ============================================================
+    # ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
+    # ============================================================
+
     @staticmethod
     @transaction.atomic
     def pay_deal(deal: Deal, client_id: str, auth_token: str):
@@ -266,6 +306,7 @@ class DealService:
                 'can_request_revision': deal.can_request_revision,
                 'can_complete': deal.can_complete,
                 'can_cancel': deal.can_cancel,
+                'can_update_price': deal.can_update_price,  # ✅ НОВОЕ
             }
             
             message_texts = {
@@ -275,6 +316,7 @@ class DealService:
                 'revision': f'🔄 Запрошена доработка ({deal.revision_count}/{deal.max_revisions})',
                 'completed': '🎉 Заказ завершён!',
                 'cancelled': '❌ Заказ отменён',
+                'price_updated': f'💰 Цена изменена: {deal.price}₽',  # ✅ НОВОЕ
             }
             
             text = message_texts.get(action_type, '📋 Обновление заказа')

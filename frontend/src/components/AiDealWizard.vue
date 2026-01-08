@@ -6,10 +6,11 @@
         @click="$emit('close')" 
         class="absolute top-4 right-4 w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-colors flex items-center justify-center font-bold text-xl"
       >
-        ×
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
 
-      <!-- ШАГ 1: Ввод требований -->
       <div v-if="step === 1">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-12 h-12 rounded-full bg-transparent border-2 border-[#7000ff] flex items-center justify-center text-[#7000ff] text-xl font-bold">
@@ -23,7 +24,11 @@
 
         <div class="bg-[#7000ff]/5 rounded-2xl p-4 mb-6 border border-[#7000ff]/10">
           <div class="flex items-start gap-3">
-            <div class="text-2xl">📋</div>
+            <div class="text-[#7000ff] mt-1">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
             <div>
               <div class="font-bold text-[#1a1a2e] mb-1">Услуга: {{ service?.title }}</div>
               <div class="text-sm text-gray-600">Цена: <span class="font-bold text-[#7000ff]">{{ service?.price }}₽</span></div>
@@ -58,8 +63,11 @@
               class="mt-1 w-5 h-5 text-[#7000ff] rounded border-gray-300 focus:ring-2 focus:ring-[#7000ff]/20"
             >
             <div>
-              <div class="font-bold text-[#1a1a2e] mb-1">
-                ✨ Использовать AI для создания ТЗ
+              <div class="font-bold text-[#1a1a2e] mb-1 flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#7000ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Использовать AI для создания ТЗ
               </div>
               <div class="text-xs text-gray-600">
                 Нейросеть структурирует ваше описание в профессиональное техническое задание
@@ -68,7 +76,12 @@
           </label>
 
           <div v-if="!useAI" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-            <div class="font-bold mb-1">⚠️ Без AI:</div>
+            <div class="font-bold mb-1 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Без AI:
+            </div>
             <div>Ваш текст будет отправлен "как есть" без структурирования.</div>
           </div>
         </div>
@@ -78,17 +91,22 @@
           :disabled="!requirements.trim() || loading"
           class="w-full mt-6 bg-[#7000ff] hover:bg-[#5500cc] text-white py-4 rounded-xl font-bold shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
         >
-          <span v-if="loading">⏳ Генерируем...</span>
-          <span v-else-if="useAI">
-            <span class="text-xl">✨</span> Сгенерировать ТЗ с AI
+          <span v-if="loading" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          <span v-else-if="useAI" class="flex items-center gap-2 text-white">
+             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Сгенерировать ТЗ с AI
           </span>
-          <span v-else>
-            Далее →
+          <span v-else class="flex items-center gap-2">
+            Далее 
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
           </span>
         </button>
       </div>
 
-      <!-- ШАГ 2: AI генерирует -->
       <div v-if="step === 2" class="text-center py-20">
         <div class="relative w-24 h-24 mx-auto mb-6">
           <div class="absolute inset-0 border-2 border-[#7000ff] rounded-full animate-ping opacity-30"></div>
@@ -100,11 +118,12 @@
         <p class="text-gray-600">Генерируем структурированное техническое задание...</p>
       </div>
 
-      <!-- ШАГ 3: Показываем ТЗ + возможность редактирования -->
       <div v-if="step === 3">
         <div class="flex items-center gap-3 mb-6">
-          <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-2xl">
-            ✅
+          <div class="w-12 h-12 rounded-full bg-green-50 border border-green-100 flex items-center justify-center text-green-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
           </div>
           <div>
             <h2 class="text-2xl font-bold text-[#1a1a2e]">ТЗ готово!</h2>
@@ -120,20 +139,26 @@
               @click="editing = true" 
               class="text-xs font-bold text-[#7000ff] hover:underline flex items-center gap-1"
             >
-              <span>✏️</span> Редактировать
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Редактировать
             </button>
             <button 
               v-else
               @click="editing = false" 
               class="text-xs font-bold text-green-600 hover:underline flex items-center gap-1"
             >
-              <span>✅</span> Готово
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+              Готово
             </button>
           </div>
 
           <div v-if="!editing" class="bg-gray-50 border border-gray-200 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
             <div class="prose prose-sm max-w-none">
-              <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed"></div>
+              <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed text-[#1a1a2e]"></div>
             </div>
           </div>
 
@@ -147,7 +172,11 @@
 
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <div class="flex items-start gap-3">
-            <div class="text-xl">⚠️</div>
+            <div class="text-amber-600">
+               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
             <div class="text-sm text-amber-800">
               <div class="font-bold mb-1">Важно:</div>
               <div>Внимательно проверьте ТЗ перед подтверждением. После оплаты изменить условия будет нельзя.</div>
@@ -158,17 +187,25 @@
         <div class="flex gap-4">
           <button 
             @click="step = 1; editing = false" 
-            class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-gray-700"
+            class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-gray-700 flex items-center justify-center gap-2"
           >
-            ← Назад
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Назад
           </button>
           <button 
             @click="createOrder" 
             :disabled="creating"
-            class="flex-1 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 rounded-xl shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex-1 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 rounded-xl shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <span v-if="creating">⏳ Создаём заказ...</span>
-            <span v-else>🚀 Создать заказ</span>
+            <span v-if="creating" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <span v-else class="flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Создать заказ
+            </span>
           </button>
         </div>
       </div>
@@ -243,7 +280,7 @@ const generateTZ = async () => {
 }
 
 const generateFallbackTZ = () => {
-  return `# Техническое задание\n\n## 📋 Описание\n${requirements.value}\n\n## 💰 Бюджет\n${props.service.price}₽\n\n---`
+  return `# Техническое задание\n\n## Описание\n${requirements.value}\n\n## Бюджет\n${props.service.price}₽\n\n---`
 }
 
 const formatMarkdown = (text) => {
@@ -262,14 +299,12 @@ const createOrder = async () => {
   creating.value = true
   
   try {
-    // Создаём или получаем чат
     const chatRes = await axios.post('/api/chat/rooms/create_room/', {
       user2_id: props.service.owner_id
     })
     
     const chatRoomId = chatRes.data.data.id
 
-    // Создаём заказ
     await axios.post('/api/market/deals/create/', {
       chat_room_id: chatRoomId,
       title: props.service.title,
@@ -277,7 +312,6 @@ const createOrder = async () => {
       price: props.service.price
     })
     
-    alert('🎉 Заказ создан! Переходим в чат.')
     emit('close')
     router.push(`/chats/${chatRoomId}`)
     

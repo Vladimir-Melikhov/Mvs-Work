@@ -68,7 +68,7 @@
                 @click="showWizard = true" 
                 class="w-full bg-[#1a1a2e] text-white py-4 rounded-2xl font-bold shadow-xl shadow-[#1a1a2e]/20 hover:bg-[#7000ff] hover:shadow-[#7000ff]/25 hover:scale-[1.02] transition-all flex justify-center items-center gap-2"
               >
-                <span>✨</span> Начать сделку с AI
+                <span></span> Начать сделку с AI
               </button>
               
               <div class="mt-8 pt-6 border-t border-white/20 flex items-center gap-4">
