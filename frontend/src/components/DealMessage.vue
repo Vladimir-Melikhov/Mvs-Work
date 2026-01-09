@@ -89,7 +89,7 @@
           <button 
             v-if="showUpdatePriceButton"
             @click="showPriceModal = true"
-            class="w-full border-2 border-blue-300 text-blue-600 py-2 rounded-xl font-bold hover:bg-blue-50 transition-all"
+            class="w-full border-2 border-blue-300 text-blue-600 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-all text-sm"
           >
             Изменить цену
           </button>
@@ -123,7 +123,7 @@
           <button 
             v-if="showRevisionButton"
             @click="showRevisionModal = true"
-            class="w-full border-2 border-orange-300 text-orange-600 py-2 rounded-xl font-bold hover:bg-orange-50 transition-all"
+            class="w-full border-2 border-orange-300 text-orange-600 py-2.5 rounded-xl font-bold hover:bg-orange-50 transition-all text-sm"
           >
             Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
           </button>
@@ -131,7 +131,7 @@
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"
-            class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all"
+            class="w-full border-2 border-red-300 text-red-600 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-all text-sm"
           >
             Отменить заказ
           </button>
@@ -140,9 +140,10 @@
       </div>
       </div>
 
+    <!-- ✅ ПРАВКА 3: Улучшенные модальные окна для мобильных -->
     <teleport to="body">
       <div v-if="showPriceModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Изменить цену</h3>
           <p class="text-sm text-gray-600 mb-4">
             Клиент получит уведомление о новой цене. Цену можно изменить только до оплаты.
@@ -160,8 +161,8 @@
           </div>
           
           <div class="flex gap-3">
-            <button @click="showPriceModal = false; newPrice = dealData.price" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Изменить</button>
+            <button @click="showPriceModal = false; newPrice = dealData.price" class="flex-1 border-2 py-3 rounded-xl text-sm font-bold">Отмена</button>
+            <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm">Изменить</button>
           </div>
         </div>
       </div>
@@ -169,17 +170,17 @@
 
     <teleport to="body">
       <div v-if="showDeliveryModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Сдать работу</h3>
           <textarea 
             v-model="deliveryMessage" 
-            rows="4"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
+            rows="5"
+            class="w-full p-4 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
             placeholder="Опишите что сделано, добавьте ссылки на результат..."
           ></textarea>
           <div class="flex gap-3">
-            <button @click="showDeliveryModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Сдать</button>
+            <button @click="showDeliveryModal = false" class="flex-1 border-2 py-3 rounded-xl text-sm font-bold">Отмена</button>
+            <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm">Сдать</button>
           </div>
         </div>
       </div>
@@ -187,7 +188,7 @@
 
     <teleport to="body">
       <div v-if="showCompletionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl text-center">
           <h3 class="text-xl font-bold mb-4">Принять работу?</h3>
           <p class="text-sm text-gray-600 mb-6">После принятия деньги будут переведены исполнителю.</p>
           
@@ -219,8 +220,8 @@
             placeholder="Ваш отзыв..."
           ></textarea>
           <div class="flex gap-3">
-            <button @click="showCompletionModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-green-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Принять</button>
+            <button @click="showCompletionModal = false" class="flex-1 border-2 py-3 rounded-xl text-sm font-bold">Отмена</button>
+            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-green-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm">Принять</button>
           </div>
         </div>
       </div>
@@ -228,18 +229,18 @@
 
     <teleport to="body">
       <div v-if="showRevisionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Запросить доработку</h3>
           <p class="text-sm text-gray-600 mb-4">Осталось бесплатных доработок: {{ dealData.max_revisions - dealData.revision_count }}</p>
           <textarea 
             v-model="revisionReason" 
-            rows="4"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4 text-sm"
+            rows="5"
+            class="w-full p-4 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4 text-sm"
             placeholder="Опишите что нужно доработать..."
           ></textarea>
           <div class="flex gap-3">
-            <button @click="showRevisionModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="requestRevision" :disabled="!revisionReason.trim() || loading" class="flex-1 bg-orange-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Запросить</button>
+            <button @click="showRevisionModal = false" class="flex-1 border-2 py-3 rounded-xl text-sm font-bold">Отмена</button>
+            <button @click="requestRevision" :disabled="!revisionReason.trim() || loading" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm">Запросить</button>
           </div>
         </div>
       </div>
@@ -247,7 +248,7 @@
 
     <teleport to="body">
       <div v-if="showCancelModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl text-center">
           <h3 class="text-xl font-bold mb-2 text-red-600">Отменить заказ?</h3>
           <p class="text-sm text-gray-600 mb-4" v-if="dealData.status === 'paid' || dealData.status === 'delivered'">Средства будут возвращены клиенту.</p>
           <textarea 
@@ -257,8 +258,8 @@
             placeholder="Причина отмены..."
           ></textarea>
           <div class="flex gap-3">
-            <button @click="showCancelModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Назад</button>
-            <button @click="cancelDeal" :disabled="loading" class="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отменить</button>
+            <button @click="showCancelModal = false" class="flex-1 border-2 py-3 rounded-xl text-sm font-bold">Назад</button>
+            <button @click="cancelDeal" :disabled="loading" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm">Отменить</button>
           </div>
         </div>
       </div>
@@ -324,9 +325,6 @@ const statusIconBg = computed(() => {
   }
   return bgs[props.dealData.status] || 'bg-gray-500'
 })
-
-// ✅ СТАТУС-ИКОНКИ (логика для шаблона)
-// statusIcon в скрипте теперь не нужен, так как SVG прописаны прямо в template для большей гибкости стилизации
 
 const statusLabel = computed(() => {
   const labels = {

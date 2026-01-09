@@ -58,6 +58,8 @@ class Deal(models.Model):
     """
     УПРОЩЁННАЯ МОДЕЛЬ ЗАКАЗА (как Avito/Fiverr)
     Один активный заказ между клиентом и исполнителем
+    
+    ✅ С СИСТЕМОЙ СПОРА для защиты от отмены после сдачи
     """
     STATUS_CHOICES = [
         ('pending', 'Ожидает оплаты'),
@@ -65,6 +67,12 @@ class Deal(models.Model):
         ('delivered', 'Сдан на проверку'),
         ('completed', 'Завершён'),
         ('cancelled', 'Отменён'),
+    ]
+    
+    DISPUTE_STATUS_CHOICES = [
+        ('none', 'Нет спора'),
+        ('requested', 'Спор открыт'),
+        ('resolved', 'Спор разрешён'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -80,6 +88,28 @@ class Deal(models.Model):
     
     # Статус
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
+    
+    # ✅ НОВОЕ: Система спора
+    dispute_status = models.CharField(
+        max_length=20, 
+        choices=DISPUTE_STATUS_CHOICES, 
+        default='none',
+        help_text="Статус спора для безопасной отмены"
+    )
+    dispute_reason = models.TextField(
+        blank=True,
+        help_text="Причина открытия спора"
+    )
+    dispute_initiator_id = models.UUIDField(
+        null=True, 
+        blank=True,
+        help_text="Кто открыл спор"
+    )
+    dispute_created_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="Когда открыт спор"
+    )
     
     # Доработки
     revision_count = models.IntegerField(default=0)
@@ -108,7 +138,6 @@ class Deal(models.Model):
             models.Index(fields=['client_id', 'status']),
             models.Index(fields=['worker_id', 'status']),
         ]
-        # Ограничение: только один активный заказ между двумя людьми
         constraints = [
             models.UniqueConstraint(
                 fields=['client_id', 'worker_id'],
@@ -147,10 +176,22 @@ class Deal(models.Model):
 
     @property
     def can_cancel(self) -> bool:
-        """Можно ли отменить"""
-        return self.status in ['pending', 'paid', 'delivered']
+        """
+        ✅ ОБНОВЛЕНО: Можно ли отменить заказ
+        
+        Логика:
+        - До оплаты (pending) - свободная отмена
+        - После оплаты (paid/delivered) - только через систему спора
+        """
+        if self.status == 'pending':
+            return True
+        
+        if self.status in ['paid', 'delivered']:
+            # Можно открыть спор, если его ещё нет
+            return self.dispute_status == 'none'
+        
+        return False
 
-    # ✅ НОВОЕ СВОЙСТВО
     @property
     def can_update_price(self) -> bool:
         """Можно ли изменить цену (только исполнитель, только до оплаты)"""

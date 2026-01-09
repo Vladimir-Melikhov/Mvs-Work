@@ -9,6 +9,9 @@ from django.conf import settings
 class DealService:
     """
     УПРОЩЁННЫЙ СЕРВИС РАБОТЫ С ЗАКАЗАМИ
+    
+    ✅ С СИСТЕМОЙ СПОРА для защиты от отмены после сдачи
+    ✅ БЕЗ MARKDOWN в текстовых сообщениях
     """
 
     COMMISSION_RATE = Decimal('0.08')
@@ -48,11 +51,11 @@ class DealService:
             status='pending'
         )
 
-        # Отправляем ТЗ в чат как обычное сообщение
+        # ✅ ИСПРАВЛЕНО: Отправляем ТЗ БЕЗ MARKDOWN
         DealService._send_text_message(
             chat_room_id=chat_room_id,
             sender_id=client_id,
-            text=f"📋 **ТЕХНИЧЕСКОЕ ЗАДАНИЕ**\n\n{description}",
+            text=f"ТЕХНИЧЕСКОЕ ЗАДАНИЕ\n\n{description}",
             auth_token=auth_token
         )
 
@@ -61,10 +64,6 @@ class DealService:
 
         return deal
 
-    # ============================================================
-    # ✅ НОВОЕ: ИЗМЕНЕНИЕ ЦЕНЫ
-    # ============================================================
-    
     @staticmethod
     @transaction.atomic
     def update_price(deal: Deal, worker_id: str, new_price: Decimal, auth_token: str):
@@ -84,22 +83,17 @@ class DealService:
         deal.price = new_price
         deal.save()
 
-        # Отправляем уведомление в чат
+        # ✅ ИСПРАВЛЕНО: БЕЗ MARKDOWN
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"💰 **ЦЕНА ИЗМЕНЕНА**\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
+            text=f"ЦЕНА ИЗМЕНЕНА\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
             auth_token=auth_token
         )
 
-        # Обновляем карточку заказа
         DealService._send_deal_card(deal, worker_id, 'price_updated', auth_token)
 
         return deal
-
-    # ============================================================
-    # ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
-    # ============================================================
 
     @staticmethod
     @transaction.atomic
@@ -147,11 +141,11 @@ class DealService:
         deal.delivery_message = delivery_message
         deal.save()
 
-        # Отправляем результат в чат
+        # ✅ ИСПРАВЛЕНО: БЕЗ MARKDOWN
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"📦 **РЕЗУЛЬТАТ РАБОТЫ**\n\n{delivery_message}",
+            text=f"РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}",
             auth_token=auth_token
         )
 
@@ -176,11 +170,11 @@ class DealService:
         deal.revision_count += 1
         deal.save()
 
-        # Отправляем причину в чат
+        # ✅ ИСПРАВЛЕНО: БЕЗ MARKDOWN
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=client_id,
-            text=f"🔄 **ЗАПРОС НА ДОРАБОТКУ** ({deal.revision_count}/{deal.max_revisions})\n\n{revision_reason}",
+            text=f"ЗАПРОС НА ДОРАБОТКУ ({deal.revision_count}/{deal.max_revisions})\n\n{revision_reason}",
             auth_token=auth_token
         )
 
@@ -227,31 +221,111 @@ class DealService:
 
         return deal
 
+    # ============================================================
+    # ✅ НОВЫЕ МЕТОДЫ: СИСТЕМА СПОРА
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def request_dispute(deal: Deal, initiator_id: str, reason: str, auth_token: str):
+        """
+        Открыть спор (первый шаг перед отменой после оплаты)
+        
+        Логика:
+        - Любая сторона может открыть спор
+        - Вторая сторона должна согласиться на отмену
+        - Таймер 24 часа для ответа
+        """
+        if str(initiator_id) not in [str(deal.client_id), str(deal.worker_id)]:
+            raise ValueError("Вы не участник заказа")
+
+        if deal.status not in ['paid', 'delivered']:
+            raise ValueError("Спор можно открыть только для оплаченного заказа")
+
+        if deal.dispute_status != 'none':
+            raise ValueError("Спор уже открыт")
+
+        # Открываем спор
+        deal.dispute_status = 'requested'
+        deal.dispute_reason = reason
+        deal.dispute_initiator_id = initiator_id
+        deal.dispute_created_at = timezone.now()
+        deal.save()
+
+        # Уведомление в чат
+        initiator_name = "Клиент" if str(initiator_id) == str(deal.client_id) else "Исполнитель"
+        
+        DealService._send_text_message(
+            chat_room_id=deal.chat_room_id,
+            sender_id=initiator_id,
+            text=f"СПОР ОТКРЫТ\n\n{initiator_name} предлагает отменить заказ.\n\nПричина: {reason}\n\nОбе стороны должны согласиться на отмену в течение 24 часов.",
+            auth_token=auth_token
+        )
+
+        DealService._send_deal_card(deal, initiator_id, 'dispute_opened', auth_token)
+
+        return deal
+
     @staticmethod
     @transaction.atomic
     def cancel_deal(deal: Deal, canceller_id: str, reason: str, auth_token: str):
-        """Отмена заказа"""
+        """
+        Отменить заказ
+        
+        ✅ ОБНОВЛЁННАЯ ЛОГИКА:
+        - До оплаты (pending) - свободная отмена
+        - После оплаты (paid/delivered) - только через спор с согласием обеих сторон
+        """
         if str(canceller_id) not in [str(deal.client_id), str(deal.worker_id)]:
             raise ValueError("Вы не участник заказа")
 
         if deal.status == 'completed':
             raise ValueError("Нельзя отменить завершённый заказ")
 
-        # Возврат средств если был оплачен
+        # ✅ До оплаты - свободная отмена
+        if deal.status == 'pending':
+            deal.status = 'cancelled'
+            deal.cancelled_at = timezone.now()
+            deal.cancellation_reason = reason
+            deal.save()
+
+            DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
+            return deal
+
+        # ✅ После оплаты - только через спор
         if deal.status in ['paid', 'delivered']:
+            
+            # Проверяем наличие спора
+            if deal.dispute_status == 'none':
+                raise ValueError("Сначала откройте спор для безопасной отмены заказа")
+            
+            # Проверяем, что отменяет НЕ инициатор спора (т.е. вторая сторона согласилась)
+            if str(canceller_id) == str(deal.dispute_initiator_id):
+                raise ValueError("Ожидается согласие второй стороны на отмену")
+
+            # Обе стороны согласились - отменяем и возвращаем деньги
             transaction_obj = deal.transactions.filter(status='held').first()
             if transaction_obj:
                 transaction_obj.status = 'refunded'
                 transaction_obj.save()
 
-        deal.status = 'cancelled'
-        deal.cancelled_at = timezone.now()
-        deal.cancellation_reason = reason
-        deal.save()
+            deal.status = 'cancelled'
+            deal.cancelled_at = timezone.now()
+            deal.cancellation_reason = f"Спор: {deal.dispute_reason}. Отмена: {reason}"
+            deal.dispute_status = 'resolved'
+            deal.save()
 
-        DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
+            DealService._send_text_message(
+                chat_room_id=deal.chat_room_id,
+                sender_id=canceller_id,
+                text=f"ЗАКАЗ ОТМЕНЁН\n\nОбе стороны согласились на отмену. Средства возвращены клиенту.",
+                auth_token=auth_token
+            )
 
-        return deal
+            DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
+            return deal
+
+        raise ValueError("Невозможно отменить заказ в текущем статусе")
 
     # ============================================================
     # HELPERS
@@ -306,7 +380,12 @@ class DealService:
                 'can_request_revision': deal.can_request_revision,
                 'can_complete': deal.can_complete,
                 'can_cancel': deal.can_cancel,
-                'can_update_price': deal.can_update_price,  # ✅ НОВОЕ
+                'can_update_price': deal.can_update_price,
+                
+                # ✅ НОВОЕ: Данные спора
+                'dispute_status': deal.dispute_status,
+                'dispute_reason': deal.dispute_reason or '',
+                'dispute_initiator_id': str(deal.dispute_initiator_id) if deal.dispute_initiator_id else None,
             }
             
             message_texts = {
@@ -316,7 +395,8 @@ class DealService:
                 'revision': f'🔄 Запрошена доработка ({deal.revision_count}/{deal.max_revisions})',
                 'completed': '🎉 Заказ завершён!',
                 'cancelled': '❌ Заказ отменён',
-                'price_updated': f'💰 Цена изменена: {deal.price}₽',  # ✅ НОВОЕ
+                'price_updated': f'💰 Цена изменена: {deal.price}₽',
+                'dispute_opened': '⚠️ Открыт спор по заказу',
             }
             
             text = message_texts.get(action_type, '📋 Обновление заказа')

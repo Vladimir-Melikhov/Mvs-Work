@@ -96,6 +96,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
 class DealViewSet(viewsets.ViewSet):
     """
     УПРОЩЁННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ
+    
+    ✅ С ПОДДЕРЖКОЙ СИСТЕМЫ СПОРА
     """
     permission_classes = [IsAuthenticated]
 
@@ -139,20 +141,15 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_deal(self, request):
-        """
-        Создать новый заказ
-        Проверяет наличие активных заказов
-        """
+        """Создать новый заказ"""
         serializer = CreateDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
 
         try:
-            # Получаем токен
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
-            # Получаем данные чата
             import requests as req
             chat_url = f"http://localhost:8003/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
@@ -167,7 +164,6 @@ class DealViewSet(viewsets.ViewSet):
             user_role = request.user.role
             other_member = [m for m in members if str(m) != user_id][0]
 
-            # Определяем роли
             if user_role == 'client':
                 client_id = user_id
                 worker_id = other_member
@@ -175,7 +171,6 @@ class DealViewSet(viewsets.ViewSet):
                 worker_id = user_id
                 client_id = other_member
 
-            # Создаём заказ
             deal = DealService.create_deal(
                 chat_room_id=serializer.validated_data['chat_room_id'],
                 client_id=client_id,
@@ -197,13 +192,9 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    # ============================================================
-    # ✅ НОВЫЙ ENDPOINT: ИЗМЕНЕНИЕ ЦЕНЫ
-    # ============================================================
-    
     @action(detail=True, methods=['patch'], url_path='update-price')
     def update_price(self, request, pk=None):
-        """Изменить цену заказа (только исполнитель, только до оплаты)"""
+        """Изменить цену заказа"""
         try:
             deal = Deal.objects.get(id=pk)
             new_price = request.data.get('price')
@@ -226,10 +217,6 @@ class DealViewSet(viewsets.ViewSet):
             return Response({'error': 'Заказ не найден'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
-
-    # ============================================================
-    # ОСТАЛЬНЫЕ ENDPOINTS БЕЗ ИЗМЕНЕНИЙ
-    # ============================================================
 
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
@@ -331,9 +318,55 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
+    # ============================================================
+    # ✅ НОВЫЕ ENDPOINTS: СИСТЕМА СПОРА
+    # ============================================================
+
+    @action(detail=True, methods=['post'], url_path='dispute')
+    def dispute(self, request, pk=None):
+        """
+        Открыть спор по заказу
+        
+        Используется для безопасной отмены после оплаты.
+        Требует согласия обеих сторон.
+        """
+        try:
+            deal = Deal.objects.get(id=pk)
+            reason = request.data.get('reason', '')
+
+            if not reason:
+                return Response({'error': 'Укажите причину спора'}, status=400)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.request_dispute(
+                deal=deal,
+                initiator_id=str(request.user.id),
+                reason=reason,
+                auth_token=token
+            )
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': 'Спор открыт. Ожидается согласие второй стороны.'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
-        """Отменить заказ"""
+        """
+        Отменить заказ
+        
+        ✅ ОБНОВЛЁННАЯ ЛОГИКА:
+        - До оплаты - свободная отмена
+        - После оплаты - только через спор
+        """
         try:
             deal = Deal.objects.get(id=pk)
             reason = request.data.get('reason', 'Не указана')
