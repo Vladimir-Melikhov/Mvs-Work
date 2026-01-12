@@ -227,10 +227,6 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    # ============================================================
-    # ОСТАЛЬНЫЕ ENDPOINTS БЕЗ ИЗМЕНЕНИЙ
-    # ============================================================
-
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
         """Оплатить заказ"""
