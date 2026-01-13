@@ -56,13 +56,13 @@ class Service(models.Model):
 
 class Deal(models.Model):
     """
-    УПРОЩЁННАЯ МОДЕЛЬ ЗАКАЗА (как Avito/Fiverr)
-    Один активный заказ между клиентом и исполнителем
+    МОДЕЛЬ ЗАКАЗА С ПОДДЕРЖКОЙ АРБИТРАЖА
     """
     STATUS_CHOICES = [
         ('pending', 'Ожидает оплаты'),
         ('paid', 'Оплачен, в работе'),
         ('delivered', 'Сдан на проверку'),
+        ('dispute', 'В споре'),  # ✅ НОВЫЙ СТАТУС
         ('completed', 'Завершён'),
         ('cancelled', 'Отменён'),
     ]
@@ -90,6 +90,18 @@ class Deal(models.Model):
     completion_message = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
     
+    # ✅ ПОЛЯ ДЛЯ ДИСПУТА
+    dispute_client_reason = models.TextField(blank=True, help_text="Претензия клиента")
+    dispute_worker_defense = models.TextField(blank=True, help_text="Защита исполнителя")
+    dispute_created_at = models.DateTimeField(null=True, blank=True, help_text="Когда открыт спор")
+    dispute_resolved_at = models.DateTimeField(null=True, blank=True, help_text="Когда разрешен спор")
+    dispute_winner = models.CharField(
+        max_length=10, 
+        blank=True, 
+        choices=[('client', 'Клиент'), ('worker', 'Исполнитель')],
+        help_text="Кто выиграл спор"
+    )
+    
     # ID последнего сообщения-карточки в чате
     last_message_id = models.UUIDField(null=True, blank=True)
     
@@ -108,11 +120,10 @@ class Deal(models.Model):
             models.Index(fields=['client_id', 'status']),
             models.Index(fields=['worker_id', 'status']),
         ]
-        # Ограничение: только один активный заказ между двумя людьми
         constraints = [
             models.UniqueConstraint(
                 fields=['client_id', 'worker_id'],
-                condition=models.Q(status__in=['pending', 'paid', 'delivered']),
+                condition=models.Q(status__in=['pending', 'paid', 'delivered', 'dispute']),
                 name='unique_active_deal_per_pair'
             )
         ]
@@ -123,7 +134,7 @@ class Deal(models.Model):
     @property
     def is_active(self) -> bool:
         """Активен ли заказ"""
-        return self.status in ['pending', 'paid', 'delivered']
+        return self.status in ['pending', 'paid', 'delivered', 'dispute']
 
     @property
     def can_pay(self) -> bool:
@@ -147,14 +158,34 @@ class Deal(models.Model):
 
     @property
     def can_cancel(self) -> bool:
-        """Можно ли отменить"""
-        return self.status in ['pending', 'paid', 'delivered']
+        """Можно ли отменить (только ДО сдачи работы)"""
+        return self.status in ['pending', 'paid']
 
-    # ✅ НОВОЕ СВОЙСТВО
     @property
     def can_update_price(self) -> bool:
-        """Можно ли изменить цену (только исполнитель, только до оплаты)"""
+        """Можно ли изменить цену"""
         return self.status == 'pending'
+
+    # ✅ НОВЫЕ СВОЙСТВА ДЛЯ ДИСПУТА
+    @property
+    def can_open_dispute(self) -> bool:
+        """Может ли клиент открыть спор (только после сдачи работы)"""
+        return self.status == 'delivered'
+
+    @property
+    def can_worker_refund(self) -> bool:
+        """Может ли исполнитель вернуть деньги"""
+        return self.status == 'dispute' and not self.dispute_worker_defense
+
+    @property
+    def can_worker_defend(self) -> bool:
+        """Может ли исполнитель оспорить"""
+        return self.status == 'dispute' and not self.dispute_worker_defense
+
+    @property
+    def is_dispute_pending_admin(self) -> bool:
+        """Ждет ли спор решения админа"""
+        return self.status == 'dispute' and bool(self.dispute_worker_defense) and not self.dispute_winner
 
 
 class Transaction(models.Model):

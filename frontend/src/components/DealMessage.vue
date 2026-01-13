@@ -23,6 +23,9 @@
           <svg v-else-if="dealData.status === 'delivered'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
+          <svg v-else-if="dealData.status === 'dispute'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
           <svg v-else-if="dealData.status === 'completed'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
           </svg>
@@ -64,6 +67,39 @@
           </div>
         </div>
 
+        <!-- ✅ ИНФОРМАЦИЯ О СПОРЕ -->
+        <div v-if="dealData.status === 'dispute'" class="shrink-0">
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
+            <div class="text-xs font-bold text-red-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Претензия клиента
+            </div>
+            <div class="text-sm text-red-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_client_reason }}</div>
+          </div>
+
+          <div v-if="dealData.dispute_worker_defense" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3">
+            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              Защита исполнителя
+            </div>
+            <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_worker_defense }}</div>
+          </div>
+
+          <div v-if="dealData.is_dispute_pending_admin" class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
+            <div class="font-bold mb-1 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Ожидает решения администратора
+            </div>
+            <div>Обе стороны представили свои аргументы. Решение принимает администратор.</div>
+          </div>
+        </div>
+
         <div v-if="dealData.revision_count > 0" class="shrink-0">
           <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
             <span class="font-bold text-orange-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
@@ -84,6 +120,7 @@
           </div>
         </div>
 
+        <!-- ✅ КНОПКИ ДЕЙСТВИЙ -->
         <div class="space-y-2 pb-2" :class="sidebarMode ? '' : 'mt-auto'">
 
           <button 
@@ -128,6 +165,38 @@
             Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
           </button>
 
+          <!-- ✅ НОВАЯ КНОПКА: ОТКРЫТЬ СПОР (только для клиента после сдачи работы) -->
+          <button 
+            v-if="showOpenDisputeButton"
+            @click="showDisputeModal = true"
+            class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Открыть спор
+          </button>
+
+          <!-- ✅ КНОПКИ ДЛЯ ИСПОЛНИТЕЛЯ В СПОРЕ -->
+          <button 
+            v-if="showWorkerRefundButton"
+            @click="workerRefund"
+            :disabled="loading"
+            class="w-full border-2 border-green-300 text-green-600 py-2 rounded-xl font-bold hover:bg-green-50 transition-all disabled:opacity-50"
+          >
+            <span v-if="loading">Обработка...</span>
+            <span v-else>💰 Вернуть деньги</span>
+          </button>
+
+          <button 
+            v-if="showWorkerDefendButton"
+            @click="showDefenseModal = true"
+            class="w-full border-2 border-blue-300 text-blue-600 py-2 rounded-xl font-bold hover:bg-blue-50 transition-all"
+          >
+            🛡️ Оспорить
+          </button>
+
+          <!-- Кнопка отмены (только ДО сдачи работы) -->
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"
@@ -138,15 +207,15 @@
         </div>
 
       </div>
-      </div>
+    </div>
 
+    <!-- МОДАЛЬНЫЕ ОКНА -->
     <teleport to="body">
+      <!-- Изменение цены -->
       <div v-if="showPriceModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Изменить цену</h3>
-          <p class="text-sm text-gray-600 mb-4">
-            Клиент получит уведомление о новой цене. Цену можно изменить только до оплаты.
-          </p>
+          <p class="text-sm text-gray-600 mb-4">Клиент получит уведомление о новой цене.</p>
           
           <div class="mb-4">
             <label class="block text-sm font-bold mb-2">Новая цена (₽)</label>
@@ -165,9 +234,8 @@
           </div>
         </div>
       </div>
-    </teleport>
 
-    <teleport to="body">
+      <!-- Сдача работы -->
       <div v-if="showDeliveryModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Сдать работу</h3>
@@ -183,9 +251,8 @@
           </div>
         </div>
       </div>
-    </teleport>
 
-    <teleport to="body">
+      <!-- Завершение с отзывом -->
       <div v-if="showCompletionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
           <h3 class="text-xl font-bold mb-4">Принять работу?</h3>
@@ -224,9 +291,8 @@
           </div>
         </div>
       </div>
-    </teleport>
 
-    <teleport to="body">
+      <!-- Доработка -->
       <div v-if="showRevisionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Запросить доработку</h3>
@@ -243,13 +309,48 @@
           </div>
         </div>
       </div>
-    </teleport>
 
-    <teleport to="body">
+      <!-- ✅ МОДАЛЬНОЕ ОКНО: ОТКРЫТЬ СПОР -->
+      <div v-if="showDisputeModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+          <h3 class="text-xl font-bold mb-2 text-red-600">Открыть спор</h3>
+          <p class="text-sm text-gray-600 mb-4">Опишите, что не так с выполненной работой. Исполнитель сможет вернуть деньги или оспорить вашу претензию.</p>
+          <textarea 
+            v-model="disputeReason" 
+            rows="5"
+            class="w-full p-3 rounded-xl border border-red-200 resize-none focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 text-sm"
+            placeholder="Подробно опишите проблему..."
+          ></textarea>
+          <div class="flex gap-3">
+            <button @click="showDisputeModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
+            <button @click="openDispute" :disabled="!disputeReason.trim() || loading" class="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Открыть спор</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ МОДАЛЬНОЕ ОКНО: ЗАЩИТА ИСПОЛНИТЕЛЯ -->
+      <div v-if="showDefenseModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+          <h3 class="text-xl font-bold mb-2 text-blue-600">Оспорить претензию</h3>
+          <p class="text-sm text-gray-600 mb-4">Представьте свои аргументы. После отправки спор будет передан администратору для принятия решения.</p>
+          <textarea 
+            v-model="defenseText" 
+            rows="5"
+            class="w-full p-3 rounded-xl border border-blue-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
+            placeholder="Объясните, почему претензия необоснована..."
+          ></textarea>
+          <div class="flex gap-3">
+            <button @click="showDefenseModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
+            <button @click="workerDefend" :disabled="!defenseText.trim() || loading" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отправить</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Отмена заказа -->
       <div v-if="showCancelModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
           <h3 class="text-xl font-bold mb-2 text-red-600">Отменить заказ?</h3>
-          <p class="text-sm text-gray-600 mb-4" v-if="dealData.status === 'paid' || dealData.status === 'delivered'">Средства будут возвращены клиенту.</p>
+          <p class="text-sm text-gray-600 mb-4" v-if="dealData.status === 'paid'">Средства будут возвращены клиенту.</p>
           <textarea 
             v-model="cancelReason" 
             rows="3"
@@ -288,7 +389,9 @@ const showDeliveryModal = ref(false)
 const showCompletionModal = ref(false)
 const showRevisionModal = ref(false)
 const showCancelModal = ref(false)
-const showPriceModal = ref(false) 
+const showPriceModal = ref(false)
+const showDisputeModal = ref(false)  // ✅ Новая
+const showDefenseModal = ref(false)  // ✅ Новая
 
 // Сообщения
 const deliveryMessage = ref('')
@@ -296,7 +399,9 @@ const completionMessage = ref('')
 const revisionReason = ref('')
 const cancelReason = ref('')
 const rating = ref(0)
-const newPrice = ref(props.dealData.price) 
+const newPrice = ref(props.dealData.price)
+const disputeReason = ref('')  // ✅ Новое
+const defenseText = ref('')    // ✅ Новое
 
 // Проверки роли
 const isClient = computed(() => String(auth.user.id) === String(props.dealData.client_id))
@@ -308,6 +413,7 @@ const borderColor = computed(() => {
     'pending': 'border-purple-300',
     'paid': 'border-blue-300',
     'delivered': 'border-green-300',
+    'dispute': 'border-red-300',  // ✅ Новый
     'completed': 'border-orange-300',
     'cancelled': 'border-gray-300',
   }
@@ -319,20 +425,19 @@ const statusIconBg = computed(() => {
     'pending': 'bg-gradient-to-br from-purple-400 to-purple-600',
     'paid': 'bg-gradient-to-br from-blue-400 to-blue-600',
     'delivered': 'bg-gradient-to-br from-green-400 to-green-600',
+    'dispute': 'bg-gradient-to-br from-red-400 to-red-600',  // ✅ Новый
     'completed': 'bg-gradient-to-br from-orange-400 to-orange-600',
     'cancelled': 'bg-gradient-to-br from-gray-400 to-gray-600',
   }
   return bgs[props.dealData.status] || 'bg-gray-500'
 })
 
-// ✅ СТАТУС-ИКОНКИ (логика для шаблона)
-// statusIcon в скрипте теперь не нужен, так как SVG прописаны прямо в template для большей гибкости стилизации
-
 const statusLabel = computed(() => {
   const labels = {
     'pending': 'Ожидает оплаты',
     'paid': 'В работе',
     'delivered': 'На проверке',
+    'dispute': 'В споре',  // ✅ Новый
     'completed': 'Завершен',
     'cancelled': 'Отменен',
   }
@@ -344,6 +449,7 @@ const statusTextColor = computed(() => {
     'pending': 'text-purple-600',
     'paid': 'text-blue-600',
     'delivered': 'text-green-600',
+    'dispute': 'text-red-600',  // ✅ Новый
     'completed': 'text-orange-600',
     'cancelled': 'text-gray-600',
   }
@@ -373,6 +479,19 @@ const showCancelButton = computed(() => {
 
 const showUpdatePriceButton = computed(() => {
   return isWorker.value && props.dealData.can_update_price
+})
+
+// ✅ НОВЫЕ КНОПКИ ДЛЯ АРБИТРАЖА
+const showOpenDisputeButton = computed(() => {
+  return isClient.value && props.dealData.can_open_dispute
+})
+
+const showWorkerRefundButton = computed(() => {
+  return isWorker.value && props.dealData.can_worker_refund
+})
+
+const showWorkerDefendButton = computed(() => {
+  return isWorker.value && props.dealData.can_worker_defend
 })
 
 // ДЕЙСТВИЯ
@@ -452,6 +571,54 @@ const requestRevision = async () => {
     })
     showRevisionModal.value = false
     revisionReason.value = ''
+    emit('deal-action')
+  } catch (e) {
+    alert('Ошибка: ' + (e.response?.data?.error || e.message))
+  } finally {
+    loading.value = false
+  }
+}
+
+// ✅ НОВЫЕ ДЕЙСТВИЯ ДЛЯ АРБИТРАЖА
+
+const openDispute = async () => {
+  loading.value = true
+  try {
+    await axios.post(`/api/market/deals/${props.dealData.deal_id}/open-dispute/`, {
+      dispute_reason: disputeReason.value
+    })
+    showDisputeModal.value = false
+    disputeReason.value = ''
+    emit('deal-action')
+  } catch (e) {
+    alert('Ошибка: ' + (e.response?.data?.error || e.message))
+  } finally {
+    loading.value = false
+  }
+}
+
+const workerRefund = async () => {
+  if (!confirm('Вернуть деньги клиенту? Это действие нельзя отменить.')) return
+  
+  loading.value = true
+  try {
+    await axios.post(`/api/market/deals/${props.dealData.deal_id}/worker-refund/`)
+    emit('deal-action')
+  } catch (e) {
+    alert('Ошибка: ' + (e.response?.data?.error || e.message))
+  } finally {
+    loading.value = false
+  }
+}
+
+const workerDefend = async () => {
+  loading.value = true
+  try {
+    await axios.post(`/api/market/deals/${props.dealData.deal_id}/worker-defend/`, {
+      defense_text: defenseText.value
+    })
+    showDefenseModal.value = false
+    defenseText.value = ''
     emit('deal-action')
   } catch (e) {
     alert('Ошибка: ' + (e.response?.data?.error || e.message))

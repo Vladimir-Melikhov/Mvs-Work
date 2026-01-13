@@ -197,10 +197,6 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    # ============================================================
-    # ✅ НОВЫЙ ENDPOINT: ИЗМЕНЕНИЕ ЦЕНЫ
-    # ============================================================
-    
     @action(detail=True, methods=['patch'], url_path='update-price')
     def update_price(self, request, pk=None):
         """Изменить цену заказа (только исполнитель, только до оплаты)"""
@@ -369,6 +365,123 @@ class DealViewSet(viewsets.ViewSet):
 
         except Exception as e:
             return Response({'error': str(e)}, status=400)
+
+    # ============================================================
+    # ✅ АРБИТРАЖ
+    # ============================================================
+    
+    @action(detail=True, methods=['post'], url_path='open-dispute')
+    def open_dispute(self, request, pk=None):
+        """Открыть спор (только клиент, только после сдачи работы)"""
+        try:
+            deal = Deal.objects.get(id=pk)
+            dispute_reason = request.data.get('dispute_reason', '')
+
+            if not dispute_reason:
+                return Response({'error': 'Укажите причину спора'}, status=400)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.open_dispute(deal, str(request.user.id), dispute_reason, token)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': 'Спор открыт'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=True, methods=['post'], url_path='worker-refund')
+    def worker_refund(self, request, pk=None):
+        """Исполнитель возвращает деньги (согласие с претензией)"""
+        try:
+            deal = Deal.objects.get(id=pk)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.worker_refund(deal, str(request.user.id), token)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': 'Деньги возвращены клиенту'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=True, methods=['post'], url_path='worker-defend')
+    def worker_defend(self, request, pk=None):
+        """Исполнитель оспаривает претензию"""
+        try:
+            deal = Deal.objects.get(id=pk)
+            defense_text = request.data.get('defense_text', '')
+
+            if not defense_text:
+                return Response({'error': 'Укажите аргументы защиты'}, status=400)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.worker_defend(deal, str(request.user.id), defense_text, token)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': 'Защита подана. Спор передан администратору.'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=True, methods=['post'], url_path='admin-resolve')
+    def admin_resolve(self, request, pk=None):
+        """Администратор разрешает спор"""
+        try:
+            deal = Deal.objects.get(id=pk)
+            winner = request.data.get('winner')
+            admin_comment = request.data.get('admin_comment', '')
+
+            if not winner:
+                return Response({'error': 'Укажите победителя (client/worker)'}, status=400)
+
+            deal = DealService.admin_resolve_dispute(deal, winner, admin_comment)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': f'Спор разрешен в пользу {"клиента" if winner == "client" else "исполнителя"}'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=False, methods=['get'], url_path='pending-disputes')
+    def pending_disputes(self, request):
+        """Получить все активные споры (для админа)"""
+        disputes = Deal.objects.filter(
+            status='dispute',
+            dispute_worker_defense__isnull=False,
+            dispute_winner=''
+        ).order_by('-dispute_created_at')
+
+        serializer = DealSerializer(disputes, many=True)
+        return Response({
+            'status': 'success',
+            'data': serializer.data
+        })
 
 
 class ReviewViewSet(viewsets.ReadOnlyModelViewSet):

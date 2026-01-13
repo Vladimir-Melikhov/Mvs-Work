@@ -11,8 +11,12 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
-    'django.contrib.contenttypes',
+    'django.contrib.admin',
     'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',      # Добавлено для админки
+    'django.contrib.messages',      # Добавлено для админки
+    'django.contrib.staticfiles',   # Добавлено для стилей админки
     'rest_framework',
     'corsheaders',
     'apps.services',
@@ -21,8 +25,11 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',  # Добавлено
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware', # Добавлено
+    'django.contrib.messages.middleware.MessageMiddleware',    # Добавлено
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -37,6 +44,8 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',      # Добавлено
+                'django.contrib.messages.context_processors.messages', # Добавлено
             ],
         },
     },
@@ -55,6 +64,9 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
+
+# Добавь это для корректной работы админки со статикой
+STATIC_URL = 'static/'
 
 SIMPLE_JWT = {
     'SIGNING_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
@@ -84,7 +96,7 @@ CORS_ALLOWED_ORIGINS = [
 
 # External Services
 AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://localhost:8001')
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')  # Get your free key at https://platform.deepseek.com
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
