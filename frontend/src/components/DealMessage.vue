@@ -185,7 +185,7 @@
             class="w-full border-2 border-green-300 text-green-600 py-2 rounded-xl font-bold hover:bg-green-50 transition-all disabled:opacity-50"
           >
             <span v-if="loading">Обработка...</span>
-            <span v-else>💰 Вернуть деньги</span>
+            <span v-else>Вернуть деньги</span>
           </button>
 
           <button 
@@ -193,10 +193,9 @@
             @click="showDefenseModal = true"
             class="w-full border-2 border-blue-300 text-blue-600 py-2 rounded-xl font-bold hover:bg-blue-50 transition-all"
           >
-            🛡️ Оспорить
+            Оспорить
           </button>
 
-          <!-- Кнопка отмены (только ДО сдачи работы) -->
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"

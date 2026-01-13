@@ -427,7 +427,6 @@ class DealService:
                 'can_complete': deal.can_complete,
                 'can_cancel': deal.can_cancel,
                 'can_update_price': deal.can_update_price,
-                # ✅ НОВЫЕ ПОЛЯ ДЛЯ АРБИТРАЖА
                 'can_open_dispute': deal.can_open_dispute,
                 'can_worker_refund': deal.can_worker_refund,
                 'can_worker_defend': deal.can_worker_defend,
@@ -505,7 +504,7 @@ class DealService:
 🛡️ <b>ЗАЩИТА ИСПОЛНИТЕЛЯ:</b>
 {deal.dispute_worker_defense}
 
-🔗 <a href="{frontend_url}/admin/disputes/{deal.id}">Разрешить спор</a>
+Проверьте админ панель
             """
 
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
