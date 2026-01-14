@@ -618,7 +618,7 @@ class DealService:
         """Возвращает результат спора для отображения"""
         if not deal.dispute_winner:
             return None
-        
+
         return {
             'winner': deal.dispute_winner,
             'winner_text': 'клиента' if deal.dispute_winner == 'client' else 'исполнителя',

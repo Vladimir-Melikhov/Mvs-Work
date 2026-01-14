@@ -58,7 +58,7 @@ class AIService:
             }
             
             payload = {
-                "model": "deepseek-ai/DeepSeek-R1-0528", 
+                "model": "deepseek-ai/DeepSeek-R1", 
                 "messages": [
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_content}
@@ -70,6 +70,12 @@ class AIService:
             print(f"🔄 [Market] Генерация ТЗ (DeepSeek-R1)...")
             
             response = requests.post(base_url, headers=headers, json=payload, timeout=90)
+            if response.status_code != 200:
+                print("--- DEBUG AI ERROR START ---")
+                print(f"Status: {response.status_code}")
+                print(f"Sent Headers: {headers}") # Проверим, как улетел токен
+                print(f"Response Body: {response.text}") # Тут будет реальная причина от io.net
+                print("--- DEBUG AI ERROR END ---")
             
             if response.status_code == 200:
                 data = response.json()

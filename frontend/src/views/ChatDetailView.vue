@@ -50,7 +50,7 @@
               ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
           >
-            <div class="whitespace-pre-wrap">{{ msg.text }}</div>
+            <div class="whitespace-pre-wrap">{{ cleanText(msg.text) }}</div>
             
             <div 
               class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
@@ -196,7 +196,7 @@
               ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
           >
-            <div class="whitespace-pre-wrap">{{ msg.text }}</div>
+            <div class="whitespace-pre-wrap">{{ cleanText(msg.text) }}</div>
             
             <div 
               class="text-[9px] mt-1 font-medium opacity-60 text-right"
@@ -287,6 +287,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
 import DealMessage from '../components/DealMessage.vue'
+import { stripMarkdown } from '../utils/textUtils'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -319,6 +320,11 @@ const activeDeals = computed(() => {
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const getInitials = (name) => name ? name.substring(0, 1).toUpperCase() : 'U'
+
+// ✅ НОВАЯ ФУНКЦИЯ: Очистка текста от markdown
+const cleanText = (text) => {
+  return stripMarkdown(text)
+}
 
 const getStatusLabel = (status) => {
   const labels = {
