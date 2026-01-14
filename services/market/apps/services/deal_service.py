@@ -265,7 +265,7 @@ class DealService:
 
     @staticmethod
     @transaction.atomic
-    def admin_resolve_dispute(deal: Deal, winner: str, admin_comment: str = ''):
+    def admin_resolve_dispute(deal: Deal, winner: str, admin_comment: str = '', auth_token: str = ''):
         """
         Администратор разрешает спор
         winner: 'client' или 'worker'
@@ -305,6 +305,16 @@ class DealService:
             deal.completion_message = f"Спор разрешен в пользу исполнителя. {admin_comment}"
 
         deal.save()
+        
+        # ✅ ОБНОВЛЯЕМ КАРТОЧКУ В ЧАТЕ
+        print(f"🔍 admin_resolve_dispute: auth_token={bool(auth_token)}, winner={winner}")
+        if auth_token:
+            action_type = 'refunded' if winner == 'client' else 'completed'
+            print(f"📤 Отправляем обновленную карточку в чат: action_type={action_type}")
+            DealService._send_deal_card(deal, deal.client_id, action_type, auth_token)
+        else:
+            print(f"⚠️ НЕТ auth_token - карточка не будет обновлена!")
+        
         return deal
 
     # ============================================================
@@ -404,6 +414,9 @@ class DealService:
     def _send_deal_card(deal: Deal, sender_id: str, action_type: str, auth_token: str):
         """Отправка/обновление карточки заказа в чате"""
         try:
+            print(f"📨 _send_deal_card вызван: deal_id={deal.id}, status={deal.status}, action_type={action_type}")
+            print(f"   dispute_winner={deal.dispute_winner}, dispute_resolved_at={deal.dispute_resolved_at}")
+            
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
             commission = float(deal.price * DealService.COMMISSION_RATE)
@@ -474,6 +487,9 @@ class DealService:
             }
             
             response = requests.post(url, headers=headers, json=payload, timeout=5)
+            
+            print(f"📬 Ответ от чата: status_code={response.status_code}")
+            print(f"   response_body={response.text[:200]}")
             
             if response.status_code == 200:
                 response_data = response.json()

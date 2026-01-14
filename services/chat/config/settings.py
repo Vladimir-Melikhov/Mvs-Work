@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     'channels',
     'corsheaders',
     'apps.messaging',
+    'django.contrib.sessions',
 ]
 
 MIDDLEWARE = [

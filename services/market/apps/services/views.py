@@ -455,7 +455,11 @@ class DealViewSet(viewsets.ViewSet):
             if not winner:
                 return Response({'error': 'Укажите победителя (client/worker)'}, status=400)
 
-            deal = DealService.admin_resolve_dispute(deal, winner, admin_comment)
+            # ✅ ИСПРАВЛЕНИЕ: Получаем токен для обновления чата
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.admin_resolve_dispute(deal, winner, admin_comment, token)
 
             return Response({
                 'status': 'success',
