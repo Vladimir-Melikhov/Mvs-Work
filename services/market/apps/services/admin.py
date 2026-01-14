@@ -1,10 +1,12 @@
 import uuid
+import os
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import Service, Deal, Transaction, Review
 from .deal_service import DealService
+import requests
 
 
 @admin.register(Service)
@@ -249,11 +251,45 @@ class DealAdmin(admin.ModelAdmin):
         """Запрещаем удалять заказы"""
         return False
     
+    def _get_admin_token(self):
+        """
+        ✅ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Получаем системный токен для обновления чата
+        Этот токен используется для отправки обновлений в чат от имени системы
+        """
+        # ✅ Поддержка входа как по email, так и по username
+        admin_username = os.getenv('ADMIN_USERNAME')  # Для входа по username
+        admin_email = os.getenv('ADMIN_EMAIL')        # Для входа по email
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        auth_service_url = os.getenv('AUTH_SERVICE_URL', 'http://localhost:8001')
+        
+        try:
+            login_field = 'username' if admin_username else 'email'
+            login_value = admin_username if admin_username else admin_email
+            
+            response = requests.post(
+                f"{auth_service_url}/api/auth/login/",
+                json={login_field: login_value, 'password': admin_password},
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('data', {}).get('tokens', {}).get('access', '')
+            else:
+                print(f"⚠️ Не удалось получить токен администратора: {response.status_code}")
+                return ''
+        except Exception as e:
+            print(f"🔥 Ошибка получения токена: {e}")
+            return ''
+    
     @admin.action(description='✅ Разрешить спор в пользу КЛИЕНТА (возврат средств)')
     def resolve_dispute_client(self, request, queryset):
         """Разрешить споры в пользу клиента - возврат средств"""
         count = 0
         errors = []
+        
+        # ✅ Получаем системный токен для обновления чата
+        admin_token = self._get_admin_token()
         
         for deal in queryset:
             # Проверки
@@ -273,7 +309,8 @@ class DealAdmin(admin.ModelAdmin):
                 DealService.admin_resolve_dispute(
                     deal=deal,
                     winner='client',
-                    admin_comment=f'Решение администратора {request.user.username}: средства возвращены клиенту'
+                    admin_comment=f'Решение администратора {request.user.username}: средства возвращены клиенту',
+                    auth_token=admin_token  # ✅ Передаем токен
                 )
                 count += 1
             except Exception as e:
@@ -303,6 +340,9 @@ class DealAdmin(admin.ModelAdmin):
         count = 0
         errors = []
         
+        # ✅ Получаем системный токен для обновления чата
+        admin_token = self._get_admin_token()
+        
         for deal in queryset:
             # Проверки
             if deal.status != 'dispute':
@@ -321,7 +361,8 @@ class DealAdmin(admin.ModelAdmin):
                 DealService.admin_resolve_dispute(
                     deal=deal,
                     winner='worker',
-                    admin_comment=f'Решение администратора {request.user.username}: работа принята, средства выплачены исполнителю'
+                    admin_comment=f'Решение администратора {request.user.username}: работа принята, средства выплачены исполнителю',
+                    auth_token=admin_token  # ✅ Передаем токен
                 )
                 count += 1
             except Exception as e:

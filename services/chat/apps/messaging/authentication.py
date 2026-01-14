@@ -15,6 +15,12 @@ class RemoteUser:
         self.is_active = True
         self.is_staff = False
         self.is_superuser = False
+        
+        # ✅ Поддержка системного пользователя
+        if self.role == 'system':
+            self.is_system = True
+        else:
+            self.is_system = False
 
     def __str__(self):
         return f"RemoteUser({self.email})"

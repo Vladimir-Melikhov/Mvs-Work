@@ -5,6 +5,8 @@ from .models import Deal, Transaction, Review
 import requests
 import os
 from django.conf import settings
+from datetime import datetime, timedelta
+import jwt
 
 
 class DealService:
@@ -13,6 +15,26 @@ class DealService:
     """
 
     COMMISSION_RATE = Decimal('0.08')
+
+    @staticmethod
+    def _get_system_token() -> str:
+        """
+        Генерирует системный JWT-токен для внутренних операций
+        Используется когда админ обновляет заказ без пользовательской сессии
+        
+        ✅ ИСПРАВЛЕНО: Использует тот же формат, что и djangorestframework-simplejwt
+        """
+        from rest_framework_simplejwt.tokens import AccessToken
+        
+        # Создаем токен для системного пользователя
+        token = AccessToken()
+        
+        # Заполняем данные так же, как Simple JWT делает для обычных пользователей
+        token['user_id'] = '00000000-0000-0000-0000-000000000000'
+        token['email'] = 'system@marketplace.internal'
+        token['role'] = 'system'
+        
+        return str(token)
 
     @staticmethod
     def check_active_deal(client_id: str, worker_id: str):
@@ -269,6 +291,8 @@ class DealService:
         """
         Администратор разрешает спор
         winner: 'client' или 'worker'
+        
+        ✅ ИСПРАВЛЕНИЕ: Всегда генерирует системный токен если auth_token отсутствует
         """
         if deal.status != 'dispute':
             raise ValueError("Разрешить можно только активный спор")
@@ -306,14 +330,16 @@ class DealService:
 
         deal.save()
         
-        # ✅ ОБНОВЛЯЕМ КАРТОЧКУ В ЧАТЕ
-        print(f"🔍 admin_resolve_dispute: auth_token={bool(auth_token)}, winner={winner}")
-        if auth_token:
-            action_type = 'refunded' if winner == 'client' else 'completed'
-            print(f"📤 Отправляем обновленную карточку в чат: action_type={action_type}")
-            DealService._send_deal_card(deal, deal.client_id, action_type, auth_token)
-        else:
-            print(f"⚠️ НЕТ auth_token - карточка не будет обновлена!")
+        # ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Генерируем системный токен если нет пользовательского
+        if not auth_token:
+            auth_token = DealService._get_system_token()
+            print(f"🔑 Сгенерирован системный токен для обновления чата")
+        
+        # ✅ Теперь ВСЕГДА обновляем карточку в чате
+        action_type = 'refunded' if winner == 'client' else 'completed'
+        print(f"📤 Отправляем обновленную карточку: winner={winner}, action={action_type}")
+        
+        DealService._send_deal_card(deal, deal.client_id, action_type, auth_token)
         
         return deal
 
@@ -415,7 +441,12 @@ class DealService:
         """Отправка/обновление карточки заказа в чате"""
         try:
             print(f"📨 _send_deal_card вызван: deal_id={deal.id}, status={deal.status}, action_type={action_type}")
-            print(f"   dispute_winner={deal.dispute_winner}, dispute_resolved_at={deal.dispute_resolved_at}")
+            print(f"   dispute_winner={deal.dispute_winner}, token_exists={bool(auth_token)}")
+            
+            # ✅ ПРОВЕРКА: Если токена нет - генерируем системный
+            if not auth_token:
+                auth_token = DealService._get_system_token()
+                print(f"⚠️ Токен отсутствовал, сгенерирован системный")
             
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
@@ -466,7 +497,7 @@ class DealService:
                 'price_updated': f'💰 Цена изменена: {deal.price}₽',
                 'dispute_opened': '⚠️ Открыт спор',
                 'defense_submitted': '🛡️ Защита подана, ждем админа',
-                'refunded': '💰 Деньги возвращены',
+                'refunded': '💰 Деньги возвращены клиенту (решение администратора)',
             }
             
             text = message_texts.get(action_type, '📋 Обновление заказа')
@@ -480,6 +511,9 @@ class DealService:
             
             if deal.last_message_id:
                 payload['update_message_id'] = str(deal.last_message_id)
+                print(f"🔄 Обновляем существующее сообщение: {deal.last_message_id}")
+            else:
+                print(f"📝 Создаем новое сообщение")
             
             headers = {
                 'Authorization': f'Bearer {auth_token}',
@@ -489,7 +523,6 @@ class DealService:
             response = requests.post(url, headers=headers, json=payload, timeout=5)
             
             print(f"📬 Ответ от чата: status_code={response.status_code}")
-            print(f"   response_body={response.text[:200]}")
             
             if response.status_code == 200:
                 response_data = response.json()
@@ -498,9 +531,14 @@ class DealService:
                     if message_id and not deal.last_message_id:
                         deal.last_message_id = message_id
                         deal.save(update_fields=['last_message_id'])
+                        print(f"✅ Сохранен ID сообщения: {message_id}")
+            else:
+                print(f"❌ Ошибка чата: {response.text[:200]}")
             
         except Exception as e:
             print(f"🔥 Error sending deal card: {e}")
+            import traceback
+            traceback.print_exc()
 
     @staticmethod
     def _send_to_telegram_admin(deal: Deal):
