@@ -34,53 +34,53 @@ class DealAdmin(admin.ModelAdmin):
         'title', 
         'status_badge', 
         'price', 
-        'client_worker',
-        'dispute_badge',
+        'dispute_status',
         'created_at'
     ]
-    list_filter = ['status', 'created_at']
+    list_filter = ['status', 'created_at', 'dispute_winner']
     search_fields = ['title', 'client_id', 'worker_id', 'id']
     
-    # КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: dispute_info добавлен в readonly_fields
+    # ВСЕ ПОЛЯ ТОЛЬКО ДЛЯ ЧТЕНИЯ - нельзя менять вручную
     readonly_fields = [
-        'id', 
-        'dispute_info', 
+        'id',
+        'chat_room_id',
+        'client_id', 
+        'worker_id',
+        'service',
+        'title',
+        'description',
+        'price',
+        'status',
+        'revision_count',
+        'max_revisions',
+        'delivery_message',
+        'completion_message',
+        'cancellation_reason',
+        'dispute_info',
+        'dispute_client_reason',
+        'dispute_worker_defense',
+        'dispute_created_at',
+        'dispute_resolved_at',
+        'dispute_winner',
         'created_at', 
         'paid_at', 
         'delivered_at', 
         'completed_at', 
         'cancelled_at',
-        'dispute_created_at',
-        'dispute_resolved_at'
     ]
     
     fieldsets = (
+        ('🔥 АРБИТРАЖ - ИНФОРМАЦИЯ О СПОРЕ', {
+            'fields': ('dispute_info',),
+            'classes': ('wide',),
+            'description': 'Используйте действия "Разрешить спор в пользу..." для принятия решения'
+        }),
         ('Основная информация', {
-            'fields': ('id', 'chat_room_id', 'title', 'description', 'price', 'status')
-        }),
-        ('Участники', {
-            'fields': ('client_id', 'worker_id', 'service')
-        }),
-        ('Доработки', {
-            'fields': ('revision_count', 'max_revisions')
-        }),
-        ('Сообщения', {
-            'fields': ('delivery_message', 'completion_message', 'cancellation_reason'),
+            'fields': ('id', 'title', 'price', 'status'),
             'classes': ('collapse',)
         }),
-        ('🔥 АРБИТРАЖ', {
-            'fields': (
-                'dispute_info',
-                'dispute_client_reason',
-                'dispute_worker_defense',
-                'dispute_created_at',
-                'dispute_resolved_at',
-                'dispute_winner'
-            ),
-            'classes': ('wide',)
-        }),
-        ('Временные метки', {
-            'fields': ('created_at', 'paid_at', 'delivered_at', 'completed_at', 'cancelled_at'),
+        ('Участники', {
+            'fields': ('client_id', 'worker_id'),
             'classes': ('collapse',)
         }),
     )
@@ -116,75 +116,105 @@ class DealAdmin(admin.ModelAdmin):
         )
     status_badge.short_description = 'Статус'
     
-    def client_worker(self, obj):
-        return format_html(
-            '👤 Клиент: {}<br>🛠 Исполнитель: {}',
-            str(obj.client_id)[:8], 
-            str(obj.worker_id)[:8]
-        )
-    client_worker.short_description = 'Участники'
-    
-    def dispute_badge(self, obj):
-        if obj.status != 'dispute':
+    def dispute_status(self, obj):
+        """Показывает статус спора и победителя"""
+        if obj.status != 'dispute' and not obj.dispute_winner:
             return '-'
         
+        # Спор разрешен
+        if obj.dispute_winner:
+            if obj.dispute_winner == 'client':
+                return format_html(
+                    '<span style="background-color: #22c55e; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold;">✅ Клиент победил</span>'
+                )
+            else:
+                return format_html(
+                    '<span style="background-color: #3b82f6; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold;">✅ Исполнитель победил</span>'
+                )
+        
+        # Спор активен
         if not obj.dispute_worker_defense:
             return format_html(
-                '<span style="background-color: #f97316; color: white; padding: 3px 8px; border-radius: 3px;">Ждет ответа исполнителя</span>'
-            )
-        
-        if not obj.dispute_winner:
-            return format_html(
-                '<span style="background-color: #ef4444; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">⏳ ТРЕБУЕТ РЕШЕНИЯ</span>'
+                '<span style="background-color: #f97316; color: white; padding: 5px 8px; border-radius: 5px;">⏳ Ждет исполнителя</span>'
             )
         
         return format_html(
-            '<span style="background-color: #22c55e; color: white; padding: 3px 8px; border-radius: 3px;">✓ Разрешен</span>'
+            '<span style="background-color: #ef4444; color: white; padding: 5px 8px; border-radius: 5px; font-weight: bold; animation: pulse 2s infinite;">⚡ ТРЕБУЕТ РЕШЕНИЯ</span>'
         )
-    dispute_badge.short_description = 'Спор'
+    dispute_status.short_description = 'Спор'
     
     def dispute_info(self, obj):
-        if obj.status != 'dispute':
-            return format_html('<p style="color: #6b7280;">Заказ не в споре</p>')
+        """Показывает всю информацию о споре в удобном виде"""
         
-        html = '<div style="background: #fee; padding: 15px; border-left: 4px solid #ef4444; margin: 10px 0;">'
-        html += '<h3 style="margin-top: 0; color: #dc2626;">⚠️ АКТИВНЫЙ СПОР</h3>'
+        if obj.status != 'dispute' and not obj.dispute_winner:
+            return format_html('<p style="color: #6b7280; font-size: 14px;">Заказ не в споре</p>')
+        
+        html = '<div style="font-family: system-ui; max-width: 900px;">'
+        
+        # Заголовок
+        if obj.dispute_winner:
+            winner_text = '👤 КЛИЕНТ ВЫИГРАЛ' if obj.dispute_winner == 'client' else '🛠️ ИСПОЛНИТЕЛЬ ВЫИГРАЛ'
+            winner_color = '#22c55e' if obj.dispute_winner == 'client' else '#3b82f6'
+            html += f'<div style="background: {winner_color}; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 18px; font-weight: bold; text-align: center;">'
+            html += f'✅ СПОР РАЗРЕШЕН: {winner_text}'
+            html += f'<div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Дата: {obj.dispute_resolved_at.strftime("%d.%m.%Y %H:%M") if obj.dispute_resolved_at else "—"}</div>'
+            html += '</div>'
+        else:
+            html += '<div style="background: #ef4444; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 18px; font-weight: bold; text-align: center;">'
+            html += '⚡ АКТИВНЫЙ СПОР - ТРЕБУЕТ РЕШЕНИЯ'
+            if not obj.dispute_worker_defense:
+                html += '<div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">⏳ Исполнитель еще не ответил</div>'
+            html += '</div>'
+        
+        # Основная информация
+        html += '<div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 15px;">'
+        html += f'<div style="margin-bottom: 8px;"><strong>📋 Заказ:</strong> {obj.title}</div>'
+        html += f'<div style="margin-bottom: 8px;"><strong>💰 Сумма:</strong> {obj.price}₽</div>'
+        html += f'<div style="margin-bottom: 8px;"><strong>👤 Клиент ID:</strong> {str(obj.client_id)[:8]}...</div>'
+        html += f'<div><strong>🛠️ Исполнитель ID:</strong> {str(obj.worker_id)[:8]}...</div>'
+        html += '</div>'
+        
+        # Техническое задание
+        html += '<div style="background: white; border: 2px solid #e5e7eb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">'
+        html += '<div style="font-weight: bold; color: #374151; margin-bottom: 10px; font-size: 15px;">📝 ТЕХНИЧЕСКОЕ ЗАДАНИЕ</div>'
+        html += f'<div style="color: #4b5563; line-height: 1.6; white-space: pre-wrap;">{obj.description}</div>'
+        html += '</div>'
+        
+        # Результат работы
+        if obj.delivery_message:
+            html += '<div style="background: white; border: 2px solid #10b981; padding: 15px; border-radius: 8px; margin-bottom: 15px;">'
+            html += '<div style="font-weight: bold; color: #059669; margin-bottom: 10px; font-size: 15px;">📦 РЕЗУЛЬТАТ РАБОТЫ (от исполнителя)</div>'
+            html += f'<div style="color: #4b5563; line-height: 1.6; white-space: pre-wrap;">{obj.delivery_message}</div>'
+            html += '</div>'
         
         # Претензия клиента
-        html += '<div style="background: white; padding: 10px; margin: 10px 0; border-radius: 5px;">'
-        html += '<strong style="color: #dc2626;">👤 Претензия клиента:</strong><br>'
-        html += f'<pre style="white-space: pre-wrap; margin: 5px 0;">{obj.dispute_client_reason}</pre>'
+        html += '<div style="background: #fee2e2; border: 2px solid #ef4444; padding: 15px; border-radius: 8px; margin-bottom: 15px;">'
+        html += '<div style="font-weight: bold; color: #dc2626; margin-bottom: 10px; font-size: 15px;">👤 ПРЕТЕНЗИЯ КЛИЕНТА</div>'
+        html += f'<div style="color: #991b1b; line-height: 1.6; white-space: pre-wrap; font-size: 14px;">{obj.dispute_client_reason}</div>'
         html += '</div>'
         
         # Защита исполнителя
         if obj.dispute_worker_defense:
-            html += '<div style="background: white; padding: 10px; margin: 10px 0; border-radius: 5px;">'
-            html += '<strong style="color: #2563eb;">🛡️ Защита исполнителя:</strong><br>'
-            html += f'<pre style="white-space: pre-wrap; margin: 5px 0;">{obj.dispute_worker_defense}</pre>'
+            html += '<div style="background: #dbeafe; border: 2px solid #3b82f6; padding: 15px; border-radius: 8px; margin-bottom: 15px;">'
+            html += '<div style="font-weight: bold; color: #2563eb; margin-bottom: 10px; font-size: 15px;">🛡️ ЗАЩИТА ИСПОЛНИТЕЛЯ</div>'
+            html += f'<div style="color: #1e40af; line-height: 1.6; white-space: pre-wrap; font-size: 14px;">{obj.dispute_worker_defense}</div>'
             html += '</div>'
         else:
-            html += '<div style="background: #fef3c7; padding: 10px; margin: 10px 0; border-radius: 5px;">'
-            html += '<strong style="color: #d97706;">⏳ Исполнитель еще не ответил</strong>'
+            html += '<div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">'
+            html += '<div style="color: #92400e; font-weight: bold;">⏳ Исполнитель еще не подал защиту</div>'
+            html += '<div style="color: #78350f; font-size: 13px; margin-top: 5px;">Решение можно принять только после ответа исполнителя</div>'
             html += '</div>'
         
-        # Результат работы
-        if obj.delivery_message:
-            html += '<div style="background: white; padding: 10px; margin: 10px 0; border-radius: 5px;">'
-            html += '<strong style="color: #059669;">📦 Результат работы:</strong><br>'
-            html += f'<pre style="white-space: pre-wrap; margin: 5px 0;">{obj.delivery_message}</pre>'
-            html += '</div>'
-        
-        # Статус
-        if obj.dispute_winner:
-            winner_text = 'клиента' if obj.dispute_winner == 'client' else 'исполнителя'
-            html += f'<div style="background: #d1fae5; padding: 10px; margin: 10px 0; border-radius: 5px; color: #065f46;">'
-            html += f'<strong>✅ Спор разрешен в пользу {winner_text}</strong>'
-            html += f'<br>Дата: {obj.dispute_resolved_at.strftime("%d.%m.%Y %H:%M") if obj.dispute_resolved_at else "—"}'
-            html += '</div>'
-        elif obj.dispute_worker_defense:
-            html += '<div style="background: #fef3c7; padding: 10px; margin: 10px 0; border-radius: 5px; color: #92400e;">'
-            html += '<strong>⚡ ТРЕБУЕТСЯ ВАШЕ РЕШЕНИЕ!</strong><br>'
-            html += 'Используйте кнопки "Разрешить в пользу..." ниже или действия в списке заказов.'
+        # Инструкция
+        if not obj.dispute_winner and obj.dispute_worker_defense:
+            html += '<div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 15px; border-radius: 8px; text-align: center;">'
+            html += '<div style="color: #92400e; font-weight: bold; font-size: 16px; margin-bottom: 8px;">⚡ КАК РАЗРЕШИТЬ СПОР</div>'
+            html += '<div style="color: #78350f; font-size: 14px;">1. Вернитесь к списку заказов</div>'
+            html += '<div style="color: #78350f; font-size: 14px;">2. Выберите этот заказ галочкой</div>'
+            html += '<div style="color: #78350f; font-size: 14px;">3. В выпадающем меню "Действие" выберите:</div>'
+            html += '<div style="color: #78350f; font-size: 14px; margin-top: 5px;">   • "✅ Разрешить спор в пользу КЛИЕНТА" (возврат средств)</div>'
+            html += '<div style="color: #78350f; font-size: 14px;">   • "✅ Разрешить спор в пользу ИСПОЛНИТЕЛЯ" (выплата)</div>'
+            html += '<div style="color: #78350f; font-size: 14px; margin-top: 5px;">4. Нажмите "Выполнить"</div>'
             html += '</div>'
         
         html += '</div>'
@@ -193,67 +223,185 @@ class DealAdmin(admin.ModelAdmin):
     dispute_info.short_description = 'Информация о споре'
     
     def get_queryset(self, request):
+        """Споры с защитой первыми, потом остальные споры, потом все остальное"""
         qs = super().get_queryset(request)
-        return qs.order_by('-status', '-created_at')
+        from django.db.models import Case, When, Value, IntegerField
+        
+        return qs.annotate(
+            dispute_priority=Case(
+                # Споры требующие решения - самый высокий приоритет
+                When(status='dispute', dispute_worker_defense__isnull=False, dispute_winner='', then=Value(1)),
+                # Споры ожидающие ответа исполнителя
+                When(status='dispute', dispute_worker_defense='', then=Value(2)),
+                # Разрешенные споры
+                When(dispute_winner__isnull=False, then=Value(3)),
+                # Все остальное
+                default=Value(4),
+                output_field=IntegerField()
+            )
+        ).order_by('dispute_priority', '-created_at')
+    
+    def has_add_permission(self, request):
+        """Запрещаем создавать заказы через админку"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Запрещаем удалять заказы"""
+        return False
     
     @admin.action(description='✅ Разрешить спор в пользу КЛИЕНТА (возврат средств)')
     def resolve_dispute_client(self, request, queryset):
+        """Разрешить споры в пользу клиента - возврат средств"""
         count = 0
         errors = []
+        
         for deal in queryset:
-            if deal.status != 'dispute' or deal.dispute_winner:
+            # Проверки
+            if deal.status != 'dispute':
+                errors.append(f"Заказ {str(deal.id)[:8]}: не в споре (статус: {deal.get_status_display()})")
                 continue
+            
+            if not deal.dispute_worker_defense:
+                errors.append(f"Заказ {str(deal.id)[:8]}: исполнитель еще не ответил")
+                continue
+            
+            if deal.dispute_winner:
+                errors.append(f"Заказ {str(deal.id)[:8]}: спор уже разрешен")
+                continue
+            
             try:
                 DealService.admin_resolve_dispute(
                     deal=deal,
                     winner='client',
-                    admin_comment=f'Решение принято администратором {request.user.username}'
+                    admin_comment=f'Решение администратора {request.user.username}: средства возвращены клиенту'
                 )
                 count += 1
             except Exception as e:
-                errors.append(f"Заказ {deal.id}: {str(e)}")
+                errors.append(f"Заказ {str(deal.id)[:8]}: {str(e)}")
+        
+        # Сообщения
         if count:
-            self.message_user(request, f'✅ Разрешено {count} споров в пользу клиента.')
+            self.message_user(
+                request, 
+                f'✅ Разрешено {count} спор(ов) в пользу КЛИЕНТА. Средства возвращены клиенту, заказы отменены.',
+                level='success'
+            )
+        
         if errors:
-            self.message_user(request, '⚠️ Ошибки: ' + '; '.join(errors), level='warning')
+            self.message_user(
+                request, 
+                '⚠️ Некоторые заказы не обработаны: ' + ' | '.join(errors), 
+                level='warning'
+            )
+        
+        if not count and not errors:
+            self.message_user(request, '❌ Не выбрано ни одного подходящего заказа', level='error')
     
     @admin.action(description='✅ Разрешить спор в пользу ИСПОЛНИТЕЛЯ (выплата)')
     def resolve_dispute_worker(self, request, queryset):
+        """Разрешить споры в пользу исполнителя - выплата средств"""
         count = 0
         errors = []
+        
         for deal in queryset:
-            if deal.status != 'dispute' or deal.dispute_winner:
+            # Проверки
+            if deal.status != 'dispute':
+                errors.append(f"Заказ {str(deal.id)[:8]}: не в споре (статус: {deal.get_status_display()})")
                 continue
+            
+            if not deal.dispute_worker_defense:
+                errors.append(f"Заказ {str(deal.id)[:8]}: исполнитель еще не ответил")
+                continue
+            
+            if deal.dispute_winner:
+                errors.append(f"Заказ {str(deal.id)[:8]}: спор уже разрешен")
+                continue
+            
             try:
                 DealService.admin_resolve_dispute(
                     deal=deal,
                     winner='worker',
-                    admin_comment=f'Решение принято администратором {request.user.username}'
+                    admin_comment=f'Решение администратора {request.user.username}: работа принята, средства выплачены исполнителю'
                 )
                 count += 1
             except Exception as e:
-                errors.append(f"Заказ {deal.id}: {str(e)}")
+                errors.append(f"Заказ {str(deal.id)[:8]}: {str(e)}")
+        
+        # Сообщения
         if count:
-            self.message_user(request, f'✅ Разрешено {count} споров в пользу исполнителя.')
+            self.message_user(
+                request, 
+                f'✅ Разрешено {count} спор(ов) в пользу ИСПОЛНИТЕЛЯ. Средства выплачены исполнителю, заказы завершены.',
+                level='success'
+            )
+        
         if errors:
-            self.message_user(request, '⚠️ Ошибки: ' + '; '.join(errors), level='warning')
+            self.message_user(
+                request, 
+                '⚠️ Некоторые заказы не обработаны: ' + ' | '.join(errors), 
+                level='warning'
+            )
+        
+        if not count and not errors:
+            self.message_user(request, '❌ Не выбрано ни одного подходящего заказа', level='error')
 
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
     list_display = ['id_short', 'deal_title', 'amount', 'status_badge', 'created_at']
-    readonly_fields = ['id', 'created_at', 'updated_at']
-    def id_short(self, obj): return str(obj.id)[:8]
-    def deal_title(self, obj): return obj.deal.title if obj.deal else '-'
+    list_filter = ['status', 'created_at']
+    readonly_fields = ['id', 'deal', 'amount', 'commission', 'status', 'payment_provider', 'external_payment_id', 'created_at', 'updated_at']
+    
+    def id_short(self, obj):
+        return str(obj.id)[:8]
+    id_short.short_description = 'ID'
+    
+    def deal_title(self, obj):
+        return obj.deal.title if obj.deal else '-'
+    deal_title.short_description = 'Заказ'
+    
     def status_badge(self, obj):
-        return format_html('<span style="color: blue;">{}</span>', obj.get_status_display())
+        colors = {
+            'pending': '#6b7280',
+            'held': '#3b82f6',
+            'captured': '#22c55e',
+            'refunded': '#f97316',
+        }
+        color = colors.get(obj.status, '#6b7280')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 5px 10px; border-radius: 5px;">{}</span>',
+            color, obj.get_status_display()
+        )
+    status_badge.short_description = 'Статус'
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ['id_short', 'rating', 'created_at']
-    readonly_fields = ['id', 'created_at']
-    def id_short(self, obj): return str(obj.id)[:8]
+    list_display = ['id_short', 'rating', 'deal_title', 'created_at']
+    list_filter = ['rating', 'created_at']
+    readonly_fields = ['id', 'deal', 'rating', 'comment', 'reviewer_id', 'reviewee_id', 'created_at']
+    
+    def id_short(self, obj):
+        return str(obj.id)[:8]
+    id_short.short_description = 'ID'
+    
+    def deal_title(self, obj):
+        return obj.deal.title if obj.deal else '-'
+    deal_title.short_description = 'Заказ'
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 admin.site.site_header = 'Маркетплейс - Админ-панель'
+admin.site.site_title = 'Админка'
 admin.site.index_title = 'Управление маркетплейсом'

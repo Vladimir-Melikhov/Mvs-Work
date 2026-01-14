@@ -36,6 +36,16 @@ class DealSerializer(serializers.ModelSerializer):
     
     commission = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
+    
+    # ✅ Поля арбитража (read-only)
+    can_open_dispute = serializers.ReadOnlyField()
+    can_worker_refund = serializers.ReadOnlyField()
+    can_worker_defend = serializers.ReadOnlyField()
+    is_dispute_pending_admin = serializers.ReadOnlyField()
+    
+    # ✅ Читаемый статус с учетом спора
+    status_display = serializers.SerializerMethodField()
+    dispute_result = serializers.SerializerMethodField()
 
     class Meta:
         model = Deal
@@ -46,7 +56,12 @@ class DealSerializer(serializers.ModelSerializer):
             'delivery_message', 'completion_message', 'cancellation_reason',
             'created_at', 'paid_at', 'delivered_at', 'completed_at', 'cancelled_at',
             'transactions', 'review', 'commission', 'total',
-            'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel'
+            'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel',
+            # ✅ Новые поля арбитража
+            'can_open_dispute', 'can_worker_refund', 'can_worker_defend', 'is_dispute_pending_admin',
+            'dispute_client_reason', 'dispute_worker_defense', 
+            'dispute_created_at', 'dispute_resolved_at', 'dispute_winner',
+            'status_display', 'dispute_result',
         ]
         read_only_fields = ['id', 'chat_room_id', 'created_at']
 
@@ -55,6 +70,44 @@ class DealSerializer(serializers.ModelSerializer):
 
     def get_total(self, obj):
         return float(obj.price * Decimal('1.08'))
+    
+    def get_status_display(self, obj):
+        """Возвращает читаемый статус с учетом результата спора"""
+        status_map = {
+            'pending': 'Ожидает оплаты',
+            'paid': 'В работе',
+            'delivered': 'На проверке',
+            'dispute': 'В споре',
+            'completed': 'Завершён',
+            'cancelled': 'Отменён',
+        }
+        
+        base_status = status_map.get(obj.status, obj.status)
+        
+        # Если есть победитель в споре - добавляем информацию
+        if obj.dispute_winner:
+            if obj.dispute_winner == 'client':
+                if obj.status == 'cancelled':
+                    return 'Отменён (спор - победа клиента)'
+                return f'{base_status} (спор - победа клиента)'
+            elif obj.dispute_winner == 'worker':
+                if obj.status == 'completed':
+                    return 'Завершён (спор - победа исполнителя)'
+                return f'{base_status} (спор - победа исполнителя)'
+        
+        return base_status
+    
+    def get_dispute_result(self, obj):
+        """Возвращает результат спора для отображения"""
+        if not obj.dispute_winner:
+            return None
+        
+        return {
+            'winner': obj.dispute_winner,
+            'winner_text': 'клиента' if obj.dispute_winner == 'client' else 'исполнителя',
+            'resolved_at': obj.dispute_resolved_at,
+            'message': f"Спор разрешен в пользу {'клиента' if obj.dispute_winner == 'client' else 'исполнителя'}"
+        }
 
 
 class CreateDealSerializer(serializers.Serializer):

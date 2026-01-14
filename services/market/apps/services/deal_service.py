@@ -427,12 +427,20 @@ class DealService:
                 'can_complete': deal.can_complete,
                 'can_cancel': deal.can_cancel,
                 'can_update_price': deal.can_update_price,
+                # ✅ НОВЫЕ ПОЛЯ ДЛЯ АРБИТРАЖА
                 'can_open_dispute': deal.can_open_dispute,
                 'can_worker_refund': deal.can_worker_refund,
                 'can_worker_defend': deal.can_worker_defend,
                 'is_dispute_pending_admin': deal.is_dispute_pending_admin,
                 'dispute_client_reason': deal.dispute_client_reason or '',
                 'dispute_worker_defense': deal.dispute_worker_defense or '',
+                'dispute_created_at': deal.dispute_created_at.isoformat() if deal.dispute_created_at else None,
+                'dispute_resolved_at': deal.dispute_resolved_at.isoformat() if deal.dispute_resolved_at else None,
+                'dispute_winner': deal.dispute_winner or '',
+                # Читаемый статус с учетом спора
+                'status_display': DealService._get_status_display(deal),
+                # Результат спора
+                'dispute_result': DealService._get_dispute_result(deal),
             }
             
             message_texts = {
@@ -504,7 +512,7 @@ class DealService:
 🛡️ <b>ЗАЩИТА ИСПОЛНИТЕЛЯ:</b>
 {deal.dispute_worker_defense}
 
-Проверьте админ панель
+🔗 <a href="{frontend_url}/admin/disputes/{deal.id}">Разрешить спор</a>
             """
 
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -523,3 +531,43 @@ class DealService:
 
         except Exception as e:
             print(f"🔥 Error sending to Telegram: {e}")
+
+    @staticmethod
+    def _get_status_display(deal: Deal) -> str:
+        """Возвращает читаемый статус с учетом результата спора"""
+        status_map = {
+            'pending': 'Ожидает оплаты',
+            'paid': 'В работе',
+            'delivered': 'На проверке',
+            'dispute': 'В споре',
+            'completed': 'Завершён',
+            'cancelled': 'Отменён',
+        }
+        
+        base_status = status_map.get(deal.status, deal.status)
+        
+        # Если есть победитель в споре - добавляем информацию
+        if deal.dispute_winner:
+            if deal.dispute_winner == 'client':
+                if deal.status == 'cancelled':
+                    return 'Отменён (спор - победа клиента)'
+                return f'{base_status} (спор - победа клиента)'
+            elif deal.dispute_winner == 'worker':
+                if deal.status == 'completed':
+                    return 'Завершён (спор - победа исполнителя)'
+                return f'{base_status} (спор - победа исполнителя)'
+        
+        return base_status
+
+    @staticmethod
+    def _get_dispute_result(deal: Deal):
+        """Возвращает результат спора для отображения"""
+        if not deal.dispute_winner:
+            return None
+        
+        return {
+            'winner': deal.dispute_winner,
+            'winner_text': 'клиента' if deal.dispute_winner == 'client' else 'исполнителя',
+            'resolved_at': deal.dispute_resolved_at.isoformat() if deal.dispute_resolved_at else None,
+            'message': f"Спор разрешен в пользу {'клиента' if deal.dispute_winner == 'client' else 'исполнителя'}"
+        }

@@ -67,6 +67,27 @@
           </div>
         </div>
 
+        <!-- ✅ РЕЗУЛЬТАТ СПОРА (если есть) -->
+        <div v-if="dealData.dispute_result" class="shrink-0">
+          <div 
+            :class="[
+              'rounded-xl p-4 border-2',
+              dealData.dispute_result.winner === 'client' ? 'bg-green-50 border-green-300' : 'bg-blue-50 border-blue-300'
+            ]"
+          >
+            <div class="text-sm font-bold mb-2 flex items-center gap-2"
+                 :class="dealData.dispute_result.winner === 'client' ? 'text-green-800' : 'text-blue-800'">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              ✅ {{ dealData.dispute_result.message }}
+            </div>
+            <div class="text-xs" :class="dealData.dispute_result.winner === 'client' ? 'text-green-600' : 'text-blue-600'">
+              {{ dealData.dispute_result.winner === 'client' ? 'Средства возвращены клиенту' : 'Средства выплачены исполнителю' }}
+            </div>
+          </div>
+        </div>
+
         <!-- ✅ ИНФОРМАЦИЯ О СПОРЕ -->
         <div v-if="dealData.status === 'dispute'" class="shrink-0">
           <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
@@ -383,14 +404,22 @@ const emit = defineEmits(['deal-action'])
 const auth = useAuthStore()
 const loading = ref(false)
 
+// ✅ ИСПРАВЛЕНИЕ: Правильно определяем ID заказа
+const dealId = computed(() => {
+  return props.dealData.id || 
+         props.dealData.deal_id || 
+         props.message?.deal_id ||
+         props.message?.id
+})
+
 // Модалки
 const showDeliveryModal = ref(false)
 const showCompletionModal = ref(false)
 const showRevisionModal = ref(false)
 const showCancelModal = ref(false)
 const showPriceModal = ref(false)
-const showDisputeModal = ref(false)  // ✅ Новая
-const showDefenseModal = ref(false)  // ✅ Новая
+const showDisputeModal = ref(false)
+const showDefenseModal = ref(false)
 
 // Сообщения
 const deliveryMessage = ref('')
@@ -399,8 +428,8 @@ const revisionReason = ref('')
 const cancelReason = ref('')
 const rating = ref(0)
 const newPrice = ref(props.dealData.price)
-const disputeReason = ref('')  // ✅ Новое
-const defenseText = ref('')    // ✅ Новое
+const disputeReason = ref('')
+const defenseText = ref('')
 
 // Проверки роли
 const isClient = computed(() => String(auth.user.id) === String(props.dealData.client_id))
@@ -412,7 +441,7 @@ const borderColor = computed(() => {
     'pending': 'border-purple-300',
     'paid': 'border-blue-300',
     'delivered': 'border-green-300',
-    'dispute': 'border-red-300',  // ✅ Новый
+    'dispute': 'border-red-300',
     'completed': 'border-orange-300',
     'cancelled': 'border-gray-300',
   }
@@ -424,7 +453,7 @@ const statusIconBg = computed(() => {
     'pending': 'bg-gradient-to-br from-purple-400 to-purple-600',
     'paid': 'bg-gradient-to-br from-blue-400 to-blue-600',
     'delivered': 'bg-gradient-to-br from-green-400 to-green-600',
-    'dispute': 'bg-gradient-to-br from-red-400 to-red-600',  // ✅ Новый
+    'dispute': 'bg-gradient-to-br from-red-400 to-red-600',
     'completed': 'bg-gradient-to-br from-orange-400 to-orange-600',
     'cancelled': 'bg-gradient-to-br from-gray-400 to-gray-600',
   }
@@ -432,11 +461,23 @@ const statusIconBg = computed(() => {
 })
 
 const statusLabel = computed(() => {
+  // ✅ Если есть результат спора - показываем его
+  if (props.dealData.dispute_result) {
+    const winner = props.dealData.dispute_result.winner_text
+    if (props.dealData.status === 'cancelled') {
+      return `Отменён (спор - победа ${winner})`
+    }
+    if (props.dealData.status === 'completed') {
+      return `Завершён (спор - победа ${winner})`
+    }
+  }
+  
+  // Обычные статусы
   const labels = {
     'pending': 'Ожидает оплаты',
     'paid': 'В работе',
     'delivered': 'На проверке',
-    'dispute': 'В споре',  // ✅ Новый
+    'dispute': 'В споре',
     'completed': 'Завершен',
     'cancelled': 'Отменен',
   }
@@ -448,7 +489,7 @@ const statusTextColor = computed(() => {
     'pending': 'text-purple-600',
     'paid': 'text-blue-600',
     'delivered': 'text-green-600',
-    'dispute': 'text-red-600',  // ✅ Новый
+    'dispute': 'text-red-600',
     'completed': 'text-orange-600',
     'cancelled': 'text-gray-600',
   }
@@ -480,7 +521,6 @@ const showUpdatePriceButton = computed(() => {
   return isWorker.value && props.dealData.can_update_price
 })
 
-// ✅ НОВЫЕ КНОПКИ ДЛЯ АРБИТРАЖА
 const showOpenDisputeButton = computed(() => {
   return isClient.value && props.dealData.can_open_dispute
 })
@@ -497,7 +537,7 @@ const showWorkerDefendButton = computed(() => {
 const updatePrice = async () => {
   loading.value = true
   try {
-    await axios.patch(`/api/market/deals/${props.dealData.deal_id}/update-price/`, {
+    await axios.patch(`/api/market/deals/${dealId.value}/update-price/`, {
       price: newPrice.value
     })
     showPriceModal.value = false
@@ -514,7 +554,7 @@ const payDeal = async () => {
   
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/pay/`)
+    await axios.post(`/api/market/deals/${dealId.value}/pay/`)
     emit('deal-action')
   } catch (e) {
     alert('Ошибка оплаты: ' + (e.response?.data?.error || e.message))
@@ -526,7 +566,7 @@ const payDeal = async () => {
 const deliverWork = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/deliver/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/deliver/`, {
       delivery_message: deliveryMessage.value
     })
     showDeliveryModal.value = false
@@ -547,7 +587,7 @@ const completeDeal = async () => {
   
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/complete/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/complete/`, {
       rating: rating.value,
       comment: completionMessage.value || 'Спасибо!'
     })
@@ -565,7 +605,7 @@ const completeDeal = async () => {
 const requestRevision = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/revision/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/revision/`, {
       revision_reason: revisionReason.value
     })
     showRevisionModal.value = false
@@ -578,12 +618,10 @@ const requestRevision = async () => {
   }
 }
 
-// ✅ НОВЫЕ ДЕЙСТВИЯ ДЛЯ АРБИТРАЖА
-
 const openDispute = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/open-dispute/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/open-dispute/`, {
       dispute_reason: disputeReason.value
     })
     showDisputeModal.value = false
@@ -601,7 +639,7 @@ const workerRefund = async () => {
   
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/worker-refund/`)
+    await axios.post(`/api/market/deals/${dealId.value}/worker-refund/`)
     emit('deal-action')
   } catch (e) {
     alert('Ошибка: ' + (e.response?.data?.error || e.message))
@@ -613,7 +651,7 @@ const workerRefund = async () => {
 const workerDefend = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/worker-defend/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/worker-defend/`, {
       defense_text: defenseText.value
     })
     showDefenseModal.value = false
@@ -629,7 +667,7 @@ const workerDefend = async () => {
 const cancelDeal = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${props.dealData.deal_id}/cancel/`, {
+    await axios.post(`/api/market/deals/${dealId.value}/cancel/`, {
       reason: cancelReason.value || 'Не указана'
     })
     showCancelModal.value = false
