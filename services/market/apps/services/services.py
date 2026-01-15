@@ -1,108 +1,111 @@
 import os
 import requests
-import json
 from django.conf import settings
 from .models import Service, Deal
 
-
 class AIService:
     """
-    AI-сервис для генерации СТРОГОГО ТЗ через io.net (DeepSeek-R1).
-    Убирает галлюцинации и лишние теги <think>.
+    AI-сервис для генерации СТРОГОГО ТЗ через YandexGPT.
+    Ориентирован на профессиональную бизнес-аналитику.
     """
     
     @staticmethod
     def generate_tz(service_id: str, client_requirements: str) -> str:
         try:
             service = Service.objects.get(id=service_id)
-            api_key = os.getenv('IO_NET_API_KEY')
-            base_url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
+            api_key = os.getenv('YANDEX_API_KEY')
+            folder_id = os.getenv('YANDEX_FOLDER_ID')
 
-            if not api_key:
-                print("⚠️ [Market] Нет IO_NET_API_KEY")
+            if not api_key or not folder_id:
+                print("⚠️ [Market] Нет YANDEX_API_KEY или YANDEX_FOLDER_ID")
                 return AIService._generate_mock_tz(client_requirements, service.price, service.title)
 
-            system_instruction = """Ты — строгий технический документатор.
-Твоя задача — составить ТЗ, объединив "Требования исполнителя" (Бриф) и "Ответы заказчика".
+            # НОВЫЙ ПРОМПТ: Акцент на перевод в проф. плоскость без галлюцинаций
+            system_instruction = """Ты — ведущий ИТ бизнес-аналитик. Твоя роль: структурировать хаотичные пожелания клиента в четкое техническое задание.
 
-ГЛАВНЫЕ ПРАВИЛА (СОБЛЮДАТЬ СТРОГО):
-1. ЗАПРЕЩЕНО выдумывать технические детали (библиотеки, фреймворки), если их нет в тексте.
-2. ЗАПРЕЩЕНО выдумывать дизайн-решения (шрифты, цвета), если они не указаны явно.
-3. Если заказчик пишет "простой сайт", НЕ пиши про сложные анимации или API, если этого не просили.
-4. Если информации не хватает (например, клиент не ответил на вопрос из брифа) — добавляй пункт в раздел "Вопросы для уточнения".
+Твоя задача:
+1. Конвертировать разговорную речь в профессиональную терминологию (вместо "сделать красиво" — "разработать визуальную концепцию согласно референсам").
+2. Формулировать требования конкретно и без воды, но полными, красивыми предложениями.
+3. Соблюдать точность: не придумывай технологии, инструменты или элементы дизайна, которые не упоминались.
+4. Если в данных есть пробел, который критичен для работы — вежливо вынеси это в раздел уточняющих вопросов.
+5. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдумывать технические детали (библиотеки, фреймворки, СУБД), если их нет в тексте.
+6. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдумывать дизайн-решения (шрифты, цвета), если они не указаны явно.
+
+Стиль: официально-деловой, технический, лаконичный.
 
 Формат вывода (Markdown):
-# ТЗ: [Название услуги]
-## 1. Задача (Суть своими словами)
-## 2. Стек и Условия (Строго то, что указал исполнитель)
-## 3. Функционал (То, что попросил заказчик)
-## 4. Дизайн и Контент (Реальные пожелания: цвета, референсы)
-## 5. Вопросы и Уточнения (Чего не хватает для работы)"""
+# Техническое задание: [Название услуги]
+## 1. Концепция и цель проекта
+(Опиши суть задачи профессиональным языком)
+## 2. Технические параметры и условия исполнения
+(Стек и требования, указанные исполнителем)
+## 3. Функциональный объем работ
+(Что конкретно должно быть реализовано на основе запроса заказчика)
+## 4. Визуальные и контентные предпочтения
+(Стилистика, цвета, референсы, если они были даны)
+## 5. Перечень уточняющих вопросов
+(Пункты, которые нужно прояснить перед стартом)"""
 
-            freelancer_reqs = service.ai_template if service.ai_template else "Исполнитель не указал жестких требований."
-            user_content = f"""
-ДАННЫЕ ДЛЯ ТЗ:
+            freelancer_reqs = service.ai_template if service.ai_template else "Общие условия исполнения согласно профилю специалиста."
+            
+            user_content = f"""ИСХОДНЫЕ ДАННЫЕ ДЛЯ АНАЛИЗА:
 
-1. ИСПОЛНИТЕЛЬ (БРИФ / ТРЕБОВАНИЯ):
+1. ТРЕБОВАНИЯ ИСПОЛНИТЕЛЯ:
 Услуга: {service.title}
-Условия: "{freelancer_reqs}"
+Базовые условия: "{freelancer_reqs}"
 
-2. ЗАКАЗЧИК (ОТВЕТЫ / ПОЖЕЛАНИЯ):
-Запрос: "{client_requirements}"
+2. ПОЖЕЛАНИЯ ЗАКАЗЧИКА:
+Текст запроса: "{client_requirements}"
 
-Сгенерируй ТЗ, используя ТОЛЬКО эти данные. Не добавляй "воду"."""
+Задание: Сформируй на основе этих данных структурированное ТЗ. Не добавляй лишних функций, но используй профессиональный язык."""
+
+            url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+            
+            payload = {
+                "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
+                "completionOptions": {
+                    "stream": False,
+                    "temperature": 0.4, # Чуть выше для красоты слога
+                    "maxTokens": "4000"
+                },
+                "messages": [
+                    {"role": "system", "text": system_instruction},
+                    {"role": "user", "text": user_content}
+                ]
+            }
 
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-            
-            payload = {
-                "model": "deepseek-ai/DeepSeek-R1", 
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_content}
-                ],
-                "temperature": 0.3,
-                "max_tokens": 8000
+                "Authorization": f"Api-Key {api_key}",
+                "x-folder-id": folder_id
             }
 
-            print(f"🔄 [Market] Генерация ТЗ (DeepSeek-R1)...")
+            print(f"🔄 [Market] Генерация ТЗ (YandexGPT - Business Analyst Mode)...")
             
-            response = requests.post(base_url, headers=headers, json=payload, timeout=90)
-            if response.status_code != 200:
-                print("--- DEBUG AI ERROR START ---")
-                print(f"Status: {response.status_code}")
-                print(f"Sent Headers: {headers}") # Проверим, как улетел токен
-                print(f"Response Body: {response.text}") # Тут будет реальная причина от io.net
-                print("--- DEBUG AI ERROR END ---")
+            response = requests.post(url, headers=headers, json=payload, timeout=90)
             
             if response.status_code == 200:
                 data = response.json()
                 try:
-                    raw_content = data['choices'][0]['message']['content']
-
-                    if "</think>" in raw_content:
-                        final_tz = raw_content.split("</think>")[-1].strip()
-                    else:
-                        final_tz = raw_content
-
-                    return final_tz
-                    
-                except Exception:
+                    generated_text = data['result']['alternatives'][0]['message']['text']
+                    print(f"✅ [Market] ТЗ успешно сформировано ({len(generated_text)} симв.)")
+                    return generated_text
+                except (KeyError, IndexError) as e:
+                    print(f"⚠️ Ошибка парсинга: {e}")
                     return AIService._generate_mock_tz(client_requirements, service.price, service.title)
             else:
                 print(f"⚠️ Ошибка API ({response.status_code}): {response.text}")
                 return AIService._generate_mock_tz(client_requirements, service.price, service.title)
 
+        except Service.DoesNotExist:
+            return AIService._generate_mock_tz(client_requirements, 0, "Проект")
         except Exception as e:
-            print(f"🔥 Ошибка сервиса AI: {e}")
+            print(f"🔥 Ошибка: {e}")
             return AIService._generate_mock_tz(client_requirements, 0, "Проект")
 
     @staticmethod
     def _generate_mock_tz(requirements: str, price: float, title: str) -> str:
-        """Заглушка, если нейросеть недоступна"""
-        return f"# ТЗ: {title}\n\n## Задача\n{requirements}\n\n## Бюджет\n${price}\n\n_Примечание: AI временно недоступен, это автоматический черновик._"
+        return f"# ТЗ: {title}\n\n## 1. Задача\n{requirements}\n\n_AI временно недоступен._"
 
 
 class OrderService:
@@ -112,7 +115,6 @@ class OrderService:
     def create_order(service_id: str, client_id: str, agreed_tz: str, auth_token: str):
         try:
             service = Service.objects.get(id=service_id)
-
             order = Deal.objects.create(
                 service=service, 
                 client_id=client_id, 
@@ -124,7 +126,6 @@ class OrderService:
             try:
                 chat_url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/"
                 headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
-
                 resp = requests.post(chat_url, headers=headers, json={'member_ids': [str(client_id), str(service.owner_id)]}, timeout=5)
 
                 if resp.status_code == 201:
@@ -141,7 +142,6 @@ class OrderService:
                     )
             except Exception as e:
                 print(f"Chat error: {e}")
-
             return order
         except Service.DoesNotExist:
             raise ValueError("Service not found")
