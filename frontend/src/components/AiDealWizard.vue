@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-    <div class="bg-white rounded-[32px] p-8 pr-6 max-w-2xl w-full shadow-2xl relative border border-white/50 max-h-[90vh] overflow-y-auto custom-scrollbar">
+    <div class="bg-white rounded-[32px] p-6 md:p-8 md:pr-6 max-w-2xl w-full shadow-2xl relative border border-white/50 max-h-[90vh] overflow-y-auto custom-scrollbar">
       
       <button 
         @click="$emit('close')" 
@@ -17,7 +17,7 @@
             Ai
           </div>
           <div>
-            <h2 class="text-2xl font-bold text-[#1a1a2e]">Оформление заказа</h2>
+            <h2 class="text-xl md:text-2xl font-bold text-[#1a1a2e]">Оформление заказа</h2>
             <p class="text-sm text-gray-500">Опишите вашу задачу</p>
           </div>
         </div>
@@ -29,8 +29,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <div>
-              <div class="font-bold text-[#1a1a2e] mb-1">Услуга: {{ service?.title }}</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-[#1a1a2e] mb-1 break-words">Услуга: {{ service?.title }}</div>
               <div class="text-sm text-gray-600">Цена: <span class="font-bold text-[#7000ff]">{{ service?.price }}₽</span></div>
             </div>
           </div>
@@ -42,7 +42,7 @@
               <div class="text-xs font-bold text-[#7000ff] uppercase tracking-wider mb-2">
                 Важное примечание от исполнителя
               </div>
-              <p class="text-sm text-[#1a1a2e] font-medium whitespace-pre-line leading-relaxed">
+              <p class="text-sm text-[#1a1a2e] font-medium whitespace-pre-line leading-relaxed break-words">
                 {{ service.ai_template }}
               </p>
           </div>
@@ -51,7 +51,7 @@
             <span class="text-sm font-bold text-gray-700 mb-2 block">Опишите вашу задачу</span>
             <textarea 
               v-model="requirements" 
-              class="w-full p-4 bg-gray-50 rounded-xl h-48 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/20 focus:border-[#7000ff] transition-all resize-none font-medium text-[#1a1a2e]"
+              class="w-full p-3 md:p-4 bg-gray-50 rounded-xl h-48 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff]/20 focus:border-[#7000ff] transition-all resize-none font-medium text-[#1a1a2e] text-sm md:text-base"
               :placeholder="placeholderText"
             ></textarea>
           </label>
@@ -62,14 +62,14 @@
               v-model="useAI" 
               class="mt-1 w-5 h-5 text-[#7000ff] rounded border-gray-300 focus:ring-2 focus:ring-[#7000ff]/20"
             >
-            <div>
-              <div class="font-bold text-[#1a1a2e] mb-1 flex items-center gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-[#1a1a2e] mb-1 flex items-center gap-2 flex-wrap">
                 <svg class="w-4 h-4 text-[#7000ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Использовать AI для создания ТЗ
+                <span>Использовать AI для создания ТЗ</span>
               </div>
-              <div class="text-xs text-gray-600">
+              <div class="text-xs text-gray-600 break-words">
                 Нейросеть структурирует ваше описание в профессиональное техническое задание
               </div>
             </div>
@@ -89,7 +89,7 @@
         <button 
           @click="handleNext" 
           :disabled="!requirements.trim() || loading"
-          class="w-full mt-6 bg-[#7000ff] hover:bg-[#5500cc] text-white py-4 rounded-xl font-bold shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+          class="w-full mt-6 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 md:py-4 rounded-xl font-bold shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2 text-sm md:text-base"
         >
           <span v-if="loading" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
           <span v-else-if="useAI" class="flex items-center gap-2 text-white">
@@ -114,8 +114,8 @@
             Ai
           </div>
         </div>
-        <h3 class="text-xl font-bold text-[#1a1a2e] mb-2">AI анализирует ваш запрос</h3>
-        <p class="text-gray-600">Генерируем структурированное техническое задание...</p>
+        <h3 class="text-lg md:text-xl font-bold text-[#1a1a2e] mb-2">AI анализирует ваш запрос</h3>
+        <p class="text-sm md:text-base text-gray-600">Генерируем структурированное техническое задание...</p>
       </div>
 
       <div v-if="step === 3">
@@ -126,7 +126,7 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-2xl font-bold text-[#1a1a2e]">ТЗ готово!</h2>
+            <h2 class="text-xl md:text-2xl font-bold text-[#1a1a2e]">ТЗ готово!</h2>
             <p class="text-sm text-gray-500">Проверьте и отредактируйте при необходимости</p>
           </div>
         </div>
@@ -156,9 +156,9 @@
             </button>
           </div>
 
-          <div v-if="!editing" class="bg-gray-50 border border-gray-200 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
+          <div v-if="!editing" class="bg-gray-50 border border-gray-200 rounded-2xl p-4 md:p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
             <div class="prose prose-sm max-w-none">
-              <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed text-[#1a1a2e]"></div>
+              <div v-html="formatMarkdown(editableTz)" class="text-sm leading-relaxed text-[#1a1a2e] break-words"></div>
             </div>
           </div>
 
@@ -166,7 +166,7 @@
             v-else
             v-model="editableTz"
             rows="15"
-            class="w-full p-4 bg-white border border-[#7000ff] rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/20 text-sm font-mono leading-relaxed"
+            class="w-full p-3 md:p-4 bg-white border border-[#7000ff] rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-[#7000ff]/20 text-sm font-mono leading-relaxed"
           ></textarea>
         </div>
 
@@ -177,17 +177,17 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <div class="text-sm text-amber-800">
+            <div class="text-sm text-amber-800 flex-1 min-w-0">
               <div class="font-bold mb-1">Важно:</div>
-              <div>Внимательно проверьте ТЗ перед подтверждением. После оплаты изменить условия будет нельзя.</div>
+              <div class="break-words">Внимательно проверьте ТЗ перед подтверждением. После оплаты изменить условия будет нельзя.</div>
             </div>
           </div>
         </div>
         
-        <div class="flex gap-4">
+        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <button 
             @click="step = 1; editing = false" 
-            class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-gray-700 flex items-center justify-center gap-2"
+            class="w-full sm:flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-gray-700 flex items-center justify-center gap-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -197,7 +197,7 @@
           <button 
             @click="createOrder" 
             :disabled="creating"
-            class="flex-1 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 rounded-xl shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            class="w-full sm:flex-1 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 rounded-xl shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <span v-if="creating" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             <span v-else class="flex items-center gap-2">

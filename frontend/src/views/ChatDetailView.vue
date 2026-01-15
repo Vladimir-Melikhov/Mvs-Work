@@ -45,7 +45,7 @@
           :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
         >
           <div 
-            class="max-w-[75%] px-5 py-3 text-[15px] leading-relaxed shadow-sm"
+            class="max-w-[75%] px-5 py-3 text-[15px] leading-relaxed shadow-sm break-words"
             :class="isMyMessage(msg) 
               ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
@@ -85,7 +85,7 @@
     <!-- ✅ ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
     <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center min-h-[300px]">
-        <div class="text-5xl mb-3 opacity-30">📋</div>
+        <div class="text-5xl mb-3 opacity-30"></div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
       </div>
 
@@ -136,9 +136,9 @@
   </div>
 
   <!-- MOBILE VERSION -->
-  <div class="md:hidden h-[calc(100vh-150px)] flex flex-col px-4 pt-4 pb-2">
+  <div class="md:hidden flex flex-col px-2 pt-2 pb-2" style="height: calc(100vh - 100px);">
     
-    <div class="glass px-4 py-3 rounded-[24px] flex items-center gap-3 mb-3 border border-white/60 shadow-sm shrink-0">
+    <div class="glass px-3 py-2 rounded-[24px] flex items-center gap-2 mb-2 border border-white/60 shadow-sm shrink-0">
       <button 
         @click="$router.push('/chats')" 
         class="w-9 h-9 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 text-[#1a1a2e] transition-all font-bold"
@@ -146,13 +146,13 @@
         ←
       </button>
       
-      <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
         <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
         <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
       </div>
       
       <div class="flex-1 min-w-0">
-        <h2 class="text-base font-bold text-[#1a1a2e] truncate">
+        <h2 class="text-sm font-bold text-[#1a1a2e] truncate">
           {{ partner ? partner.name : 'Загрузка...' }}
         </h2>
       </div>
@@ -173,7 +173,7 @@
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0">
       <div 
         ref="messagesContainer"
-        class="flex-1 glass rounded-[32px] p-4 overflow-y-auto space-y-3 mb-3 border border-white/40 scroll-smooth"
+        class="flex-1 glass rounded-[28px] p-3 overflow-y-auto space-y-2 mb-2 border border-white/40 scroll-smooth"
       >
         <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
           <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
@@ -191,7 +191,7 @@
           :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
         >
           <div 
-            class="max-w-[85%] px-4 py-2.5 text-sm leading-relaxed shadow-sm"
+            class="max-w-[85%] px-3 py-2 text-sm leading-relaxed shadow-sm break-words"
             :class="isMyMessage(msg) 
               ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
@@ -208,18 +208,18 @@
         </div>
       </div>
 
-      <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
+      <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
         <input 
           v-model="newMessage" 
           @keydown.enter="sendMessage"
           type="text" 
           placeholder="Сообщение..." 
-          class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm"
+          class="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm"
         >
         <button 
           @click="sendMessage"
           :disabled="!newMessage.trim() || !isConnected"
-          class="w-11 h-11 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] transition-all disabled:opacity-50"
+          class="w-10 h-10 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] transition-all disabled:opacity-50"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -228,7 +228,7 @@
       </div>
     </div>
 
-    <div v-else class="flex-1 overflow-y-auto space-y-3">
+    <div v-else class="flex-1 overflow-y-auto space-y-2">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
@@ -238,11 +238,11 @@
         <div 
           v-for="(deal, index) in activeDeals" 
           :key="deal.deal_id"
-          class="glass rounded-[24px] border border-white/40 overflow-hidden mb-3"
+          class="glass rounded-[24px] border border-white/40 overflow-hidden mb-2"
         >
           <div 
             @click="toggleDeal(index)"
-            class="p-4 cursor-pointer hover:bg-white/20 transition-all flex items-center justify-between"
+            class="p-3 cursor-pointer hover:bg-white/20 transition-all flex items-center justify-between"
           >
             <div class="flex-1 min-w-0">
               <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ deal.title }}</div>
@@ -321,7 +321,6 @@ const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const getInitials = (name) => name ? name.substring(0, 1).toUpperCase() : 'U'
 
-// ✅ НОВАЯ ФУНКЦИЯ: Очистка текста от markdown
 const cleanText = (text) => {
   return stripMarkdown(text)
 }
@@ -413,7 +412,6 @@ onUnmounted(() => { if (socket) socket.close() })
   animation: scale-in 0.15s ease forwards; 
 }
 
-/* ✅ СТИЛИ СКРОЛЛБАРА для правой колонки */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }

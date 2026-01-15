@@ -1,16 +1,16 @@
 <template>
-  <div class="animate-fade-in pb-20 pt-4">
-    <div class="glass p-8 rounded-[40px] relative overflow-hidden mb-8 group">
+  <div class="animate-fade-in pb-20 pt-4 px-2 md:px-0">
+    <div class="glass p-6 md:p-8 rounded-[40px] relative overflow-hidden mb-8 group">
       <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-[#7000ff]/10 to-[#00c6ff]/10 blur-2xl opacity-60"></div>
       
-      <button @click="toggleEdit" class="absolute top-8 right-8 z-10 text-gray-400 hover:text-[#1a1a2e] text-sm font-bold transition-colors">
+      <button @click="toggleEdit" class="absolute top-6 md:top-8 right-6 md:right-8 z-10 text-gray-400 hover:text-[#1a1a2e] text-sm font-bold transition-colors">
         {{ isEditing ? 'Отмена' : 'Редактировать' }}
       </button>
 
-      <div class="relative flex flex-col md:flex-row items-center gap-8 mt-4">
-        <div class="w-32 h-32 rounded-full p-1.5 shadow-xl border border-white/20 relative">
+      <div class="relative flex flex-col items-center gap-6 md:flex-row md:gap-8 mt-4">
+        <div class="w-28 md:w-32 h-28 md:h-32 rounded-full p-1.5 shadow-xl border border-white/20 relative shrink-0">
            <img v-if="user?.profile?.avatar" :src="user.profile.avatar" class="w-full h-full rounded-full object-cover">
-           <div v-else class="w-full h-full rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-4xl font-bold">
+           <div v-else class="w-full h-full rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-3xl md:text-4xl font-bold">
              {{ userInitials }}
            </div>
            
@@ -19,8 +19,8 @@
            </div>
         </div>
 
-        <div class="text-center md:text-left flex-1 space-y-1">
-          <div v-if="isEditing" class="flex flex-col items-center md:items-start gap-3">
+        <div class="text-center md:text-left flex-1 space-y-1 min-w-0 w-full">
+          <div v-if="isEditing" class="flex flex-col items-center md:items-start gap-3 w-full">
              <div class="flex gap-4 mb-2" v-if="!isWorker">
                 <label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-[#1a1a2e]">
                   <input type="radio" :value="false" v-model="isCompanyEdit" class="hidden"> Человек
@@ -33,13 +33,13 @@
              <input 
                v-if="isCompanyEdit && !isWorker" 
                v-model="editForm.company_name" 
-               class="text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
+               class="text-2xl md:text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
                placeholder="Название компании"
              >
              <input 
                v-else 
                v-model="editForm.full_name" 
-               class="text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
+               class="text-2xl md:text-4xl font-bold text-[#1a1a2e] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all"
                placeholder="Ваше имя"
              >
              
@@ -57,16 +57,16 @@
              >
           </div>
 
-          <div v-else>
+          <div v-else class="w-full">
             <div class="inline-block px-3 py-1 rounded-full bg-white/20 border border-white/20 text-[#1a1a2e] text-[10px] font-bold uppercase tracking-wider mb-3 backdrop-blur-sm">
               {{ isWorker ? (user?.profile?.headline || 'Фрилансер') : 'Заказчик' }}
             </div>
             
-            <h1 class="text-4xl font-bold text-[#1a1a2e] tracking-tight">
+            <h1 class="text-2xl md:text-4xl font-bold text-[#1a1a2e] tracking-tight break-words">
               {{ user?.profile?.company_name || user?.profile?.full_name || user?.email }}
             </h1>
             
-            <div v-if="isWorker && workerRating > 0" class="flex items-center gap-3 mt-3 justify-center md:justify-start">
+            <div v-if="isWorker && workerRating > 0" class="flex items-center gap-3 mt-3 justify-center md:justify-start flex-wrap">
               <div class="flex gap-1">
                 <div v-for="i in 5" :key="i" class="relative w-4 h-4">
                   <svg class="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -99,28 +99,22 @@
               </div>
             </div>
             
-            <a v-if="user?.profile?.company_website" :href="user.profile.company_website" target="_blank" class="text-sm text-gray-500 hover:text-[#7000ff] block mt-1 transition-colors">
+            <a v-if="user?.profile?.company_website" :href="user.profile.company_website" target="_blank" class="text-sm text-gray-500 hover:text-[#7000ff] block mt-1 transition-colors break-all">
               {{ user.profile.company_website.replace('https://', '') }}
             </a>
           </div>
         </div>
-
-        <div class="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 text-center min-w-[180px] shadow-sm">
-          <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Баланс</div>
-          <div class="text-3xl font-bold text-[#1a1a2e]">{{ user?.wallet?.balance || '0.00' }}₽</div>
-          <button class="mt-2 text-[10px] font-bold text-[#7000ff] hover:text-[#1a1a2e] transition-colors border border-[#7000ff]/20 px-3 py-1 rounded-full hover:bg-white/20">Пополнить</button>
-        </div>
       </div>
       
       <div v-if="isEditing" class="mt-8 flex justify-end animate-fade-in">
-         <button @click="saveProfile" class="bg-[#1a1a2e] text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-[#1a1a2e]/10 hover:scale-105 transition-transform border border-white/10">
+         <button @click="saveProfile" class="bg-[#1a1a2e] text-white px-6 md:px-8 py-3 rounded-2xl font-bold shadow-lg shadow-[#1a1a2e]/10 hover:scale-105 transition-transform border border-white/10">
             Сохранить
          </button>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div class="glass p-8 rounded-[32px]">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div class="glass p-6 md:p-8 rounded-[32px]">
         <h3 class="text-lg font-bold text-[#1a1a2e] mb-4 flex items-center gap-2">О себе</h3>
         <textarea 
           v-if="isEditing" 
@@ -129,15 +123,15 @@
           class="w-full p-4 bg-white/20 rounded-2xl border border-white/20 outline-none focus:bg-white/30 resize-none text-sm transition-all shadow-inner"
           placeholder="Расскажите о себе..."
         ></textarea>
-        <p v-else class="text-gray-600 leading-relaxed whitespace-pre-wrap">{{ user?.profile?.bio || 'Информация не заполнена.' }}</p>
+        <p v-else class="text-gray-600 leading-relaxed whitespace-pre-wrap break-words">{{ user?.profile?.bio || 'Информация не заполнена.' }}</p>
       </div>
 
-      <div v-if="isWorker" class="glass p-8 rounded-[32px]">
+      <div v-if="isWorker" class="glass p-6 md:p-8 rounded-[32px]">
         <h3 class="text-lg font-bold text-[#1a1a2e] mb-4">Навыки</h3>
         
         <div v-if="isEditing" class="space-y-4">
            <div class="flex flex-wrap gap-2">
-              <span v-for="(skill, idx) in editForm.skills" :key="idx" class="px-3 py-1.5 rounded-xl bg-white/30 border border-white/30 flex items-center gap-2 text-sm font-medium text-[#1a1a2e]">
+              <span v-for="(skill, idx) in editForm.skills" :key="idx" class="px-3 py-1.5 rounded-xl bg-white/30 border border-white/30 flex items-center gap-2 text-sm font-medium text-[#1a1a2e] break-words">
                 {{ skill }} <button @click="editForm.skills.splice(idx,1)" class="text-red-500/70 hover:text-red-500 font-bold">×</button>
               </span>
            </div>
@@ -150,7 +144,7 @@
         </div>
 
         <div v-else class="flex flex-wrap gap-2">
-          <span v-for="skill in user?.profile?.skills" :key="skill" class="px-4 py-2 rounded-xl bg-white/30 border border-white/40 text-[#1a1a2e] text-sm font-semibold shadow-sm backdrop-blur-sm">
+          <span v-for="skill in user?.profile?.skills" :key="skill" class="px-3 md:px-4 py-2 rounded-xl bg-white/30 border border-white/40 text-[#1a1a2e] text-sm font-semibold shadow-sm backdrop-blur-sm break-words">
             {{ skill }}
           </span>
         </div>
@@ -158,9 +152,9 @@
     </div>
 
     <div v-if="isWorker" class="mt-8 animate-fade-in">
-      <div class="flex items-center justify-between mb-6 px-2">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 px-2 gap-3">
          <h3 class="text-xl font-bold text-[#1a1a2e]">Активные услуги</h3>
-         <router-link to="/create-service" class="text-xs font-bold text-[#7000ff] hover:underline bg-white/20 px-3 py-1 rounded-full border border-white/20">
+         <router-link to="/create-service" class="text-xs font-bold text-[#7000ff] hover:underline bg-white/20 px-3 py-1.5 rounded-full border border-white/20 whitespace-nowrap">
            + Создать новую
          </router-link>
       </div>
@@ -169,36 +163,75 @@
         Загрузка...
       </div>
 
-      <div v-else-if="myServices.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div 
-          v-for="service in myServices" 
-          :key="service.id" 
-          class="glass rounded-[32px] p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all"
-          @click="$router.push(`/services/${service.id}`)" 
-        >
-          <div class="flex items-center gap-3 mb-4">
-             <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold border border-white/30 overflow-hidden">
-               <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
-               <span v-else>Я</span>
-             </div>
-             <div class="flex-1 min-w-0">
-                <div class="text-xs font-bold text-gray-400 uppercase">Моя услуга</div>
-             </div>
-             <div class="text-[#7000ff] font-bold text-lg">{{ service.price }}₽</div>
+      <div v-else-if="paginatedServices.length > 0">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div 
+            v-for="service in paginatedServices" 
+            :key="service.id" 
+            class="glass rounded-[32px] p-4 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all"
+            @click="$router.push(`/services/${service.id}`)" 
+          >
+            <div class="flex items-center gap-3 mb-4">
+               <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold border border-white/30 overflow-hidden shrink-0">
+                 <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
+                 <span v-else>Я</span>
+               </div>
+               <div class="flex-1 min-w-0">
+                  <div class="text-xs font-bold text-gray-400 uppercase">Моя услуга</div>
+               </div>
+               <div class="text-[#7000ff] font-bold text-base md:text-lg">{{ service.price }}₽</div>
+            </div>
+
+            <h3 class="text-base md:text-lg font-bold text-[#1a1a2e] mb-2 leading-tight line-clamp-2 break-words">
+              {{ service.title }}
+            </h3>
+            <p class="text-gray-600 text-xs leading-relaxed mb-4 line-clamp-3 flex-1 break-words">
+              {{ service.description }}
+            </p>
+
+            <div class="flex flex-wrap gap-2 mt-auto pt-4 border-t border-white/10">
+               <span v-for="tag in service.tags?.slice(0,2)" :key="tag" class="px-2 py-1 rounded-lg bg-white/20 text-[10px] font-bold text-gray-600 border border-white/20 break-words">
+                 #{{ tag }}
+               </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination для услуг -->
+        <div v-if="totalServicePages > 1" class="flex justify-center items-center gap-2 mt-6">
+          <button 
+            @click="currentServicePage--" 
+            :disabled="currentServicePage === 1"
+            class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          <div class="flex gap-1">
+            <button 
+              v-for="page in visibleServicePages" 
+              :key="page"
+              @click="currentServicePage = page"
+              class="w-9 h-9 rounded-full font-bold text-sm transition-all"
+              :class="currentServicePage === page 
+                ? 'bg-[#7000ff] text-white' 
+                : 'bg-white/20 hover:bg-white/40 text-gray-700'"
+            >
+              {{ page }}
+            </button>
           </div>
 
-          <h3 class="text-lg font-bold text-[#1a1a2e] mb-2 leading-tight line-clamp-2">
-            {{ service.title }}
-          </h3>
-          <p class="text-gray-600 text-xs leading-relaxed mb-4 line-clamp-3 flex-1">
-            {{ service.description }}
-          </p>
-
-          <div class="flex flex-wrap gap-2 mt-auto pt-4 border-t border-white/10">
-             <span v-for="tag in service.tags?.slice(0,2)" :key="tag" class="px-2 py-1 rounded-lg bg-white/20 text-[10px] font-bold text-gray-600 border border-white/20">
-               #{{ tag }}
-             </span>
-          </div>
+          <button 
+            @click="currentServicePage++" 
+            :disabled="currentServicePage === totalServicePages"
+            class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -233,8 +266,8 @@ import axios from 'axios'
 import DealsHistory from '../components/DealsHistory.vue'
 import ReviewsSection from '../components/ReviewsSection.vue'
 
-const auth = useAuthStore()
 const router = useRouter()
+const auth = useAuthStore()
 const user = computed(() => auth.user)
 const isWorker = computed(() => user.value?.role === 'worker')
 
@@ -245,11 +278,43 @@ const editForm = ref({})
 
 const myServices = ref([])
 const loadingServices = ref(false)
+const currentServicePage = ref(1)
+const servicesPerPage = 3
 
 const workerRating = ref(0)
 const totalReviews = ref(0)
 
 const userInitials = computed(() => user.value?.email?.substring(0, 2).toUpperCase() || 'ME')
+
+const totalServicePages = computed(() => Math.ceil(myServices.value.length / servicesPerPage))
+
+const paginatedServices = computed(() => {
+  const start = (currentServicePage.value - 1) * servicesPerPage
+  const end = start + servicesPerPage
+  return myServices.value.slice(start, end)
+})
+
+const visibleServicePages = computed(() => {
+  const pages = []
+  const total = totalServicePages.value
+  const current = currentServicePage.value
+  
+  if (total <= 5) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, 5)
+    } else if (current >= total - 2) {
+      pages.push(total - 4, total - 3, total - 2, total - 1, total)
+    } else {
+      pages.push(current - 2, current - 1, current, current + 1, current + 2)
+    }
+  }
+  
+  return pages
+})
 
 const toggleEdit = () => {
   if (!isEditing.value) {
