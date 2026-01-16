@@ -2,9 +2,11 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ProfileSerializer
 from .services import AuthService
-from .models import User  # <--- ВОТ ЭТОГО НЕ ХВАТАЛО
+from .models import User
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -29,7 +31,7 @@ class RegisterView(APIView):
             return Response({
                 'status': 'success',
                 'data': {
-                    'user': UserSerializer(user).data,
+                    'user': UserSerializer(user, context={'request': request}).data,
                     'tokens': tokens
                 },
                 'error': None
@@ -65,7 +67,7 @@ class LoginView(APIView):
             return Response({
                 'status': 'success',
                 'data': {
-                    'user': UserSerializer(user).data,
+                    'user': UserSerializer(user, context={'request': request}).data,
                     'tokens': tokens
                 },
                 'error': None
@@ -81,25 +83,34 @@ class LoginView(APIView):
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
+    # ✅ ДОБАВЛЕНО: Поддержка загрузки файлов
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         return Response({
             'status': 'success',
-            'data': UserSerializer(request.user).data,
+            'data': UserSerializer(request.user, context={'request': request}).data,
             'error': None
         }, status=status.HTTP_200_OK)
 
     def patch(self, request):
-        """Обновление профиля"""
+        """Обновление профиля с поддержкой загрузки аватарки"""
         try:
             profile = request.user.profile
-            serializer = ProfileSerializer(profile, data=request.data, partial=True)
+            
+            # ✅ ВАЖНО: Передаем context с request для формирования полных URL
+            serializer = ProfileSerializer(
+                profile, 
+                data=request.data, 
+                partial=True,
+                context={'request': request}
+            )
             
             if serializer.is_valid():
                 serializer.save()
                 return Response({
                     'status': 'success',
-                    'data': UserSerializer(request.user).data,
+                    'data': UserSerializer(request.user, context={'request': request}).data,
                     'error': None
                 }, status=status.HTTP_200_OK)
             
@@ -144,15 +155,20 @@ class BatchUsersView(APIView):
             try:
                 profile = user.profile
                 display_name = profile.company_name or profile.full_name or user.email.split('@')[0]
-                avatar = profile.avatar
+                
+                # ✅ ИСПРАВЛЕНО: Используем метод get_avatar_url()
+                avatar_url = None
+                if profile.avatar:
+                    avatar_url = request.build_absolute_uri(profile.avatar.url)
+                
             except:
                 display_name = "Unknown User"
-                avatar = None
+                avatar_url = None
             
             data.append({
                 'id': str(user.id),
                 'name': display_name,
-                'avatar': avatar,
+                'avatar': avatar_url,
                 'role': user.role
             })
             

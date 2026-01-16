@@ -8,15 +8,40 @@
       </button>
 
       <div class="relative flex flex-col items-center gap-6 md:flex-row md:gap-8 mt-4">
-        <div class="w-28 md:w-32 h-28 md:h-32 rounded-full p-1.5 shadow-xl border border-white/20 relative shrink-0">
-           <img v-if="user?.profile?.avatar" :src="user.profile.avatar" class="w-full h-full rounded-full object-cover">
-           <div v-else class="w-full h-full rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-3xl md:text-4xl font-bold">
-             {{ userInitials }}
-           </div>
-           
-           <div v-if="isEditing" class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40">
-             <input v-model="editForm.avatar" placeholder="URL аватара" class="text-[10px] w-full p-1.5 bg-white/20 backdrop-blur-md border border-white/30 rounded-lg text-center outline-none shadow-md text-[#1a1a2e] placeholder-gray-500">
-           </div>
+        <!-- ✅ ОБНОВЛЕНО: Аватар с загрузкой файла -->
+        <div class="relative w-28 md:w-32 h-28 md:h-32 shrink-0">
+          <div class="w-full h-full rounded-full p-1.5 shadow-xl border border-white/20 overflow-hidden">
+            <img 
+              v-if="avatarPreview || user?.profile?.avatar_url" 
+              :src="avatarPreview || user.profile.avatar_url" 
+              class="w-full h-full rounded-full object-cover"
+              alt="Avatar"
+            >
+            <div 
+              v-else 
+              class="w-full h-full rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-3xl md:text-4xl font-bold"
+            >
+              {{ userInitials }}
+            </div>
+          </div>
+          
+          <!-- ✅ ДОБАВЛЕНО: Кнопка загрузки файла -->
+          <div v-if="isEditing" class="absolute -bottom-2 left-1/2 -translate-x-1/2">
+            <label class="cursor-pointer">
+              <div class="bg-[#7000ff] hover:bg-[#5500cc] text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transition-all flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Загрузить
+              </div>
+              <input 
+                type="file" 
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                @change="handleAvatarUpload"
+                class="hidden"
+              >
+            </label>
+          </div>
         </div>
 
         <div class="text-center md:text-left flex-1 space-y-1 min-w-0 w-full">
@@ -107,12 +132,13 @@
       </div>
       
       <div v-if="isEditing" class="mt-8 flex justify-end animate-fade-in">
-         <button @click="saveProfile" class="bg-[#1a1a2e] text-white px-6 md:px-8 py-3 rounded-2xl font-bold shadow-lg shadow-[#1a1a2e]/10 hover:scale-105 transition-transform border border-white/10">
-            Сохранить
+         <button @click="saveProfile" :disabled="uploadingAvatar" class="bg-[#1a1a2e] text-white px-6 md:px-8 py-3 rounded-2xl font-bold shadow-lg shadow-[#1a1a2e]/10 hover:scale-105 transition-transform border border-white/10 disabled:opacity-50">
+            {{ uploadingAvatar ? 'Загрузка...' : 'Сохранить' }}
          </button>
       </div>
     </div>
 
+    <!-- Остальные секции без изменений -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
       <div class="glass p-6 md:p-8 rounded-[32px]">
         <h3 class="text-lg font-bold text-[#1a1a2e] mb-4 flex items-center gap-2">О себе</h3>
@@ -197,7 +223,6 @@
           </div>
         </div>
 
-        <!-- Pagination для услуг -->
         <div v-if="totalServicePages > 1" class="flex justify-center items-center gap-2 mt-6">
           <button 
             @click="currentServicePage--" 
@@ -276,6 +301,11 @@ const isCompanyEdit = ref(false)
 const tempSkill = ref('')
 const editForm = ref({})
 
+// ✅ ДОБАВЛЕНО: Состояние для загрузки аватара
+const avatarFile = ref(null)
+const avatarPreview = ref(null)
+const uploadingAvatar = ref(false)
+
 const myServices = ref([])
 const loadingServices = ref(false)
 const currentServicePage = ref(1)
@@ -316,11 +346,43 @@ const visibleServicePages = computed(() => {
   return pages
 })
 
+// ✅ ДОБАВЛЕНО: Обработчик загрузки аватара
+const handleAvatarUpload = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  // Проверка размера
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Файл слишком большой. Максимум 5MB')
+    return
+  }
+  
+  // Проверка типа
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    alert('Неподдерживаемый формат. Используйте JPG, PNG, GIF или WebP')
+    return
+  }
+  
+  avatarFile.value = file
+  
+  // Создаем preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    avatarPreview.value = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
 const toggleEdit = () => {
   if (!isEditing.value) {
     editForm.value = JSON.parse(JSON.stringify(user.value.profile || {}))
     if (!editForm.value.skills) editForm.value.skills = []
     isCompanyEdit.value = !!editForm.value.company_name
+    
+    // Сбрасываем аватар
+    avatarFile.value = null
+    avatarPreview.value = null
   }
   isEditing.value = !isEditing.value
 }
@@ -333,15 +395,64 @@ const addSkill = () => {
 }
 
 const saveProfile = async () => {
-  if (isCompanyEdit.value && !isWorker.value) {
+  // ✅ ОБНОВЛЕНО: Отправка FormData для загрузки файла
+  uploadingAvatar.value = true
+  
+  try {
+    // Подготавливаем данные
+    if (isCompanyEdit.value && !isWorker.value) {
       editForm.value.full_name = null
-  } else {
+    } else {
       editForm.value.company_name = null
       if (!isWorker.value) editForm.value.company_website = null
+    }
+    
+    // Создаем FormData
+    const formData = new FormData()
+    
+    // Добавляем все поля профиля
+    Object.keys(editForm.value).forEach(key => {
+      if (key === 'avatar') return // Пропускаем, добавим отдельно
+      
+      const value = editForm.value[key]
+      if (value !== null && value !== undefined) {
+        if (key === 'skills') {
+          formData.append(key, JSON.stringify(value))
+        } else {
+          formData.append(key, value)
+        }
+      }
+    })
+    
+    // Добавляем файл аватара, если он был выбран
+    if (avatarFile.value) {
+      formData.append('avatar', avatarFile.value)
+    }
+    
+    // Отправляем запрос
+    const res = await axios.patch('/api/auth/profile/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    if (res.data.status === 'success') {
+      // Обновляем данные пользователя
+      auth.user = res.data.data
+      
+      // Сбрасываем состояние
+      isEditing.value = false
+      avatarFile.value = null
+      avatarPreview.value = null
+    } else {
+      alert('Ошибка сохранения.')
+    }
+  } catch (error) {
+    console.error('Save error:', error)
+    alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message))
+  } finally {
+    uploadingAvatar.value = false
   }
-  const res = await auth.updateProfile(editForm.value)
-  if (res.success) isEditing.value = false
-  else alert("Ошибка сохранения.")
 }
 
 const fetchMyServices = async () => {

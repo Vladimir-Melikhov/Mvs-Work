@@ -46,13 +46,11 @@
       </div>
     </div>
 
-    <!-- Индикатор загрузки -->
     <div v-if="loading" class="text-center py-20">
       <div class="inline-block w-12 h-12 border-4 border-[#7000ff]/30 border-t-[#7000ff] rounded-full animate-spin"></div>
       <p class="mt-4 text-gray-500">Загрузка...</p>
     </div>
 
-    <!-- Результаты поиска -->
     <div v-else-if="services.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 animate-fade-in px-4">
       
       <div 
@@ -62,13 +60,19 @@
         @click="$router.push(`/services/${service.id}`)"
       >
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-8 md:w-10 h-8 md:h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold border border-white/30 overflow-hidden shrink-0">
-             <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold border border-white/30 overflow-hidden shrink-0 shadow-sm">
+             <img 
+               v-if="service.owner_avatar" 
+               :src="service.owner_avatar" 
+               class="w-full h-full object-cover"
+               @error="(e) => e.target.style.display = 'none'"
+             >
              <span v-else>{{ getInitials(service.owner_name) }}</span>
           </div>
+          
           <div class="flex-1 min-w-0">
-             <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Фрилансер' }}</div>
-             <div class="text-[10px] text-gray-500 font-bold uppercase">{{ service.category || 'Услуга' }}</div>
+             <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Специалист' }}</div>
+             <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{{ service.category || 'Услуга' }}</div>
           </div>
           <div class="text-[#7000ff] font-bold text-base md:text-lg shrink-0">{{ service.price }}₽</div>
         </div>
@@ -88,7 +92,6 @@
       </div>
     </div>
     
-    <!-- Пустое состояние -->
     <div v-else class="text-center py-20 opacity-50 px-4">
        <div class="text-6xl mb-4">🌪️</div>
        <p class="font-bold text-[#1a1a2e] mb-2">Услуги не найдены</p>
@@ -109,37 +112,43 @@ const loading = ref(false)
 const selectedCategories = ref([])
 
 const categories = [
-  { label: 'Design', value: 'design' },
-  { label: 'Development', value: 'development' },
-  { label: 'Copywriting', value: 'copywriting' },
-  { label: 'Marketing', value: 'marketing' }
+  { label: 'Дизайн', value: 'design' },
+  { label: 'Разработка', value: 'development' },
+  { label: 'Тексты', value: 'copywriting' },
+  { label: 'Маркетинг', value: 'marketing' }
 ]
 
 const fetchServices = async () => {
   loading.value = true
   try {
     let url = '/api/market/services/'
-    if (selectedCategories.value.length > 0) {
-      url += `?categories=${selectedCategories.value.join(',')}`
-    }
     
-    const res = await axios.get(url)
+    // Формируем параметры запроса для бэкенда
+    const params = new URLSearchParams()
+    if (selectedCategories.value.length > 0) {
+      params.append('categories', selectedCategories.value.join(','))
+    }
+
+    const res = await axios.get(url, { params })
+    
     if (res.data.status === 'success') {
       allServices.value = res.data.data
       services.value = res.data.data
-    } else if (Array.isArray(res.data)) {
-      allServices.value = res.data
-      services.value = res.data
+    } else {
+      const data = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      allServices.value = data
+      services.value = data
     }
   } catch (e) {
-    console.error(e)
+    console.error("Ошибка при загрузке услуг:", e)
   } finally {
     loading.value = false
   }
 }
 
 const getInitials = (name) => {
-  return name ? name.substring(0, 1).toUpperCase() : 'S'
+  if (!name) return 'S'
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
 }
 
 const handleSearch = () => {
@@ -151,12 +160,12 @@ const handleSearch = () => {
   }
   
   services.value = allServices.value.filter(service => {
-    const titleMatch = service.title.toLowerCase().includes(query)
-    const descMatch = service.description.toLowerCase().includes(query)
-    const tagsMatch = service.tags?.some(tag => tag.toLowerCase().includes(query))
-    const categoryMatch = service.category?.toLowerCase().includes(query)
-    
-    return titleMatch || descMatch || tagsMatch || categoryMatch
+    return (
+      service.title?.toLowerCase().includes(query) ||
+      service.description?.toLowerCase().includes(query) ||
+      service.tags?.some(tag => tag.toLowerCase().includes(query)) ||
+      service.owner_name?.toLowerCase().includes(query)
+    )
   })
 }
 
@@ -175,6 +184,7 @@ const clearFilters = () => {
   fetchServices()
 }
 
+// Следим за изменениями категорий, чтобы обновлять список с сервера
 watch(selectedCategories, () => {
   fetchServices()
 }, { deep: true })
@@ -195,5 +205,14 @@ onMounted(() => {
 .glass-chip {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

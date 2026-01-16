@@ -1,6 +1,19 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.core.files.storage import FileSystemStorage
+import os
+
+
+# Настройка хранилища для аватарок
+avatar_storage = FileSystemStorage(location='media/avatars')
+
+
+def avatar_upload_path(instance, filename):
+    """Генерирует путь для загрузки аватарки"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    return os.path.join('avatars', filename)
 
 
 class UserManager(BaseUserManager):
@@ -42,16 +55,22 @@ class User(AbstractBaseUser):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     
-    # --- ОБНОВЛЕННЫЕ ПОЛЯ ---
-    full_name = models.CharField(max_length=100, blank=True, null=True)     # Оригинальное имя
-    company_name = models.CharField(max_length=255, blank=True, null=True)  # Название компании
-    
-    headline = models.CharField(max_length=255, blank=True, null=True)      # Профессия
-    company_website = models.URLField(blank=True, null=True)                # Сайт
+    # Основные поля
+    full_name = models.CharField(max_length=100, blank=True, null=True)
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    headline = models.CharField(max_length=255, blank=True, null=True)
+    company_website = models.URLField(blank=True, null=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    # ------------------------
-
-    avatar = models.URLField(blank=True, null=True)
+    
+    # ✅ ОБНОВЛЕНО: ImageField вместо URLField
+    avatar = models.ImageField(
+        upload_to=avatar_upload_path,
+        blank=True,
+        null=True,
+        max_length=500,
+        help_text="Аватар пользователя (JPG, PNG, GIF до 5MB)"
+    )
+    
     bio = models.TextField(blank=True, null=True)
     skills = models.JSONField(default=list, blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
@@ -63,6 +82,12 @@ class Profile(models.Model):
 
     def __str__(self) -> str:
         return f"Profile of {self.user.email}"
+    
+    def get_avatar_url(self):
+        """Возвращает URL аватарки или None"""
+        if self.avatar:
+            return self.avatar.url
+        return None
 
 
 class Wallet(models.Model):
