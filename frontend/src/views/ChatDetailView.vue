@@ -13,10 +13,12 @@
           ←
         </button>
         
-        <div class="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
-          <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
-          <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
-        </div>
+        <UserAvatar 
+          :avatar-url="partner?.avatar"
+          :name="partner?.name || 'U'"
+          size="lg"
+          class="ring-2 ring-white/50 shadow-md"
+        />
         
         <div class="flex-1">
           <h2 class="text-lg font-bold text-[#1a1a2e]">
@@ -85,7 +87,7 @@
     <!-- ✅ ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
     <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center min-h-[300px]">
-        <div class="text-5xl mb-3 opacity-30"></div>
+        <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
       </div>
 
@@ -146,10 +148,12 @@
         ←
       </button>
       
-      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden ring-2 ring-white/50">
-        <img v-if="partner?.avatar" :src="partner.avatar" class="w-full h-full object-cover">
-        <span v-else>{{ getInitials(partner?.name || 'U') }}</span>
-      </div>
+      <UserAvatar 
+        :avatar-url="partner?.avatar"
+        :name="partner?.name || 'U'"
+        size="sm"
+        class="ring-2 ring-white/50 shadow-md"
+      />
       
       <div class="flex-1 min-w-0">
         <h2 class="text-sm font-bold text-[#1a1a2e] truncate">
@@ -287,6 +291,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
 import DealMessage from '../components/DealMessage.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import { stripMarkdown } from '../utils/textUtils'
 
 const route = useRoute()
@@ -319,7 +324,6 @@ const activeDeals = computed(() => {
 
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-const getInitials = (name) => name ? name.substring(0, 1).toUpperCase() : 'U'
 
 const cleanText = (text) => {
   return stripMarkdown(text)

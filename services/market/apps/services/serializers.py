@@ -4,6 +4,9 @@ from .models import Service, Deal, Transaction, Review
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    # ✅ ДОБАВЛЕНО: Метод для формирования полного URL аватарки
+    owner_avatar = serializers.SerializerMethodField()
+    
     class Meta:
         model = Service
         fields = [
@@ -12,7 +15,29 @@ class ServiceSerializer(serializers.ModelSerializer):
             'ai_template', 'category', 'tags', 
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'owner_name', 'owner_avatar']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id']
+    
+    def get_owner_avatar(self, obj):
+        """
+        ✅ ИСПРАВЛЕНИЕ: Формирует полный URL для аватарки
+        Если owner_avatar уже полный URL - возвращает как есть
+        Если это путь к медиа - добавляет домен
+        """
+        if not obj.owner_avatar:
+            return None
+        
+        # Если уже полный URL
+        if obj.owner_avatar.startswith('http://') or obj.owner_avatar.startswith('https://'):
+            return obj.owner_avatar
+        
+        # Если это путь к медиа - формируем полный URL
+        request = self.context.get('request')
+        if request:
+            # Убираем /media/ если он есть в начале
+            avatar_path = obj.owner_avatar.lstrip('/media/')
+            return request.build_absolute_uri(f'/media/{avatar_path}')
+        
+        return obj.owner_avatar
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -37,13 +62,11 @@ class DealSerializer(serializers.ModelSerializer):
     commission = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
     
-    # ✅ Поля арбитража (read-only)
     can_open_dispute = serializers.ReadOnlyField()
     can_worker_refund = serializers.ReadOnlyField()
     can_worker_defend = serializers.ReadOnlyField()
     is_dispute_pending_admin = serializers.ReadOnlyField()
     
-    # ✅ Читаемый статус с учетом спора
     status_display = serializers.SerializerMethodField()
     dispute_result = serializers.SerializerMethodField()
 
@@ -57,7 +80,6 @@ class DealSerializer(serializers.ModelSerializer):
             'created_at', 'paid_at', 'delivered_at', 'completed_at', 'cancelled_at',
             'transactions', 'review', 'commission', 'total',
             'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel',
-            # ✅ Новые поля арбитража
             'can_open_dispute', 'can_worker_refund', 'can_worker_defend', 'is_dispute_pending_admin',
             'dispute_client_reason', 'dispute_worker_defense', 
             'dispute_created_at', 'dispute_resolved_at', 'dispute_winner',
@@ -84,7 +106,6 @@ class DealSerializer(serializers.ModelSerializer):
         
         base_status = status_map.get(obj.status, obj.status)
         
-        # Если есть победитель в споре - добавляем информацию
         if obj.dispute_winner:
             if obj.dispute_winner == 'client':
                 if obj.status == 'cancelled':

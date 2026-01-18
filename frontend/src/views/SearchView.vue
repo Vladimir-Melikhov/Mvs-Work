@@ -60,15 +60,12 @@
         @click="$router.push(`/services/${service.id}`)"
       >
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold border border-white/30 overflow-hidden shrink-0 shadow-sm">
-             <img 
-               v-if="service.owner_avatar" 
-               :src="service.owner_avatar" 
-               class="w-full h-full object-cover"
-               @error="(e) => e.target.style.display = 'none'"
-             >
-             <span v-else>{{ getInitials(service.owner_name) }}</span>
-          </div>
+          <UserAvatar 
+            :avatar-url="service.owner_avatar"
+            :name="service.owner_name || 'Специалист'"
+            size="md"
+            class="border border-white/30 shadow-sm"
+          />
           
           <div class="flex-1 min-w-0">
              <div class="text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Специалист' }}</div>
@@ -104,6 +101,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
+import UserAvatar from '../components/UserAvatar.vue'
 
 const services = ref([])
 const allServices = ref([])
@@ -123,7 +121,6 @@ const fetchServices = async () => {
   try {
     let url = '/api/market/services/'
     
-    // Формируем параметры запроса для бэкенда
     const params = new URLSearchParams()
     if (selectedCategories.value.length > 0) {
       params.append('categories', selectedCategories.value.join(','))
@@ -144,11 +141,6 @@ const fetchServices = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const getInitials = (name) => {
-  if (!name) return 'S'
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
 }
 
 const handleSearch = () => {
@@ -184,7 +176,6 @@ const clearFilters = () => {
   fetchServices()
 }
 
-// Следим за изменениями категорий, чтобы обновлять список с сервера
 watch(selectedCategories, () => {
   fetchServices()
 }, { deep: true })
