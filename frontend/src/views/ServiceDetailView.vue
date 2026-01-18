@@ -68,18 +68,30 @@
               @click="showWizard = true" 
               class="w-full bg-[#1a1a2e] text-white py-4 rounded-2xl font-bold shadow-xl shadow-[#1a1a2e]/20 hover:bg-[#7000ff] hover:shadow-[#7000ff]/25 hover:scale-[1.02] transition-all flex justify-center items-center gap-2"
             >
-              <span>⚡</span> Начать сделку с AI
+              <span></span> Начать сделку с AI
             </button>
             
-            <div class="mt-8 pt-6 border-t border-white/20 flex items-center gap-4">
-              <UserAvatar 
-                :avatar-url="service.owner_avatar"
-                :name="service.owner_name || 'Пользователь'"
-                size="lg"
-                class="border border-white/30 shadow-sm"
-              />
-              <div>
-                <div class="font-bold text-[#1a1a2e]">{{ service.owner_name || 'Пользователь' }}</div>
+            <!-- ✅ Блок информации о владельце с переходом на профиль -->
+            <div class="mt-8 pt-6 border-t border-white/20">
+              <div 
+                class="flex items-center gap-4 cursor-pointer group hover:bg-white/10 -m-2 p-2 rounded-xl transition-all"
+                @click="goToOwnerProfile"
+              >
+                <UserAvatar 
+                  :avatar-url="service.owner_avatar"
+                  :name="service.owner_name || 'Пользователь'"
+                  size="lg"
+                  class="border border-white/30 shadow-sm group-hover:ring-2 group-hover:ring-[#7000ff] transition-all"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors">
+                    {{ service.owner_name || 'Пользователь' }}
+                  </div>
+                  <div class="text-xs text-gray-500">Нажмите, чтобы посмотреть профиль</div>
+                </div>
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-[#7000ff] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
               </div>
             </div>
           </div>
@@ -110,6 +122,13 @@ const isOwner = computed(() => {
   if (!service.value || !auth.user) return false
   return String(service.value.owner_id) === String(auth.user.id)
 })
+
+// ✅ НОВАЯ ФУНКЦИЯ: Переход на профиль владельца
+const goToOwnerProfile = () => {
+  if (service.value?.owner_id) {
+    router.push(`/users/${service.value.owner_id}`)
+  }
+}
 
 const fetchService = async () => {
   try {

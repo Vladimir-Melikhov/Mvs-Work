@@ -13,15 +13,25 @@
           ←
         </button>
         
-        <UserAvatar 
-          :avatar-url="partner?.avatar"
-          :name="partner?.name || 'U'"
-          size="lg"
-          class="ring-2 ring-white/50 shadow-md"
-        />
+        <!-- ✅ Кликабельный аватар для перехода на профиль -->
+        <div 
+          class="cursor-pointer hover:ring-2 hover:ring-[#7000ff] rounded-full transition-all"
+          @click="goToPartnerProfile"
+        >
+          <UserAvatar 
+            :avatar-url="partner?.avatar"
+            :name="partner?.name || 'U'"
+            size="lg"
+            class="ring-2 ring-white/50 shadow-md"
+          />
+        </div>
         
         <div class="flex-1">
-          <h2 class="text-lg font-bold text-[#1a1a2e]">
+          <!-- ✅ Кликабельное имя для перехода на профиль -->
+          <h2 
+            class="text-lg font-bold text-[#1a1a2e] cursor-pointer hover:text-[#7000ff] transition-colors"
+            @click="goToPartnerProfile"
+          >
             {{ partner ? partner.name : 'Загрузка...' }}
           </h2>
         </div>
@@ -148,15 +158,25 @@
         ←
       </button>
       
-      <UserAvatar 
-        :avatar-url="partner?.avatar"
-        :name="partner?.name || 'U'"
-        size="sm"
-        class="ring-2 ring-white/50 shadow-md"
-      />
+      <!-- ✅ Кликабельный аватар на мобильной версии -->
+      <div 
+        class="cursor-pointer"
+        @click="goToPartnerProfile"
+      >
+        <UserAvatar 
+          :avatar-url="partner?.avatar"
+          :name="partner?.name || 'U'"
+          size="sm"
+          class="ring-2 ring-white/50 shadow-md"
+        />
+      </div>
       
       <div class="flex-1 min-w-0">
-        <h2 class="text-sm font-bold text-[#1a1a2e] truncate">
+        <!-- ✅ Кликабельное имя на мобильной версии -->
+        <h2 
+          class="text-sm font-bold text-[#1a1a2e] truncate cursor-pointer"
+          @click="goToPartnerProfile"
+        >
           {{ partner ? partner.name : 'Загрузка...' }}
         </h2>
       </div>
@@ -287,7 +307,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
 import DealMessage from '../components/DealMessage.vue'
@@ -295,6 +315,7 @@ import UserAvatar from '../components/UserAvatar.vue'
 import { stripMarkdown } from '../utils/textUtils'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const messagesContainer = ref(null)
 const messages = ref([])
@@ -344,6 +365,14 @@ const toggleDeal = (index) => {
   expandedDealIndex.value = expandedDealIndex.value === index ? null : index
 }
 
+// ✅ НОВАЯ ФУНКЦИЯ: Переход на профиль собеседника
+const goToPartnerProfile = () => {
+  const partnerId = partner.value?.id
+  if (partnerId) {
+    router.push(`/users/${partnerId}`)
+  }
+}
+
 const scrollToBottom = async () => {
   await nextTick()
   if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
@@ -355,7 +384,11 @@ const fetchRoomDetails = async () => {
     const partnerId = res.data.data.members.find(id => String(id) !== String(auth.user.id))
     if (partnerId) {
       const userRes = await axios.post('/api/auth/users/batch/', { user_ids: [partnerId] })
-      partner.value = userRes.data.data[0]
+      // ✅ Сохраняем ID партнера для навигации
+      partner.value = {
+        ...userRes.data.data[0],
+        id: partnerId
+      }
     }
   } catch (e) { console.error(e) }
 }

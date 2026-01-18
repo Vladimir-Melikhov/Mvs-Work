@@ -83,7 +83,6 @@ class LoginView(APIView):
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
-    # ✅ ДОБАВЛЕНО: Поддержка загрузки файлов
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
@@ -98,7 +97,6 @@ class ProfileView(APIView):
         try:
             profile = request.user.profile
             
-            # ✅ ВАЖНО: Передаем context с request для формирования полных URL
             serializer = ProfileSerializer(
                 profile, 
                 data=request.data, 
@@ -156,7 +154,6 @@ class BatchUsersView(APIView):
                 profile = user.profile
                 display_name = profile.company_name or profile.full_name or user.email.split('@')[0]
                 
-                # ✅ ИСПРАВЛЕНО: Используем метод get_avatar_url()
                 avatar_url = None
                 if profile.avatar:
                     avatar_url = request.build_absolute_uri(profile.avatar.url)
@@ -173,3 +170,47 @@ class BatchUsersView(APIView):
             })
             
         return Response({'status': 'success', 'data': data})
+
+
+# ============================================================
+# ✅ НОВЫЙ ENDPOINT: Публичный профиль пользователя
+# ============================================================
+class PublicProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        """Получить публичный профиль пользователя"""
+        try:
+            user = User.objects.get(id=user_id)
+            profile = user.profile
+            
+            # Формируем публичные данные профиля
+            data = {
+                'id': str(user.id),
+                'email': user.email,
+                'role': user.role,
+                'created_at': user.created_at,
+                'profile': {
+                    'full_name': profile.full_name,
+                    'company_name': profile.company_name,
+                    'headline': profile.headline,
+                    'company_website': profile.company_website,
+                    'avatar_url': request.build_absolute_uri(profile.avatar.url) if profile.avatar else None,
+                    'bio': profile.bio,
+                    'skills': profile.skills,
+                    'rating': str(profile.rating),
+                }
+            }
+            
+            return Response({
+                'status': 'success',
+                'data': data,
+                'error': None
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Пользователь не найден',
+                'data': None
+            }, status=status.HTTP_404_NOT_FOUND)

@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore'
 import SearchView from '../views/SearchView.vue'
 import ChatsView from '../views/ChatsView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import PublicProfileView from '../views/PublicProfileView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import OnboardingView from '../views/OnboardingView.vue'
@@ -33,14 +34,12 @@ const router = createRouter({
       component: CreateServiceView,
       meta: { requiresAuth: true }
     },
-    // --- НОВЫЙ МАРШРУТ ДЛЯ РЕДАКТИРОВАНИЯ ---
     {
       path: '/my-services/edit/:id',
       name: 'edit-service',
-      component: CreateServiceView, // Используем тот же компонент
+      component: CreateServiceView,
       meta: { requiresAuth: true }
     },
-    // ----------------------------------------
     {
       path: '/chats',
       name: 'chats',
@@ -57,6 +56,13 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: ProfileView,
+      meta: { requiresAuth: true }
+    },
+    // ✅ НОВЫЙ МАРШРУТ: Публичный профиль пользователя
+    {
+      path: '/users/:id',
+      name: 'public-profile',
+      component: PublicProfileView,
       meta: { requiresAuth: true }
     },
     {
