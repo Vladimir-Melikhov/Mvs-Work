@@ -492,5 +492,62 @@ const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/`)
   socket.onopen = () => isConnected.value = true
-  socket.onmessage
-  
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.type === 'message') {
+      messages.value.push(data.data)
+      scrollToBottom()
+    } else if (data.type === 'message_updated') {
+      const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
+      if (idx !== -1) messages.value[idx] = data.data
+    }
+  }
+  socket.onclose = () => isConnected.value = false
+}
+
+const sendMessage = () => {
+  if (!newMessage.value.trim() || !isConnected.value) return
+  socket.send(JSON.stringify({ type: 'message', sender_id: auth.user.id, text: newMessage.value }))
+  newMessage.value = ''
+}
+
+onMounted(() => {
+  fetchRoomDetails()
+  fetchHistory()
+  connectWebSocket()
+})
+onUnmounted(() => { if (socket) socket.close() })
+</script>
+
+<style scoped>
+.glass { 
+  background: rgba(255, 255, 255, 0.7); 
+  backdrop-filter: blur(30px); 
+}
+
+@keyframes scale-in { 
+  from { opacity: 0; transform: scale(0.98); } 
+  to { opacity: 1; transform: scale(1); } 
+}
+
+.animate-scale-in { 
+  animation: scale-in 0.15s ease forwards; 
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(112, 0, 255, 0.3);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(112, 0, 255, 0.5);
+}
+</style>
