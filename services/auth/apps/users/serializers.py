@@ -5,7 +5,6 @@ import os
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    # ✅ ДОБАВЛЕНО: Поле для загрузки файла
     avatar = serializers.ImageField(required=False, allow_null=True)
     avatar_url = serializers.SerializerMethodField(read_only=True)
     
@@ -18,10 +17,12 @@ class ProfileSerializer(serializers.ModelSerializer):
             'company_website', 
             'hourly_rate',
             'avatar',
-            'avatar_url',  # ✅ Добавлено для чтения URL
+            'avatar_url',
             'bio', 
             'skills', 
-            'rating'
+            'rating',
+            'github_link',
+            'behance_link',
         ]
         read_only_fields = ['rating', 'avatar_url']
     
@@ -39,11 +40,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         if value is None:
             return value
             
-        # Проверка типа файла
         if not isinstance(value, InMemoryUploadedFile):
             return value
         
-        # Проверка расширения
         ext = os.path.splitext(value.name)[1][1:].lower()
         allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
         
@@ -52,7 +51,6 @@ class ProfileSerializer(serializers.ModelSerializer):
                 f"Неподдерживаемый формат файла. Разрешены: {', '.join(allowed_extensions)}"
             )
         
-        # Проверка размера (5MB)
         if value.size > 5 * 1024 * 1024:
             raise serializers.ValidationError(
                 "Размер файла не должен превышать 5MB"
@@ -62,10 +60,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         """Обновление профиля с обработкой аватарки"""
-        # Если приходит новая аватарка, удаляем старую
         if 'avatar' in validated_data and validated_data['avatar']:
             if instance.avatar:
-                # Удаляем старый файл
                 instance.avatar.delete(save=False)
         
         return super().update(instance, validated_data)

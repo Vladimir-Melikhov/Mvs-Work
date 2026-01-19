@@ -5,7 +5,6 @@ from django.core.files.storage import FileSystemStorage
 import os
 
 
-# Настройка хранилища для аватарок
 avatar_storage = FileSystemStorage(location='media/avatars')
 
 
@@ -54,15 +53,12 @@ class User(AbstractBaseUser):
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    
-    # Основные поля
     full_name = models.CharField(max_length=100, blank=True, null=True)
     company_name = models.CharField(max_length=255, blank=True, null=True)
     headline = models.CharField(max_length=255, blank=True, null=True)
     company_website = models.URLField(blank=True, null=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
-    # ✅ ОБНОВЛЕНО: ImageField вместо URLField
     avatar = models.ImageField(
         upload_to=avatar_upload_path,
         blank=True,
@@ -74,6 +70,9 @@ class Profile(models.Model):
     bio = models.TextField(blank=True, null=True)
     skills = models.JSONField(default=list, blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+    github_link = models.URLField(blank=True, null=True, help_text="Ссылка на GitHub профиль")
+    behance_link = models.URLField(blank=True, null=True, help_text="Ссылка на Behance профиль")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -13,7 +13,6 @@
           ←
         </button>
         
-        <!-- ✅ Кликабельный аватар для перехода на профиль -->
         <div 
           class="cursor-pointer hover:ring-2 hover:ring-[#7000ff] rounded-full transition-all"
           @click="goToPartnerProfile"
@@ -27,7 +26,6 @@
         </div>
         
         <div class="flex-1">
-          <!-- ✅ Кликабельное имя для перехода на профиль -->
           <h2 
             class="text-lg font-bold text-[#1a1a2e] cursor-pointer hover:text-[#7000ff] transition-colors"
             @click="goToPartnerProfile"
@@ -62,7 +60,8 @@
               ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
           >
-            <div class="whitespace-pre-wrap">{{ cleanText(msg.text) }}</div>
+            <!-- ✅ ОБНОВЛЕНО: Показываем иконки вместо emoji -->
+            <div class="whitespace-pre-wrap" v-html="formatMessageText(msg.text)"></div>
             
             <div 
               class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
@@ -94,8 +93,33 @@
       </div>
     </div>
 
-    <!-- ✅ ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
+    <!-- ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
     <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
+      <!-- ✅ НОВОЕ: Кнопка поддержки в деталях чата -->
+      <div class="mb-4">
+        <a 
+          :href="supportLink" 
+          target="_blank"
+          rel="noopener noreferrer"
+          class="glass flex items-center gap-3 p-4 rounded-[24px] border border-white/40 hover:bg-white/20 transition-all group"
+        >
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#7000ff] to-[#5500cc] flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors">
+              Служба поддержки
+            </div>
+            <div class="text-xs text-gray-500">Нужна помощь? Напишите нам</div>
+          </div>
+          <svg class="w-4 h-4 text-gray-400 group-hover:text-[#7000ff] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      </div>
+      
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center min-h-[300px]">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
@@ -158,7 +182,6 @@
         ←
       </button>
       
-      <!-- ✅ Кликабельный аватар на мобильной версии -->
       <div 
         class="cursor-pointer"
         @click="goToPartnerProfile"
@@ -172,7 +195,6 @@
       </div>
       
       <div class="flex-1 min-w-0">
-        <!-- ✅ Кликабельное имя на мобильной версии -->
         <h2 
           class="text-sm font-bold text-[#1a1a2e] truncate cursor-pointer"
           @click="goToPartnerProfile"
@@ -220,7 +242,8 @@
               ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
           >
-            <div class="whitespace-pre-wrap">{{ cleanText(msg.text) }}</div>
+            <!-- ✅ ОБНОВЛЕНО: Показываем иконки вместо emoji -->
+            <div class="whitespace-pre-wrap" v-html="formatMessageText(msg.text)"></div>
             
             <div 
               class="text-[9px] mt-1 font-medium opacity-60 text-right"
@@ -328,6 +351,11 @@ const expandedDealIndex = ref(0)
 let socket = null
 const roomId = route.params.id
 
+const supportLink = computed(() => {
+  const botUsername = import.meta.env.VITE_SUPPORT_BOT_USERNAME || 'your_support_bot'
+  return `https://t.me/${botUsername}`
+})
+
 const textMessages = computed(() => {
   return messages.value.filter(m => m.message_type === 'text')
 })
@@ -346,8 +374,67 @@ const activeDeals = computed(() => {
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-const cleanText = (text) => {
-  return stripMarkdown(text)
+// ✅ НОВАЯ ФУНКЦИЯ: Замена emoji на SVG иконки
+const formatMessageText = (text) => {
+  if (!text) return ''
+  
+  // Маппинг emoji на типы иконок
+  const emojiMap = {
+    '💰': { type: 'money', color: 'success' },
+    '✅': { type: 'check', color: 'success' },
+    '📦': { type: 'work', color: 'info' },
+    '🔄': { type: 'clock', color: 'warning' },
+    '🎉': { type: 'check', color: 'success' },
+    '❌': { type: 'cancel', color: 'error' },
+    '⚠️': { type: 'warning', color: 'warning' },
+    '⏳': { type: 'clock', color: 'default' },
+    '⚡': { type: 'lightning', color: 'purple' },
+    '📋': { type: 'document', color: 'info' },
+    '🛡️': { type: 'info', color: 'info' },
+    '💳': { type: 'money', color: 'purple' }
+  }
+  
+  let formatted = text
+  
+  // Заменяем каждый emoji на SVG
+  Object.entries(emojiMap).forEach(([emoji, config]) => {
+    const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
+      <svg class="w-5 h-5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        ${getIconPath(config.type)}
+      </svg>
+    </span>`
+    
+    formatted = formatted.replaceAll(emoji, iconSvg)
+  })
+  
+  return formatted
+}
+
+const getColorClass = (color) => {
+  const classes = {
+    success: 'text-green-600',
+    error: 'text-red-600',
+    warning: 'text-orange-600',
+    info: 'text-blue-600',
+    purple: 'text-purple-600',
+    default: 'text-gray-600'
+  }
+  return classes[color] || classes.default
+}
+
+const getIconPath = (type) => {
+  const paths = {
+    money: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v12M8 9h8M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    check: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    work: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    cancel: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    warning: '<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    clock: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    lightning: '<path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="currentColor"/>',
+    document: '<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    info: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+  }
+  return paths[type] || paths.info
 }
 
 const getStatusLabel = (status) => {
@@ -365,7 +452,6 @@ const toggleDeal = (index) => {
   expandedDealIndex.value = expandedDealIndex.value === index ? null : index
 }
 
-// ✅ НОВАЯ ФУНКЦИЯ: Переход на профиль собеседника
 const goToPartnerProfile = () => {
   const partnerId = partner.value?.id
   if (partnerId) {
@@ -384,7 +470,6 @@ const fetchRoomDetails = async () => {
     const partnerId = res.data.data.members.find(id => String(id) !== String(auth.user.id))
     if (partnerId) {
       const userRes = await axios.post('/api/auth/users/batch/', { user_ids: [partnerId] })
-      // ✅ Сохраняем ID партнера для навигации
       partner.value = {
         ...userRes.data.data[0],
         id: partnerId
@@ -407,62 +492,5 @@ const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/`)
   socket.onopen = () => isConnected.value = true
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data)
-    if (data.type === 'message') {
-      messages.value.push(data.data)
-      scrollToBottom()
-    } else if (data.type === 'message_updated') {
-      const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
-      if (idx !== -1) messages.value[idx] = data.data
-    }
-  }
-  socket.onclose = () => isConnected.value = false
-}
-
-const sendMessage = () => {
-  if (!newMessage.value.trim() || !isConnected.value) return
-  socket.send(JSON.stringify({ type: 'message', sender_id: auth.user.id, text: newMessage.value }))
-  newMessage.value = ''
-}
-
-onMounted(() => {
-  fetchRoomDetails()
-  fetchHistory()
-  connectWebSocket()
-})
-onUnmounted(() => { if (socket) socket.close() })
-</script>
-
-<style scoped>
-.glass { 
-  background: rgba(255, 255, 255, 0.7); 
-  backdrop-filter: blur(30px); 
-}
-
-@keyframes scale-in { 
-  from { opacity: 0; transform: scale(0.98); } 
-  to { opacity: 1; transform: scale(1); } 
-}
-
-.animate-scale-in { 
-  animation: scale-in 0.15s ease forwards; 
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(112, 0, 255, 0.3);
-  border-radius: 10px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(112, 0, 255, 0.5);
-}
-</style>
+  socket.onmessage
+  

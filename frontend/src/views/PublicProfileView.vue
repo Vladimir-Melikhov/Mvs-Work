@@ -24,12 +24,12 @@
   
           <div class="relative flex flex-col items-center gap-6 md:flex-row md:gap-8 mt-4">
             <!-- Аватар -->
-            <div class="relative w-40 h-40 md:w-48 md:h-48 shrink-0 mx-auto md:mx-0">
-                <div class="w-full h-full rounded-[32px] p-1.5 shadow-2xl border border-white/30 overflow-hidden bg-white/10 backdrop-blur-md">
+            <div class="w-28 md:w-32 h-28 md:h-32 shrink-0">
+              <div class="w-full h-full rounded-full p-1.5 shadow-xl border border-white/20 overflow-hidden">
                 <img 
                   v-if="userData.profile.avatar_url" 
                   :src="userData.profile.avatar_url" 
-                  class="w-full h-full rounded-[28px] object-cover"
+                  class="w-full h-full rounded-full object-cover"
                   alt="Avatar"
                 >
                 <div 
@@ -258,3 +258,4 @@
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.07);
   }
   </style>
+  
