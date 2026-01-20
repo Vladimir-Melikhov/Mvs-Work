@@ -295,7 +295,6 @@ const save = async () => {
     loading.value = false
   }
 }
-
 </script>
 
 <style scoped>
