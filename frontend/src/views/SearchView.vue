@@ -113,7 +113,7 @@ const categories = [
   { label: 'Дизайн', value: 'design' },
   { label: 'Разработка', value: 'development' },
   { label: 'Тексты', value: 'copywriting' },
-  { label: 'Маркетинг', value: 'marketing' }
+  { label: 'Маркетинг', value: 'marketing' },
 ]
 
 const fetchServices = async () => {

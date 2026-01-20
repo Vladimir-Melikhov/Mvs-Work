@@ -407,10 +407,6 @@ class DealService:
         DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
         return deal
 
-    # ============================================================
-    # HELPERS
-    # ============================================================
-
     @staticmethod
     def _send_text_message(chat_room_id: str, sender_id: str, text: str, auth_token: str):
         """Отправка обычного текстового сообщения в чат"""
@@ -421,7 +417,8 @@ class DealService:
                 'sender_id': str(sender_id),
                 'message_type': 'text',
                 'text': text,
-                'deal_data': None
+                'deal_data': None,
+                'is_system': True
             }
             
             headers = {

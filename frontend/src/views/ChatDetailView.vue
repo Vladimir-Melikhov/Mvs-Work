@@ -61,8 +61,10 @@
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
           >
             <!-- ✅ ОБНОВЛЕНО: Показываем иконки вместо emoji -->
-            <div class="whitespace-pre-wrap" v-html="formatMessageText(msg.text)"></div>
-            
+            <div 
+              class="whitespace-pre-wrap" 
+              v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+            ></div>           
             <div 
               class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
               :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
@@ -93,9 +95,7 @@
       </div>
     </div>
 
-    <!-- ПРАВАЯ КОЛОНКА: ОБЩАЯ ПРОКРУТКА -->
     <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
-      <!-- ✅ НОВОЕ: Кнопка поддержки в деталях чата -->
       <div class="mb-4">
         <a 
           :href="supportLink" 
@@ -242,8 +242,10 @@
               ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
           >
-            <!-- ✅ ОБНОВЛЕНО: Показываем иконки вместо emoji -->
-            <div class="whitespace-pre-wrap" v-html="formatMessageText(msg.text)"></div>
+            <div 
+              class="whitespace-pre-wrap" 
+              v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+            ></div>
             
             <div 
               class="text-[9px] mt-1 font-medium opacity-60 text-right"
@@ -375,10 +377,13 @@ const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 // ✅ НОВАЯ ФУНКЦИЯ: Замена emoji на SVG иконки
-const formatMessageText = (text) => {
+// ✅ ИСПРАВЛЕНО: Теперь заменяет эмодзи на иконки только если isSystem === true
+const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   
-  // Маппинг emoji на типы иконок
+  // Если это обычное сообщение от пользователя — просто возвращаем текст
+  if (!isSystem) return text
+
   const emojiMap = {
     '💰': { type: 'money', color: 'success' },
     '✅': { type: 'check', color: 'success' },
@@ -396,7 +401,7 @@ const formatMessageText = (text) => {
   
   let formatted = text
   
-  // Заменяем каждый emoji на SVG
+  // Заменяем каждый emoji на SVG только для системных уведомлений
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
       <svg class="w-5 h-5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

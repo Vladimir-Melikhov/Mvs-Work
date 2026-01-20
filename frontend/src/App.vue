@@ -6,18 +6,22 @@
       <router-view />
     </main>
     
-    <!-- ✅ НОВОЕ: Кнопка поддержки -->
-    <SupportButton />
+    <SupportButton v-if="!isChatPage" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue' // Добавили computed
+import { useRoute } from 'vue-router' // Добавили useRoute
 import TopNav from './components/TopNav.vue'
 import BottomNav from './components/BottomNav.vue'
 import SupportButton from './components/SupportButton.vue'
 
+const route = useRoute()
 const isMobile = ref(false)
+
+// Проверка: начинается ли адрес с /chats
+const isChatPage = computed(() => route.path.startsWith('/chats'))
 
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768

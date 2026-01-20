@@ -58,13 +58,21 @@
           class="glass rounded-[24px] p-4 md:p-6 border border-white/20"
         >
           <div class="flex items-start justify-between mb-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 md:w-10 h-9 md:h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md shrink-0">
-                {{ getInitials(review.reviewer_name) }}
+            <div 
+              class="flex items-center gap-3 cursor-pointer group/author min-w-0"
+              @click="goToUser(review.reviewer_id)"
+            >
+              <div class="w-9 md:w-10 h-9 md:h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex items-center justify-center text-white text-xs font-bold shadow-md shrink-0 overflow-hidden group-hover/author:ring-2 group-hover/author:ring-[#7000ff] transition-all">
+                <img v-if="review.reviewer_avatar" :src="review.reviewer_avatar" class="w-full h-full object-cover">
+                <span v-else>{{ getInitials(review.reviewer_name) }}</span>
               </div>
               <div class="min-w-0">
-                <div class="font-bold text-[#1a1a2e] text-sm break-words">{{ review.reviewer_name || 'Клиент' }}</div>
-                <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{{ formatDate(review.created_at) }}</div>
+                <div class="font-bold text-[#1a1a2e] text-sm break-words group-hover/author:text-[#7000ff] transition-colors line-clamp-1">
+                  {{ review.reviewer_name || 'Клиент' }}
+                </div>
+                <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                  {{ formatDate(review.created_at) }}
+                </div>
               </div>
             </div>
             
@@ -101,7 +109,6 @@
         </div>
       </div>
 
-      <!-- Pagination -->
       <div v-if="totalPages > 1" class="flex justify-center items-center gap-2 mt-6">
         <button 
           @click="currentPage--" 
@@ -144,6 +151,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   workerId: {
@@ -152,17 +160,22 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['reviews-loaded'])
+const router = useRouter()
+
 const reviews = ref([])
 const loading = ref(true)
 const currentPage = ref(1)
 const itemsPerPage = 3
 
+// Расчет среднего рейтинга
 const averageRating = computed(() => {
   if (reviews.value.length === 0) return 0
   const sum = reviews.value.reduce((acc, r) => acc + Number(r.rating), 0)
   return sum / reviews.value.length
 })
 
+// Логика пагинации
 const totalPages = computed(() => Math.ceil(reviews.value.length / itemsPerPage))
 
 const paginatedReviews = computed(() => {
@@ -189,12 +202,17 @@ const visiblePages = computed(() => {
       pages.push(current - 2, current - 1, current, current + 1, current + 2)
     }
   }
-  
   return pages
 })
 
-const emit = defineEmits(['reviews-loaded'])
+// Переход в профиль пользователя
+const goToUser = (userId) => {
+  if (userId) {
+    router.push(`/users/${userId}`)
+  }
+}
 
+// Загрузка отзывов и данных о пользователях
 const fetchReviews = async () => {
   loading.value = true
   try {
@@ -212,14 +230,21 @@ const fetchReviews = async () => {
           const usersMap = {}
           if (usersRes.data.status === 'success') {
             usersRes.data.data.forEach(user => {
-              usersMap[user.id] = user.name
+              usersMap[user.id] = {
+                name: user.name,
+                avatar: user.avatar || user.profile?.avatar_url
+              }
             })
           }
           
-          reviews.value = rawReviews.map(review => ({
-            ...review,
-            reviewer_name: usersMap[review.reviewer_id] || 'Клиент'
-          }))
+          reviews.value = rawReviews.map(review => {
+            const userData = usersMap[review.reviewer_id] || {}
+            return {
+              ...review,
+              reviewer_name: userData.name || 'Клиент',
+              reviewer_avatar: userData.avatar || null
+            }
+          })
         } catch (err) {
           console.error('Batch user fetch failed', err)
           reviews.value = rawReviews
@@ -228,6 +253,7 @@ const fetchReviews = async () => {
         reviews.value = rawReviews
       }
       
+      // Уведомляем родителя о загрузке рейтинга
       emit('reviews-loaded', {
         averageRating: averageRating.value,
         totalReviews: reviews.value.length
@@ -267,5 +293,13 @@ onMounted(() => {
   .pl-13 {
     padding-left: 3.25rem;
   }
+}
+
+/* Эффект наведения для автора */
+.group\/author:hover .group-hover\/author\:ring-2 {
+  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+  --tw-ring-color: #7000ff;
 }
 </style>

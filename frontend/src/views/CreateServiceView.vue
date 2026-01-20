@@ -35,10 +35,11 @@
               v-model="form.category" 
               class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all font-medium text-[#1a1a2e] shadow-inner cursor-pointer appearance-none"
             >
-              <option value="development">Development</option>
-              <option value="design">Design</option>
-              <option value="marketing">Marketing</option>
-              <option value="copywriting">Copywriting</option>
+              <option value="development">Разработка</option>
+              <option value="design">Дизайн</option>
+              <option value="marketing">Маркетинг</option>
+              <option value="copywriting">Копирайтинг</option>
+              <option value="video">Видео</option>
             </select>
           </div>
 

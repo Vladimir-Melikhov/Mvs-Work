@@ -44,14 +44,14 @@
 
       <div v-else class="glass p-12 rounded-[40px] text-center mt-8 border border-white/20">
         <div class="text-6xl mb-4 opacity-50">💬</div>
-        <h3 class="text-xl font-bold text-[#1a1a2e] mb-2">No messages yet</h3>
-        <p class="text-gray-500 mb-8 max-w-xs mx-auto">Connect with freelancers or clients to start a conversation.</p>
+        <h3 class="text-xl font-bold text-[#1a1a2e] mb-2">Сообщений нет</h3>
+        <p class="text-gray-500 mb-8 max-w-xs mx-auto"></p>
         
         <router-link 
           to="/search" 
           class="bg-[#1a1a2e] text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-[#7000ff] transition-all inline-block"
         >
-          Find Services
+          Найти исполнителя
         </router-link>
       </div>
 
@@ -141,8 +141,14 @@ const formatLastMessage = (message) => {
   
   // Сначала очищаем от markdown
   let text = stripMarkdown(message.text)
+
+  // ✅ ПРОВЕРКА: Если это не системное сообщение (не начинается с маркера), возвращаем просто текст
+  const systemMarkers = ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌']
+  const isSystem = systemMarkers.some(marker => text.trim().startsWith(marker))
   
-  // Затем заменяем emoji на иконки (та же логика что в ChatDetailView)
+  if (!isSystem) return text
+  
+  // Затем заменяем emoji на иконки только для системных сообщений
   const emojiMap = {
     '💰': { type: 'money', color: 'success' },
     '✅': { type: 'check', color: 'success' },
