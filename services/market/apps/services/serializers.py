@@ -1,11 +1,30 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import Service, Deal, Transaction, Review
+from .models import Service, ServiceImage, Deal, Transaction, Review
+
+
+class ServiceImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ServiceImage
+        fields = ['id', 'image', 'image_url', 'order', 'created_at']
+        read_only_fields = ['id', 'created_at', 'image_url']
+    
+    def get_image_url(self, obj):
+        """Формирует полный URL для изображения"""
+        if not obj.image:
+            return None
+        
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    # ✅ ДОБАВЛЕНО: Метод для формирования полного URL аватарки
     owner_avatar = serializers.SerializerMethodField()
+    images = ServiceImageSerializer(many=True, read_only=True)
     
     class Meta:
         model = Service
@@ -13,27 +32,19 @@ class ServiceSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'price', 
             'owner_id', 'owner_name', 'owner_avatar', 
             'ai_template', 'category', 'tags', 
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'images',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images']
     
     def get_owner_avatar(self, obj):
-        """
-        ✅ ИСПРАВЛЕНИЕ: Формирует полный URL для аватарки
-        Если owner_avatar уже полный URL - возвращает как есть
-        Если это путь к медиа - добавляет домен
-        """
         if not obj.owner_avatar:
             return None
         
-        # Если уже полный URL
         if obj.owner_avatar.startswith('http://') or obj.owner_avatar.startswith('https://'):
             return obj.owner_avatar
         
-        # Если это путь к медиа - формируем полный URL
         request = self.context.get('request')
         if request:
-            # Убираем /media/ если он есть в начале
             avatar_path = obj.owner_avatar.lstrip('/media/')
             return request.build_absolute_uri(f'/media/{avatar_path}')
         
@@ -94,7 +105,6 @@ class DealSerializer(serializers.ModelSerializer):
         return float(obj.price * Decimal('1.08'))
     
     def get_status_display(self, obj):
-        """Возвращает читаемый статус с учетом результата спора"""
         status_map = {
             'pending': 'Ожидает оплаты',
             'paid': 'В работе',
@@ -119,7 +129,6 @@ class DealSerializer(serializers.ModelSerializer):
         return base_status
     
     def get_dispute_result(self, obj):
-        """Возвращает результат спора для отображения"""
         if not obj.dispute_winner:
             return None
         
@@ -132,7 +141,6 @@ class DealSerializer(serializers.ModelSerializer):
 
 
 class CreateDealSerializer(serializers.Serializer):
-    """Создание заказа"""
     chat_room_id = serializers.UUIDField()
     title = serializers.CharField(max_length=255)
     description = serializers.CharField()
@@ -140,12 +148,10 @@ class CreateDealSerializer(serializers.Serializer):
 
 
 class CompleteDealSerializer(serializers.Serializer):
-    """Завершение заказа с отзывом"""
     rating = serializers.IntegerField(min_value=1, max_value=5)
     comment = serializers.CharField(required=False, allow_blank=True)
 
 
 class GenerateTZSerializer(serializers.Serializer):
-    """AI-генерация ТЗ"""
     service_id = serializers.UUIDField()
     raw_requirements = serializers.CharField()

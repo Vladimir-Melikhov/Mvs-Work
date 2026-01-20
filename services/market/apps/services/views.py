@@ -2,10 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
-from .models import Service, Deal, Review
+from django.db import transaction
+from .models import Service, ServiceImage, Deal, Review
 from .serializers import (
-    ServiceSerializer, 
+    ServiceSerializer,
+    ServiceImageSerializer,
     DealSerializer,
     ReviewSerializer,
     CreateDealSerializer,
@@ -13,12 +16,14 @@ from .serializers import (
 )
 from .services import AIService
 from .deal_service import DealService
+import os
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
     """Управление услугами"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -60,18 +65,42 @@ class ServiceViewSet(viewsets.ModelViewSet):
         except Service.DoesNotExist:
             return Response({'status': 'error', 'error': 'Услуга не найдена', 'data': None}, status=404)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        serializer.save(
+        service = serializer.save(
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
             owner_avatar=request.data.get('owner_avatar', '')
         )
-        return Response({'status': 'success', 'data': serializer.data, 'error': None}, status=201)
+        
+        # Обработка изображений
+        images_data = []
+        for i in range(5):
+            image_key = f'image_{i}'
+            if image_key in request.FILES:
+                image_file = request.FILES[image_key]
+                
+                # Валидация
+                if image_file.size > 5 * 1024 * 1024:
+                    continue
+                
+                ext = os.path.splitext(image_file.name)[1][1:].lower()
+                if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                    continue
+                
+                ServiceImage.objects.create(
+                    service=service,
+                    image=image_file,
+                    order=i
+                )
+        
+        return Response({'status': 'success', 'data': ServiceSerializer(service, context={'request': request}).data, 'error': None}, status=201)
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if str(instance.owner_id) != str(request.user.id):
@@ -82,15 +111,55 @@ class ServiceViewSet(viewsets.ModelViewSet):
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
         serializer.save()
-        return Response({'status': 'success', 'data': serializer.data, 'error': None})
+        
+        # Обработка изображений при обновлении
+        for i in range(5):
+            image_key = f'image_{i}'
+            if image_key in request.FILES:
+                image_file = request.FILES[image_key]
+                
+                if image_file.size > 5 * 1024 * 1024:
+                    continue
+                
+                ext = os.path.splitext(image_file.name)[1][1:].lower()
+                if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                    continue
+                
+                # Удаляем старое изображение с этим order
+                ServiceImage.objects.filter(service=instance, order=i).delete()
+                
+                ServiceImage.objects.create(
+                    service=instance,
+                    image=image_file,
+                    order=i
+                )
 
+        return Response({'status': 'success', 'data': ServiceSerializer(instance, context={'request': request}).data, 'error': None})
+
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
+        # Изображения удалятся автоматически через CASCADE
         instance.delete()
         return Response({'status': 'success', 'data': {'message': 'Услуга удалена'}, 'error': None})
+
+    @action(detail=True, methods=['delete'], url_path='delete-image/(?P<image_id>[^/.]+)')
+    def delete_image(self, request, pk=None, image_id=None):
+        """Удалить конкретное изображение услуги"""
+        try:
+            service = self.get_object()
+            if str(service.owner_id) != str(request.user.id):
+                return Response({'status': 'error', 'error': 'Нет прав'}, status=403)
+            
+            image = ServiceImage.objects.get(id=image_id, service=service)
+            image.delete()
+            
+            return Response({'status': 'success', 'message': 'Изображение удалено'})
+        except ServiceImage.DoesNotExist:
+            return Response({'status': 'error', 'error': 'Изображение не найдено'}, status=404)
 
 
 class DealViewSet(viewsets.ViewSet):
@@ -148,11 +217,9 @@ class DealViewSet(viewsets.ViewSet):
             return Response({'error': serializer.errors}, status=400)
 
         try:
-            # Получаем токен
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
-            # Получаем данные чата
             import requests as req
             chat_url = f"http://localhost:8003/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
@@ -167,7 +234,6 @@ class DealViewSet(viewsets.ViewSet):
             user_role = request.user.role
             other_member = [m for m in members if str(m) != user_id][0]
 
-            # Определяем роли
             if user_role == 'client':
                 client_id = user_id
                 worker_id = other_member
@@ -175,7 +241,6 @@ class DealViewSet(viewsets.ViewSet):
                 worker_id = user_id
                 client_id = other_member
 
-            # Создаём заказ
             deal = DealService.create_deal(
                 chat_room_id=serializer.validated_data['chat_room_id'],
                 client_id=client_id,
@@ -366,10 +431,6 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    # ============================================================
-    # ✅ АРБИТРАЖ
-    # ============================================================
-    
     @action(detail=True, methods=['post'], url_path='open-dispute')
     def open_dispute(self, request, pk=None):
         """Открыть спор (только клиент, только после сдачи работы)"""
@@ -455,7 +516,6 @@ class DealViewSet(viewsets.ViewSet):
             if not winner:
                 return Response({'error': 'Укажите победителя (client/worker)'}, status=400)
 
-            # ✅ ИСПРАВЛЕНИЕ: Получаем токен для обновления чата
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 

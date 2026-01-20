@@ -1,5 +1,13 @@
 import uuid
 from django.db import models
+import os
+
+
+def service_image_upload_path(instance, filename):
+    """Генерирует путь для загрузки изображений сервиса"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    return os.path.join('service_images', str(instance.service_id), filename)
 
 
 class Service(models.Model):
@@ -54,6 +62,30 @@ class Service(models.Model):
         return self.title
 
 
+class ServiceImage(models.Model):
+    """Изображения для услуги (до 5 шт)"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(
+        upload_to=service_image_upload_path,
+        max_length=500,
+        help_text="Изображение услуги (JPG, PNG, GIF, WEBP до 5MB)"
+    )
+    order = models.IntegerField(default=0, help_text="Порядок отображения")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'service_images'
+        ordering = ['order', 'created_at']
+        indexes = [
+            models.Index(fields=['service', 'order']),
+        ]
+    
+    def __str__(self) -> str:
+        return f"Image {self.order} for {self.service.title}"
+
+
 class Deal(models.Model):
     """
     МОДЕЛЬ ЗАКАЗА С ПОДДЕРЖКОЙ АРБИТРАЖА
@@ -62,7 +94,7 @@ class Deal(models.Model):
         ('pending', 'Ожидает оплаты'),
         ('paid', 'Оплачен, в работе'),
         ('delivered', 'Сдан на проверку'),
-        ('dispute', 'В споре'),  # ✅ НОВЫЙ СТАТУС
+        ('dispute', 'В споре'),
         ('completed', 'Завершён'),
         ('cancelled', 'Отменён'),
     ]
@@ -73,24 +105,19 @@ class Deal(models.Model):
     worker_id = models.UUIDField(db_index=True)
     service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, blank=True)
     
-    # Основные данные
     title = models.CharField(max_length=255)
     description = models.TextField(help_text="Техническое задание")
     price = models.DecimalField(max_digits=10, decimal_places=2)
     
-    # Статус
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
     
-    # Доработки
     revision_count = models.IntegerField(default=0)
     max_revisions = models.IntegerField(default=2)
     
-    # Сообщения
     delivery_message = models.TextField(blank=True)
     completion_message = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
     
-    # ✅ ПОЛЯ ДЛЯ ДИСПУТА
     dispute_client_reason = models.TextField(blank=True, help_text="Претензия клиента")
     dispute_worker_defense = models.TextField(blank=True, help_text="Защита исполнителя")
     dispute_created_at = models.DateTimeField(null=True, blank=True, help_text="Когда открыт спор")
@@ -102,10 +129,8 @@ class Deal(models.Model):
         help_text="Кто выиграл спор"
     )
     
-    # ID последнего сообщения-карточки в чате
     last_message_id = models.UUIDField(null=True, blank=True)
     
-    # Временные метки
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
@@ -133,58 +158,46 @@ class Deal(models.Model):
 
     @property
     def is_active(self) -> bool:
-        """Активен ли заказ"""
         return self.status in ['pending', 'paid', 'delivered', 'dispute']
 
     @property
     def can_pay(self) -> bool:
-        """Можно ли оплатить"""
         return self.status == 'pending'
 
     @property
     def can_deliver(self) -> bool:
-        """Может ли исполнитель сдать работу"""
         return self.status == 'paid'
 
     @property
     def can_request_revision(self) -> bool:
-        """Можно ли запросить доработку"""
         return self.status == 'delivered' and self.revision_count < self.max_revisions
 
     @property
     def can_complete(self) -> bool:
-        """Можно ли завершить"""
         return self.status == 'delivered'
 
     @property
     def can_cancel(self) -> bool:
-        """Можно ли отменить (только ДО сдачи работы)"""
         return self.status in ['pending', 'paid']
 
     @property
     def can_update_price(self) -> bool:
-        """Можно ли изменить цену"""
         return self.status == 'pending'
 
-    # ✅ НОВЫЕ СВОЙСТВА ДЛЯ ДИСПУТА
     @property
     def can_open_dispute(self) -> bool:
-        """Может ли клиент открыть спор (только после сдачи работы)"""
         return self.status == 'delivered'
 
     @property
     def can_worker_refund(self) -> bool:
-        """Может ли исполнитель вернуть деньги"""
         return self.status == 'dispute' and not self.dispute_worker_defense
 
     @property
     def can_worker_defend(self) -> bool:
-        """Может ли исполнитель оспорить"""
         return self.status == 'dispute' and not self.dispute_worker_defense
 
     @property
     def is_dispute_pending_admin(self) -> bool:
-        """Ждет ли спор решения админа"""
         return self.status == 'dispute' and bool(self.dispute_worker_defense) and not self.dispute_winner
 
 

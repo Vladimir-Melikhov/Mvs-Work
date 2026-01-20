@@ -69,6 +69,68 @@
           ></textarea>
         </div>
 
+        <!-- ✅ НОВОЕ: Загрузка изображений -->
+        <div>
+          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">
+            Изображения услуги (до 5 шт,  первое изображение - обложка)
+          </label>
+          
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div 
+              v-for="i in 5" 
+              :key="i"
+              class="relative aspect-square rounded-2xl border-2 border-dashed border-white/30 overflow-hidden group hover:border-[#7000ff]/50 transition-all"
+            >
+              <img 
+                v-if="imagePreviews[i-1]" 
+                :src="imagePreviews[i-1]" 
+                class="w-full h-full object-cover"
+              >
+              
+              <label 
+                class="absolute inset-0 cursor-pointer flex items-center justify-center bg-white/5 group-hover:bg-white/10 transition-all"
+                :class="{'bg-black/40': imagePreviews[i-1]}"
+              >
+                <div class="text-center">
+                  <svg 
+                    v-if="!imagePreviews[i-1]"
+                    class="w-8 h-8 mx-auto text-gray-400 group-hover:text-[#7000ff] transition-colors" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div 
+                    v-else
+                    class="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  @change="(e) => handleImageUpload(e, i-1)"
+                  class="hidden"
+                >
+              </label>
+              
+              <button 
+                v-if="imagePreviews[i-1]"
+                @click="removeImage(i-1)"
+                class="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          
+          <p class="text-xs text-gray-400 mt-2 ml-2">JPG, PNG, GIF, WEBP • До 5MB каждое</p>
+        </div>
+
         <div class="bg-[#7000ff]/5 border border-[#7000ff]/10 rounded-2xl p-4 md:p-6">
           <label class="block text-xs font-bold text-[#7000ff] uppercase tracking-wider mb-2 ml-1">
             Требования к заказчику (Бриф)
@@ -147,6 +209,10 @@ const form = ref({
   tags: []
 })
 
+const imageFiles = ref([null, null, null, null, null])
+const imagePreviews = ref([null, null, null, null, null])
+const existingImages = ref([])
+
 const newTag = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -158,6 +224,51 @@ const isFormValid = computed(() => {
          form.value.price && 
          parseFloat(form.value.price) > 0
 })
+
+const handleImageUpload = (event, index) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  // Валидация
+  if (file.size > 5 * 1024 * 1024) {
+    error.value = 'Изображение слишком большое. Максимум 5MB'
+    return
+  }
+  
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    error.value = 'Неподдерживаемый формат. Используйте JPG, PNG, GIF или WEBP'
+    return
+  }
+  
+  imageFiles.value[index] = file
+  error.value = ''
+  
+  // Preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    imagePreviews.value[index] = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeImage = (index) => {
+  imageFiles.value[index] = null
+  imagePreviews.value[index] = null
+  
+  // Если редактирование и есть существующее изображение - удаляем
+  if (isEditing.value && existingImages.value[index]) {
+    deleteExistingImage(existingImages.value[index].id)
+  }
+}
+
+const deleteExistingImage = async (imageId) => {
+  try {
+    await axios.delete(`/api/market/services/${route.params.id}/delete-image/${imageId}/`)
+  } catch (e) {
+    console.error('Failed to delete image:', e)
+  }
+}
 
 const addTag = () => {
   const tag = newTag.value.trim().toLowerCase()
@@ -192,6 +303,16 @@ const fetchServiceData = async () => {
               ai_template: data.ai_template || '',
               tags: data.tags || []
           }
+          
+          // Загружаем существующие изображения
+          if (data.images && data.images.length > 0) {
+            existingImages.value = data.images
+            data.images.forEach((img, idx) => {
+              if (idx < 5) {
+                imagePreviews.value[idx] = img.image_url
+              }
+            })
+          }
       } catch (e) {
           console.error("Fetch error", e)
           error.value = "Ошибка загрузки данных услуги"
@@ -211,19 +332,42 @@ const submitForm = async () => {
   error.value = ''
   
   try {
-    const payload = {
-      ...form.value,
-      price: parseFloat(form.value.price),
-      owner_name: auth.user.profile?.company_name || auth.user.profile?.full_name || 'Фрилансер',
-      owner_avatar: auth.user.profile?.avatar || ''
+    const formData = new FormData()
+    
+    // Основные данные
+    formData.append('title', form.value.title)
+    formData.append('description', form.value.description)
+    formData.append('price', parseFloat(form.value.price))
+    formData.append('category', form.value.category)
+    formData.append('ai_template', form.value.ai_template || '')
+    formData.append('tags', JSON.stringify(form.value.tags))
+    
+    if (!isEditing.value) {
+      formData.append('owner_name', auth.user.profile?.company_name || auth.user.profile?.full_name || 'Фрилансер')
+      formData.append('owner_avatar', auth.user.profile?.avatar_url || '')
     }
     
+    // Изображения
+    imageFiles.value.forEach((file, idx) => {
+      if (file) {
+        formData.append(`image_${idx}`, file)
+      }
+    })
+    
     if (isEditing.value) {
-        await axios.patch(`/api/market/services/${route.params.id}/`, payload)
+        await axios.patch(`/api/market/services/${route.params.id}/`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
         alert('Услуга успешно обновлена!')
         router.push(`/services/${route.params.id}`)
     } else {
-        await axios.post('/api/market/services/', payload)
+        await axios.post('/api/market/services/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
         router.push('/profile')
     }
     

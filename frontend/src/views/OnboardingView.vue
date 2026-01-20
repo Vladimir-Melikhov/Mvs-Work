@@ -40,7 +40,8 @@
             </div>
           </div>
 
-          <div v-if="!isWorker" class="bg-white/80 p-1 rounded-xl flex shadow-sm border border-gray-100">
+          <!-- ✅ НОВОЕ: Переключатель типа профиля (для всех) -->
+          <div class="bg-white/80 p-1 rounded-xl flex shadow-sm border border-gray-100">
              <button @click="isCompany = false" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="!isCompany ? 'bg-[#1a1a2e] text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'">Personal</button>
              <button @click="isCompany = true" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="isCompany ? 'bg-[#1a1a2e] text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'">Company</button>
           </div>
@@ -48,12 +49,12 @@
           <div class="space-y-4">
             <div>
               <label class="block text-xs font-bold text-gray-400 uppercase mb-1">
-                {{ isWorker ? 'Ваше имя' : (isCompany ? 'Название компании' : 'Full Name') }} <span class="text-[#7000ff]">*</span>
+                {{ isCompany ? 'Название компании' : 'Ваше имя' }} <span class="text-[#7000ff]">*</span>
               </label>
               <input 
                 v-model="nameInput" 
                 class="w-full p-3 bg-white/80 rounded-xl border border-gray-200 outline-none focus:border-[#7000ff] focus:ring-2 focus:ring-[#7000ff]/10 transition-all font-medium text-[#1a1a2e]"
-                :placeholder="isWorker ? 'Имя Фамилия' : (isCompany ? 'Mvs Inc.' : 'Имя Фамилия')"
+                :placeholder="isCompany ? 'Mvs Inc.' : 'Имя Фамилия'"
               >
             </div>
 
@@ -72,7 +73,7 @@
                <input v-model="form.headline" class="w-full p-3 bg-white/80 rounded-xl border border-gray-200 outline-none focus:border-[#7000ff] focus:ring-2 focus:ring-[#7000ff]/10 text-sm" placeholder="Video Creator & Motion Designer">
             </div>
 
-            <div v-if="!isWorker && isCompany" class="animate-fade-in">
+            <div v-if="isCompany" class="animate-fade-in">
                <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Website</label>
                <input v-model="form.company_website" class="w-full p-3 bg-white/80 rounded-xl border border-gray-200 outline-none focus:border-[#7000ff] focus:ring-2 focus:ring-[#7000ff]/10 text-sm" placeholder="https://mycompany.com">
             </div>
@@ -155,11 +156,10 @@ const form = ref({
   headline: '',
   skills: [],
   company_website: '',
-  github_link: '',  // Добавлено
-  behance_link: ''  // Добавлено
+  github_link: '',
+  behance_link: ''
 })
 
-// ✅ ДОБАВЛЕНО: Состояние для аватара
 const avatarFile = ref(null)
 const avatarPreview = ref(null)
 
@@ -167,18 +167,15 @@ const newSkill = ref('')
 const error = ref('')
 const loading = ref(false)
 
-// ✅ ДОБАВЛЕНО: Обработчик загрузки аватара
 const handleAvatarUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
   
-  // Проверка размера
   if (file.size > 5 * 1024 * 1024) {
     error.value = 'Файл слишком большой. Максимум 5MB'
     return
   }
   
-  // Проверка типа
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
   if (!allowedTypes.includes(file.type)) {
     error.value = 'Неподдерживаемый формат. Используйте JPG, PNG, GIF или WebP'
@@ -188,7 +185,6 @@ const handleAvatarUpload = (event) => {
   avatarFile.value = file
   error.value = ''
   
-  // Создаем preview
   const reader = new FileReader()
   reader.onload = (e) => {
     avatarPreview.value = e.target.result
@@ -212,7 +208,6 @@ const removeSkill = (idx) => {
 const save = async () => {
   error.value = ''
   
-  // 1. ВАЛИДАЦИЯ
   if (!nameInput.value.trim()) {
     error.value = "Имя или название компании обязательно для заполнения."
     return
@@ -231,28 +226,20 @@ const save = async () => {
   loading.value = true
   
   try {
-    // 2. ПОДГОТОВКА ДАННЫХ (FormData)
     const formData = new FormData()
     
-    // Имя / Название компании
-    if (isWorker.value) {
-      formData.append('full_name', nameInput.value)
+    if (isCompany.value) {
+      formData.append('company_name', nameInput.value)
     } else {
-      if (isCompany.value) {
-        formData.append('company_name', nameInput.value)
-      } else {
-        formData.append('full_name', nameInput.value)
-      }
+      formData.append('full_name', nameInput.value)
     }
     
-    // Основная информация
     formData.append('bio', form.value.bio)
     
     if (form.value.headline) {
       formData.append('headline', form.value.headline)
     }
     
-    // Ссылки и навыки (только если заполнены)
     if (form.value.company_website) {
       formData.append('company_website', form.value.company_website)
     }
@@ -269,12 +256,10 @@ const save = async () => {
       formData.append('skills', JSON.stringify(form.value.skills))
     }
     
-    // Файл аватара
     if (avatarFile.value) {
       formData.append('avatar', avatarFile.value)
     }
     
-    // 3. ОТПРАВКА ЗАПРОСА
     const res = await axios.patch('/api/auth/profile/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
@@ -282,7 +267,6 @@ const save = async () => {
     })
     
     if (res.data.status === 'success') {
-      // Обновляем данные в store и переходим на главную
       auth.user = res.data.data
       router.push('/')
     } else {
