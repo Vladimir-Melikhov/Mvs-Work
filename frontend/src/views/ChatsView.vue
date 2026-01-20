@@ -32,10 +32,12 @@
                 {{ formatDate(chat.updated_at) }}
               </span>
             </div>
-            <p class="text-gray-600 text-sm truncate group-hover:text-[#1a1a2e] transition-colors">
+            <div 
+              class="text-gray-600 text-sm truncate group-hover:text-[#1a1a2e] transition-colors"
+            >
               <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">Вы: </span>
-              {{ chat.last_message ? cleanText(chat.last_message.text) : 'No messages yet' }}
-            </p>
+              <span v-html="formatLastMessage(chat.last_message)"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -76,7 +78,6 @@ const fetchChats = async () => {
     const res = await axios.get('/api/chat/rooms/')
     if (res.data.status === 'success') {
       chats.value = res.data.data
-      // После загрузки чатов, загружаем инфу о людях
       await fetchUsersInfo(chats.value)
     }
   } catch (e) {
@@ -87,11 +88,9 @@ const fetchChats = async () => {
   }
 }
 
-// Загрузка имен из Auth сервиса
 const fetchUsersInfo = async (rooms) => {
   const allMemberIds = new Set()
   
-  // Собираем ID всех собеседников (исключая себя)
   rooms.forEach(room => {
       room.members.forEach(id => {
           if (String(id) !== String(auth.user.id)) {
@@ -121,7 +120,6 @@ const openChat = (id) => {
   router.push(`/chats/${id}`)
 }
 
-// Получить объект собеседника для конкретного чата
 const getPartner = (chat) => {
   const partnerId = chat.members.find(id => String(id) !== String(auth.user.id))
   if (!partnerId) return { name: 'Saved Messages' }
@@ -138,9 +136,66 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// ✅ НОВАЯ ФУНКЦИЯ: Очистка текста от markdown
-const cleanText = (text) => {
-  return stripMarkdown(text)
+const formatLastMessage = (message) => {
+  if (!message || !message.text) return 'No messages yet'
+  
+  // Сначала очищаем от markdown
+  let text = stripMarkdown(message.text)
+  
+  // Затем заменяем emoji на иконки (та же логика что в ChatDetailView)
+  const emojiMap = {
+    '💰': { type: 'money', color: 'success' },
+    '✅': { type: 'check', color: 'success' },
+    '📦': { type: 'work', color: 'info' },
+    '🔄': { type: 'clock', color: 'warning' },
+    '🎉': { type: 'check', color: 'success' },
+    '❌': { type: 'cancel', color: 'error' },
+    '⚠️': { type: 'warning', color: 'warning' },
+    '⏳': { type: 'clock', color: 'default' },
+    '⚡': { type: 'lightning', color: 'purple' },
+    '📋': { type: 'document', color: 'info' },
+    '🛡️': { type: 'info', color: 'info' },
+    '💳': { type: 'money', color: 'purple' }
+  }
+  
+  Object.entries(emojiMap).forEach(([emoji, config]) => {
+    const iconSvg = `<span class="inline-flex items-center align-middle mx-0.5">
+      <svg class="w-3.5 h-3.5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        ${getIconPath(config.type)}
+      </svg>
+    </span>`
+    
+    text = text.replaceAll(emoji, iconSvg)
+  })
+  
+  return text
+}
+
+const getColorClass = (color) => {
+  const classes = {
+    success: 'text-green-600',
+    error: 'text-red-600',
+    warning: 'text-orange-600',
+    info: 'text-blue-600',
+    purple: 'text-purple-600',
+    default: 'text-gray-600'
+  }
+  return classes[color] || classes.default
+}
+
+const getIconPath = (type) => {
+  const paths = {
+    money: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v12M8 9h8M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    check: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    work: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    cancel: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    warning: '<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    clock: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    lightning: '<path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="currentColor"/>',
+    document: '<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    info: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+  }
+  return paths[type] || paths.info
 }
 
 onMounted(() => {

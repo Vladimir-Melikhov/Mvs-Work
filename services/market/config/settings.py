@@ -11,12 +11,13 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
+    'django_extensions',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',      # Добавлено для админки
-    'django.contrib.messages',      # Добавлено для админки
-    'django.contrib.staticfiles',   # Добавлено для стилей админки
+    'django.contrib.sessions',      
+    'django.contrib.messages',      
+    'django.contrib.staticfiles',   
     'rest_framework',
     'corsheaders',
     'apps.services',

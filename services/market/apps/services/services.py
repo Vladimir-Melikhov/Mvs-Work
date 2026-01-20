@@ -130,9 +130,9 @@ class OrderService:
 
                 if resp.status_code == 201:
                     room_id = resp.json()['data']['id']
-                    tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz}"
+                    tz_msg = f"📋 НОВЫЙ ЗАКАЗ\n\n{agreed_tz}"
                     if len(agreed_tz) > 2000:
-                        tz_msg = f"📋 **НОВЫЙ ЗАКАЗ**\n\n{agreed_tz[:1500]}...\n\n_(Полное ТЗ доступно в деталях заказа)_"
+                        tz_msg = f"📋 НОВЫЙ ЗАКАЗ\n\n{agreed_tz[:1500]}...\n\n_(Полное ТЗ доступно в деталях заказа)_"
 
                     requests.post(
                         f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{room_id}/send_message/",

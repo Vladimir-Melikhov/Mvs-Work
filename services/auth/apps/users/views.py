@@ -172,9 +172,6 @@ class BatchUsersView(APIView):
         return Response({'status': 'success', 'data': data})
 
 
-# ============================================================
-# ✅ НОВЫЙ ENDPOINT: Публичный профиль пользователя
-# ============================================================
 class PublicProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -199,6 +196,8 @@ class PublicProfileView(APIView):
                     'bio': profile.bio,
                     'skills': profile.skills,
                     'rating': str(profile.rating),
+                    'github_link': profile.github_link,
+                    'behance_link': profile.behance_link,
                 }
             }
             

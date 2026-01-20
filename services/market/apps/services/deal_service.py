@@ -26,10 +26,8 @@ class DealService:
         """
         from rest_framework_simplejwt.tokens import AccessToken
         
-        # Создаем токен для системного пользователя
         token = AccessToken()
-        
-        # Заполняем данные так же, как Simple JWT делает для обычных пользователей
+
         token['user_id'] = '00000000-0000-0000-0000-000000000000'
         token['email'] = 'system@marketplace.internal'
         token['role'] = 'system'
@@ -42,7 +40,7 @@ class DealService:
         active_deal = Deal.objects.filter(
             client_id=client_id,
             worker_id=worker_id,
-            status__in=['pending', 'paid', 'delivered', 'dispute']  # ✅ Добавлен dispute
+            status__in=['pending', 'paid', 'delivered', 'dispute']
         ).first()
         
         return active_deal
@@ -69,7 +67,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=chat_room_id,
             sender_id=client_id,
-            text=f"📋 **ТЕХНИЧЕСКОЕ ЗАДАНИЕ**\n\n{description}",
+            text=f"📋 ТЕХНИЧЕСКОЕ ЗАДАНИЕ\n\n{description}",
             auth_token=auth_token
         )
 
@@ -96,7 +94,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"💰 **ЦЕНА ИЗМЕНЕНА**\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
+            text=f"💰 ЦЕНА ИЗМЕНЕНА\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
             auth_token=auth_token
         )
 
@@ -149,7 +147,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"📦 **РЕЗУЛЬТАТ РАБОТЫ**\n\n{delivery_message}",
+            text=f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}",
             auth_token=auth_token
         )
 
@@ -176,7 +174,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=client_id,
-            text=f"🔄 **ЗАПРОС НА ДОРАБОТКУ** ({deal.revision_count}/{deal.max_revisions})\n\n{revision_reason}",
+            text=f"🔄 ЗАПРОС НА ДОРАБОТКУ ({deal.revision_count}/{deal.max_revisions})\n\n{revision_reason}",
             auth_token=auth_token
         )
 
@@ -207,7 +205,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=client_id,
-            text=f"⚠️ **ОТКРЫТ СПОР**\n\nПретензия клиента:\n{dispute_reason}",
+            text=f"⚠️ ОТКРЫТ СПОР\n\nПретензия клиента:\n{dispute_reason}",
             auth_token=auth_token
         )
 
@@ -245,7 +243,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"💰 **ДЕНЬГИ ВОЗВРАЩЕНЫ**\n\nИсполнитель согласился с претензией и вернул средства клиенту.",
+            text=f"💰 ДЕНЬГИ ВОЗВРАЩЕНЫ\n\nИсполнитель согласился с претензией и вернул средства клиенту.",
             auth_token=auth_token
         )
 
@@ -274,7 +272,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"🛡️ **ЗАЩИТА ПОДАНА**\n\nИсполнитель оспорил претензию:\n{defense_text}\n\n⏳ Спор передан администратору.",
+            text=f"🛡️ ЗАЩИТА ПОДАНА\n\nИсполнитель оспорил претензию:\n{defense_text}\n\n⏳ Спор передан администратору.",
             auth_token=auth_token
         )
 
