@@ -1,4 +1,5 @@
 <template>
+  <!-- DESKTOP VERSION -->
   <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
     <div class="flex-1 flex flex-col min-w-0">
@@ -58,11 +59,27 @@
               ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
               : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
           >
-            <!-- ✅ ОБНОВЛЕНО: Показываем иконки вместо emoji -->
             <div 
               class="whitespace-pre-wrap" 
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
-            ></div>           
+            ></div>
+            
+            <!-- Вложения -->
+            <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
+              <a 
+                v-for="(att, idx) in msg.attachments" 
+                :key="idx"
+                :href="att.url" 
+                target="_blank"
+                class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span class="truncate">{{ att.name }}</span>
+              </a>
+            </div>
+            
             <div 
               class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
               :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
@@ -74,6 +91,19 @@
       </div>
 
       <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
+        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all">
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+          <input 
+            type="file" 
+            multiple
+            @change="handleFileSelect"
+            class="hidden"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar"
+          >
+        </label>
+        
         <input 
           v-model="newMessage" 
           @keydown.enter="sendMessage"
@@ -83,13 +113,26 @@
         >
         <button 
           @click="sendMessage"
-          :disabled="!newMessage.trim() || !isConnected"
+          :disabled="(!newMessage.trim() && selectedFiles.length === 0) || !isConnected || uploading"
           class="w-12 h-12 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] hover:scale-105 transition-all disabled:opacity-50"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
+          <svg v-if="!uploading" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
           </svg>
+          <div v-else class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
         </button>
+      </div>
+      
+      <!-- Превью выбранных файлов -->
+      <div v-if="selectedFiles.length > 0" class="mt-2 flex flex-wrap gap-2">
+        <div 
+          v-for="(file, idx) in selectedFiles" 
+          :key="idx"
+          class="flex items-center gap-2 px-3 py-1 bg-white/60 rounded-full text-sm"
+        >
+          <span class="truncate max-w-[150px]">{{ file.name }}</span>
+          <button @click="removeFile(idx)" class="text-red-500 hover:text-red-700">×</button>
+        </div>
       </div>
     </div>
 
@@ -169,10 +212,11 @@
 
   </div>
 
-  <!-- MOBILE VERSION -->
-  <div class="md:hidden flex flex-col px-2 pt-2 pb-2" style="height: calc(100vh - 100px);">
+  <!-- MOBILE VERSION - Полноэкранная -->
+  <div class="md:hidden flex flex-col" style="height: 100vh; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f2f4f8;">
     
-    <div class="glass px-3 py-2 rounded-[24px] flex items-center gap-2 mb-2 border border-white/60 shadow-sm shrink-0">
+    <!-- Шапка чата -->
+    <div class="glass px-3 py-2 rounded-b-[24px] flex items-center gap-2 border-b border-white/60 shadow-sm shrink-0">
       <button 
         @click="$router.push('/chats')" 
         class="w-9 h-9 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 text-[#1a1a2e] transition-all font-bold"
@@ -212,12 +256,43 @@
           {{ activeDeals.length }}
         </span>
       </button>
+      
+      <button 
+        @click="mobileShowSupport = !mobileShowSupport"
+        class="w-9 h-9 flex items-center justify-center rounded-full transition-all font-bold"
+        :class="mobileShowSupport ? 'bg-[#7000ff] text-white' : 'bg-white/40 text-[#1a1a2e]'"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+      </button>
     </div>
 
-    <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0">
+    <!-- Служба поддержки -->
+    <div v-if="mobileShowSupport" class="p-3 shrink-0">
+      <a 
+        :href="supportLink" 
+        target="_blank"
+        rel="noopener noreferrer"
+        class="glass flex items-center gap-3 p-3 rounded-[20px] border border-white/40 hover:bg-white/20 transition-all"
+      >
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#7000ff] to-[#5500cc] flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-bold text-[#1a1a2e]">Служба поддержки</div>
+          <div class="text-xs text-gray-500">Нужна помощь? Напишите нам</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Основной контент -->
+    <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0 px-2">
       <div 
         ref="messagesContainer"
-        class="flex-1 glass rounded-[28px] p-3 overflow-y-auto space-y-2 mb-2 border border-white/40 scroll-smooth"
+        class="flex-1 glass rounded-[28px] p-3 overflow-y-auto space-y-2 my-2 border border-white/40 scroll-smooth"
       >
         <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
           <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
@@ -245,6 +320,22 @@
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
             ></div>
             
+            <!-- Вложения -->
+            <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
+              <a 
+                v-for="(att, idx) in msg.attachments" 
+                :key="idx"
+                :href="att.url" 
+                target="_blank"
+                class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span class="truncate">{{ att.name }}</span>
+              </a>
+            </div>
+            
             <div 
               class="text-[9px] mt-1 font-medium opacity-60 text-right"
               :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
@@ -255,37 +346,64 @@
         </div>
       </div>
 
-      <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
+      <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0 mb-2">
+        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0">
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+          <input 
+            type="file" 
+            multiple
+            @change="handleFileSelect"
+            class="hidden"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar"
+          >
+        </label>
+        
         <input 
           v-model="newMessage" 
           @keydown.enter="sendMessage"
           type="text" 
           placeholder="Сообщение..." 
-          class="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm"
+          class="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm min-w-0"
         >
         <button 
           @click="sendMessage"
-          :disabled="!newMessage.trim() || !isConnected"
-          class="w-10 h-10 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] transition-all disabled:opacity-50"
+          :disabled="(!newMessage.trim() && selectedFiles.length === 0) || !isConnected || uploading"
+          class="w-9 h-9 bg-[#1a1a2e] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#7000ff] transition-all disabled:opacity-50 shrink-0"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
+          <svg v-if="!uploading" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
           </svg>
+          <div v-else class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
         </button>
+      </div>
+      
+      <!-- Превью выбранных файлов (мобильная) -->
+      <div v-if="selectedFiles.length > 0" class="mb-2 flex flex-wrap gap-1">
+        <div 
+          v-for="(file, idx) in selectedFiles" 
+          :key="idx"
+          class="flex items-center gap-1 px-2 py-1 bg-white/60 rounded-full text-xs"
+        >
+          <span class="truncate max-w-[100px]">{{ file.name }}</span>
+          <button @click="removeFile(idx)" class="text-red-500 hover:text-red-700 text-sm">×</button>
+        </div>
       </div>
     </div>
 
-    <div v-else class="flex-1 overflow-y-auto space-y-2">
+    <!-- Список заказов (мобильная) -->
+    <div v-else class="flex-1 overflow-y-auto p-2">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
         <p class="text-sm text-gray-500 mb-4">Заказов пока нет</p>
       </div>
 
-      <div v-else>
+      <div v-else class="space-y-2">
         <div 
           v-for="(deal, index) in activeDeals" 
           :key="deal.deal_id"
-          class="glass rounded-[24px] border border-white/40 overflow-hidden mb-2"
+          class="glass rounded-[24px] border border-white/40 overflow-hidden"
         >
           <div 
             @click="toggleDeal(index)"
@@ -329,13 +447,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
 import DealMessage from '../components/DealMessage.vue'
 import UserAvatar from '../components/UserAvatar.vue'
-import { stripMarkdown } from '../utils/textUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -347,7 +464,11 @@ const loading = ref(true)
 const isConnected = ref(false)
 const partner = ref(null)
 const mobileShowDeal = ref(false)
+const mobileShowSupport = ref(false)
 const expandedDealIndex = ref(0)
+const selectedFiles = ref([])
+const uploading = ref(false)
+
 let socket = null
 const roomId = route.params.id
 
@@ -374,12 +495,9 @@ const activeDeals = computed(() => {
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-// ✅ НОВАЯ ФУНКЦИЯ: Замена emoji на SVG иконки
-// ✅ ИСПРАВЛЕНО: Теперь заменяет эмодзи на иконки только если isSystem === true
 const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   
-  // Если это обычное сообщение от пользователя — просто возвращаем текст
   if (!isSystem) return text
 
   const emojiMap = {
@@ -399,7 +517,6 @@ const formatMessageText = (text, isSystem = false) => {
   
   let formatted = text
   
-  // Заменяем каждый emoji на SVG только для системных уведомлений
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
       <svg class="w-5 h-5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -462,6 +579,53 @@ const goToPartnerProfile = () => {
   }
 }
 
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files)
+  
+  // Валидация файлов
+  const validFiles = files.filter(file => {
+    // Максимум 20MB для обычных сообщений
+    if (file.size > 20 * 1024 * 1024) {
+      alert(`Файл ${file.name} слишком большой (макс 20MB)`)
+      return false
+    }
+    return true
+  })
+  
+  selectedFiles.value.push(...validFiles)
+  event.target.value = '' // Сброс input
+}
+
+const removeFile = (index) => {
+  selectedFiles.value.splice(index, 1)
+}
+
+const uploadFiles = async () => {
+  if (selectedFiles.value.length === 0) return []
+  
+  const formData = new FormData()
+  selectedFiles.value.forEach(file => {
+    formData.append('files', file)
+  })
+  
+  try {
+    const res = await axios.post('/api/chat/upload/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    if (res.data.status === 'success') {
+      return res.data.data.files
+    }
+  } catch (e) {
+    console.error('Upload error:', e)
+    throw new Error('Ошибка загрузки файлов')
+  }
+  
+  return []
+}
+
 const scrollToBottom = async () => {
   await nextTick()
   if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
@@ -508,10 +672,33 @@ const connectWebSocket = () => {
   socket.onclose = () => isConnected.value = false
 }
 
-const sendMessage = () => {
-  if (!newMessage.value.trim() || !isConnected.value) return
-  socket.send(JSON.stringify({ type: 'message', sender_id: auth.user.id, text: newMessage.value }))
-  newMessage.value = ''
+const sendMessage = async () => {
+  if ((!newMessage.value.trim() && selectedFiles.value.length === 0) || !isConnected.value || uploading.value) return
+  
+  try {
+    uploading.value = true
+    
+    // Загружаем файлы если есть
+    let attachments = []
+    if (selectedFiles.value.length > 0) {
+      attachments = await uploadFiles()
+    }
+    
+    // Отправляем сообщение через WebSocket
+    socket.send(JSON.stringify({ 
+      type: 'message', 
+      sender_id: auth.user.id, 
+      text: newMessage.value,
+      attachments: attachments
+    }))
+    
+    newMessage.value = ''
+    selectedFiles.value = []
+  } catch (e) {
+    alert('Ошибка отправки: ' + e.message)
+  } finally {
+    uploading.value = false
+  }
 }
 
 onMounted(() => {
