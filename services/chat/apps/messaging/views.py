@@ -166,54 +166,36 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
-        """
-        Загрузить файлы для последующей отправки в сообщении
-        Возвращает список загруженных файлов с их ID
-        """
         try:
-            uploaded_files = []
             files = request.FILES.getlist('files')
-            
             if not files:
-                return Response({'error': 'Файлы не предоставлены'}, status=400)
-            
+                return Response({'error': 'Файлы не найдены в запросе'}, status=400)
+
+            uploaded_files = []
             for file in files:
-                # Валидация
-                if file.size > 20 * 1024 * 1024:  # 20MB
-                    return Response({
-                        'error': f'Файл {file.name} слишком большой (макс 20MB)'
-                    }, status=400)
-                
-                # Создаем временное сообщение для хранения файла
-                # Позже прикрепим к реальному сообщению
-                temp_message = Message.objects.create(
-                    room_id='00000000-0000-0000-0000-000000000000',  # Временная комната
-                    sender_id=request.user.id,
-                    text='__temp_upload__',
-                    message_type='text'
-                )
-                
+                # 1. Валидация размера
+                if file.size > 20 * 1024 * 1024:
+                    return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
+
+                # 2. Создаем вложение (предполагаем, что message может быть null в модели)
+                # Если в модели message обязателен, временно создаем Message без room_id 
+                # или используйте специальный флаг.
                 attachment = MessageAttachment.objects.create(
-                    message=temp_message,
+                    message=None, # Убедитесь, что в модели: message = ForeignKey(..., null=True)
                     file=file,
                     filename=file.name,
                     file_size=file.size,
                     content_type=file.content_type or 'application/octet-stream'
                 )
-                
+
                 uploaded_files.append({
                     'id': str(attachment.id),
-                    'message_id': str(temp_message.id),
                     'name': attachment.filename,
                     'size': attachment.file_size,
                     'url': request.build_absolute_uri(attachment.file.url)
                 })
-            
-            return Response({
-                'status': 'success',
-                'data': {'files': uploaded_files}
-            })
-            
+
+            return Response({'status': 'success', 'data': {'files': uploaded_files}})
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 

@@ -497,9 +497,7 @@ const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { h
 
 const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
-  
   if (!isSystem) return text
-
   const emojiMap = {
     '💰': { type: 'money', color: 'success' },
     '✅': { type: 'check', color: 'success' },
@@ -514,31 +512,20 @@ const formatMessageText = (text, isSystem = false) => {
     '🛡️': { type: 'info', color: 'info' },
     '💳': { type: 'money', color: 'purple' }
   }
-  
   let formatted = text
-  
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
       <svg class="w-5 h-5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         ${getIconPath(config.type)}
       </svg>
     </span>`
-    
     formatted = formatted.replaceAll(emoji, iconSvg)
   })
-  
   return formatted
 }
 
 const getColorClass = (color) => {
-  const classes = {
-    success: 'text-green-600',
-    error: 'text-red-600',
-    warning: 'text-orange-600',
-    info: 'text-blue-600',
-    purple: 'text-purple-600',
-    default: 'text-gray-600'
-  }
+  const classes = { success: 'text-green-600', error: 'text-red-600', warning: 'text-orange-600', info: 'text-blue-600', purple: 'text-purple-600', default: 'text-gray-600' }
   return classes[color] || classes.default
 }
 
@@ -558,30 +545,19 @@ const getIconPath = (type) => {
 }
 
 const getStatusLabel = (status) => {
-  const labels = {
-    'pending': 'Ожидает оплаты',
-    'paid': 'В работе',
-    'delivered': 'Сдано',
-    'completed': 'Завершено',
-    'cancelled': 'Отменено',
-  }
+  const labels = { 'pending': 'Ожидает оплаты', 'paid': 'В работе', 'delivered': 'Сдано', 'completed': 'Завершено', 'cancelled': 'Отменено' }
   return labels[status] || status
 }
 
-const toggleDeal = (index) => {
-  expandedDealIndex.value = expandedDealIndex.value === index ? null : index
-}
+const toggleDeal = (index) => { expandedDealIndex.value = expandedDealIndex.value === index ? null : index }
 
 const goToPartnerProfile = () => {
   const partnerId = partner.value?.id
-  if (partnerId) {
-    router.push(`/users/${partnerId}`)
-  }
+  if (partnerId) router.push(`/users/${partnerId}`)
 }
 
 const handleFileSelect = (event) => {
   const files = Array.from(event.target.files)
-  
   const validFiles = files.filter(file => {
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
@@ -589,38 +565,27 @@ const handleFileSelect = (event) => {
     }
     return true
   })
-  
   selectedFiles.value.push(...validFiles)
   event.target.value = ''
 }
 
-const removeFile = (index) => {
-  selectedFiles.value.splice(index, 1)
-}
+const removeFile = (index) => { selectedFiles.value.splice(index, 1) }
 
-const uploadFiles = async () => {
+// ИЗМЕНЕНО: Теперь принимает messageId
+const uploadFiles = async (messageId) => {
   if (selectedFiles.value.length === 0) return []
-  
   const formData = new FormData()
+  formData.append('message_id', messageId) // Отправляем ID сообщения на бэкенд
   selectedFiles.value.forEach(file => {
     formData.append('files', file)
   })
-  
   try {
-    const res = await axios.post('/api/chat/rooms/upload/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-    
-    if (res.data.status === 'success') {
-      return res.data.data.files
-    }
+    const res = await axios.post('/api/chat/rooms/upload/', formData)
+    if (res.data.status === 'success') return res.data.data.files
   } catch (e) {
-    console.error('Upload error:', e)
-    throw new Error('Ошибка загрузки файлов')
+    console.error('Upload error detail:', e.response?.data)
+    throw new Error(e.response?.data?.error || 'Ошибка загрузки файлов')
   }
-  
   return []
 }
 
@@ -635,10 +600,7 @@ const fetchRoomDetails = async () => {
     const partnerId = res.data.data.members.find(id => String(id) !== String(auth.user.id))
     if (partnerId) {
       const userRes = await axios.post('/api/auth/users/batch/', { user_ids: [partnerId] })
-      partner.value = {
-        ...userRes.data.data[0],
-        id: partnerId
-      }
+      partner.value = { ...userRes.data.data[0], id: partnerId }
     }
   } catch (e) { console.error(e) }
 }
@@ -651,16 +613,34 @@ const fetchHistory = async () => {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
-const refreshMessages = () => fetchHistory()
-
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/`)
   socket.onopen = () => isConnected.value = true
-  socket.onmessage = (event) => {
+  
+  // ИЗМЕНЕНО: Обработка загрузки файлов после получения подтверждения от сокета
+  socket.onmessage = async (event) => {
     const data = JSON.parse(event.data)
     if (data.type === 'message') {
-      messages.value.push(data.data)
+      const msg = data.data
+      messages.value.push(msg)
+      
+      // Если это наше сообщение и есть файлы - загружаем их
+      if (String(msg.sender_id) === String(auth.user.id) && selectedFiles.value.length > 0) {
+        try {
+          await uploadFiles(msg.id)
+          selectedFiles.value = []
+          // После загрузки файлов можно обновить историю, чтобы увидеть вложения
+          refreshMessages() 
+        } catch (e) {
+          alert(e.message)
+        } finally {
+          uploading.value = false
+        }
+      } else if (String(msg.sender_id) === String(auth.user.id)) {
+        uploading.value = false // Сбрасываем лоадер для обычных сообщений
+      }
+      
       scrollToBottom()
     } else if (data.type === 'message_updated') {
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
@@ -676,26 +656,23 @@ const sendMessage = async () => {
   try {
     uploading.value = true
     
-    let attachments = []
-    if (selectedFiles.value.length > 0) {
-      attachments = await uploadFiles()
-    }
-    
+    // Сначала шлем текст (или заглушку для файлов)
     socket.send(JSON.stringify({ 
       type: 'message', 
       sender_id: auth.user.id, 
-      text: newMessage.value,
-      attachments: attachments
+      text: newMessage.value.trim() || (selectedFiles.value.length > 0 ? 'Файлы' : ''),
+      attachments: [] 
     }))
     
     newMessage.value = ''
-    selectedFiles.value = []
+    // selectedFiles НЕ очищаем здесь, очистим в onmessage после успешной загрузки
   } catch (e) {
     alert('Ошибка отправки: ' + e.message)
-  } finally {
     uploading.value = false
   }
 }
+
+const refreshMessages = () => fetchHistory()
 
 onMounted(() => {
   fetchRoomDetails()
