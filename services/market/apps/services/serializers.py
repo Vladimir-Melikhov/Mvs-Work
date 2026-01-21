@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import Service, ServiceImage, Deal, Transaction, Review
+from .models import Service, ServiceImage, Deal, DealDeliveryAttachment, Transaction, Review
 
 
 class ServiceImageSerializer(serializers.ModelSerializer):
@@ -51,6 +51,24 @@ class ServiceSerializer(serializers.ModelSerializer):
         return obj.owner_avatar
 
 
+class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DealDeliveryAttachment
+        fields = ['id', 'filename', 'file_size', 'content_type', 'url', 'created_at']
+        read_only_fields = ['id', 'created_at', 'url']
+    
+    def get_url(self, obj):
+        if not obj.file:
+            return None
+        
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
+
+
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
@@ -69,6 +87,7 @@ class DealSerializer(serializers.ModelSerializer):
     service = ServiceSerializer(read_only=True)
     transactions = TransactionSerializer(many=True, read_only=True)
     review = ReviewSerializer(read_only=True)
+    delivery_attachments = DealDeliveryAttachmentSerializer(many=True, read_only=True)
     
     commission = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
@@ -88,6 +107,7 @@ class DealSerializer(serializers.ModelSerializer):
             'service', 'title', 'description', 'price',
             'status', 'revision_count', 'max_revisions',
             'delivery_message', 'completion_message', 'cancellation_reason',
+            'delivery_attachments',
             'created_at', 'paid_at', 'delivered_at', 'completed_at', 'cancelled_at',
             'transactions', 'review', 'commission', 'total',
             'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel',
@@ -96,7 +116,7 @@ class DealSerializer(serializers.ModelSerializer):
             'dispute_created_at', 'dispute_resolved_at', 'dispute_winner',
             'status_display', 'dispute_result',
         ]
-        read_only_fields = ['id', 'chat_room_id', 'created_at']
+        read_only_fields = ['id', 'chat_room_id', 'created_at', 'delivery_attachments']
 
     def get_commission(self, obj):
         return float(obj.price * Decimal('0.08'))

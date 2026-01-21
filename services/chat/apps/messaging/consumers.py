@@ -2,7 +2,7 @@ import json
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import Room, Message
+from .models import Room, Message, MessageAttachment
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -30,16 +30,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if message_type == 'message':
             sender_id = data.get('sender_id')
             text = data.get('text', '')
+            attachments = data.get('attachments', [])  # Список загруженных файлов
 
-            # Сохраняем обычное сообщение
             message = await self.save_message(
                 room_id=self.room_id,
                 sender_id=sender_id,
                 text=text,
-                message_type='text'
+                message_type='text',
+                attachment_ids=attachments
             )
 
-            # Отправляем всем в группе
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -56,18 +56,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
     
     async def message_updated(self, event):
-        """
-        ✅ НОВЫЙ обработчик для обновления существующих сообщений
-        Отправляет клиентам команду обновить сообщение вместо добавления нового
-        """
+        """Обработчик для обновления существующих сообщений"""
         await self.send(text_data=json.dumps({
             'type': 'message_updated',
             'data': event['message']
         }))
 
     @database_sync_to_async
-    def save_message(self, room_id, sender_id, text, message_type='text', deal_data=None):
-        """Сохранить сообщение в БД"""
+    def save_message(self, room_id, sender_id, text, message_type='text', deal_data=None, attachment_ids=None):
+        """Сохранить сообщение в БД и прикрепить файлы"""
         room = Room.objects.get(id=room_id)
         message = Message.objects.create(
             room=room,
@@ -76,11 +73,42 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message_type=message_type,
             deal_data=deal_data
         )
+        
+        # Прикрепляем загруженные файлы к сообщению
+        if attachment_ids:
+            for att_data in attachment_ids:
+                try:
+                    # Находим временное вложение и переносим на это сообщение
+                    temp_message = Message.objects.get(id=att_data['message_id'])
+                    attachment = MessageAttachment.objects.get(
+                        id=att_data['id'],
+                        message=temp_message
+                    )
+                    
+                    # Переносим файл на реальное сообщение
+                    attachment.message = message
+                    attachment.save()
+                    
+                    # Удаляем временное сообщение
+                    temp_message.delete()
+                    
+                except (Message.DoesNotExist, MessageAttachment.DoesNotExist):
+                    pass
+        
         return message
 
     @database_sync_to_async
     def serialize_message(self, message):
         """Сериализация сообщения для отправки"""
+        attachments = []
+        for att in message.attachments.all():
+            attachments.append({
+                'id': str(att.id),
+                'name': att.filename,
+                'size': att.file_size,
+                'url': att.file.url
+            })
+        
         return {
             'id': str(message.id),
             'room_id': str(message.room_id),
@@ -88,5 +116,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'text': message.text,
             'message_type': message.message_type,
             'deal_data': message.deal_data,
+            'attachments': attachments,
             'created_at': message.created_at.isoformat(),
         }

@@ -2,20 +2,23 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Room, Message
-from .serializers import RoomSerializer, MessageSerializer
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .models import Room, Message, MessageAttachment
+from .serializers import RoomSerializer, MessageSerializer, MessageAttachmentSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import os
 
 
 class RoomViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def list(self, request):
         """Получить все комнаты пользователя"""
         user_id = str(request.user.id)
         rooms = Room.objects.filter(members__contains=[user_id]).order_by('-created_at')
-        serializer = RoomSerializer(rooms, many=True)
+        serializer = RoomSerializer(rooms, many=True, context={'request': request})
         
         return Response({
             'status': 'success',
@@ -32,7 +35,7 @@ class RoomViewSet(viewsets.ViewSet):
             if user_id not in room.members:
                 return Response({'error': 'Нет доступа'}, status=403)
             
-            serializer = RoomSerializer(room)
+            serializer = RoomSerializer(room, context={'request': request})
             return Response({
                 'status': 'success',
                 'data': serializer.data,
@@ -57,7 +60,7 @@ class RoomViewSet(viewsets.ViewSet):
         ).first()
 
         if existing_room:
-            serializer = RoomSerializer(existing_room)
+            serializer = RoomSerializer(existing_room, context={'request': request})
             return Response({
                 'status': 'success',
                 'data': serializer.data,
@@ -65,7 +68,7 @@ class RoomViewSet(viewsets.ViewSet):
             })
 
         room = Room.objects.create(members=[user1_id, user2_id])
-        serializer = RoomSerializer(room)
+        serializer = RoomSerializer(room, context={'request': request})
 
         return Response({
             'status': 'success',
@@ -84,7 +87,7 @@ class RoomViewSet(viewsets.ViewSet):
                 return Response({'error': 'Нет доступа'}, status=403)
             
             messages = room.messages.all().order_by('created_at')
-            serializer = MessageSerializer(messages, many=True)
+            serializer = MessageSerializer(messages, many=True, context={'request': request})
             
             return Response({
                 'status': 'success',
@@ -96,18 +99,7 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def send_deal_message(self, request, pk=None):
-        """
-        Отправить или обновить интерактивное сообщение о сделке в комнату.
-        
-        ✅ НОВОЕ: Поддержка обновления существующего сообщения
-        
-        Параметры:
-        - sender_id: ID отправителя
-        - message_type: Тип сообщения (deal_proposal, deal_activated и т.д.)
-        - text: Текст сообщения
-        - deal_data: JSON с данными сделки
-        - update_message_id (опционально): ID сообщения для обновления
-        """
+        """Отправить или обновить интерактивное сообщение о сделке в комнату"""
         try:
             room = Room.objects.get(id=pk)
             
@@ -115,48 +107,35 @@ class RoomViewSet(viewsets.ViewSet):
             message_type = request.data.get('message_type', 'system')
             text = request.data.get('text', '')
             deal_data = request.data.get('deal_data', {})
-            update_message_id = request.data.get('update_message_id')  # ✅ НОВОЕ
+            update_message_id = request.data.get('update_message_id')
             
-            # ✅ Если нужно обновить существующее сообщение
             if update_message_id:
                 try:
                     message = Message.objects.get(id=update_message_id, room=room)
                     
-                    # Обновляем данные
                     message.text = text
                     message.message_type = message_type
                     message.deal_data = deal_data
                     message.save()
                     
-                    # Отправляем обновление через WebSocket
                     channel_layer = get_channel_layer()
                     async_to_sync(channel_layer.group_send)(
                         f'chat_{pk}',
                         {
-                            'type': 'message_updated',  # ✅ Новый тип события
-                            'message': {
-                                'id': str(message.id),
-                                'room_id': str(message.room_id),
-                                'sender_id': str(message.sender_id),
-                                'text': message.text,
-                                'message_type': message.message_type,
-                                'deal_data': message.deal_data,
-                                'created_at': message.created_at.isoformat(),
-                            }
+                            'type': 'message_updated',
+                            'message': self._serialize_message(message, request)
                         }
                     )
                     
                     return Response({
                         'status': 'success',
-                        'data': MessageSerializer(message).data,
+                        'data': MessageSerializer(message, context={'request': request}).data,
                         'message': 'Сообщение обновлено'
                     })
                     
                 except Message.DoesNotExist:
-                    # Если сообщение не найдено - создаем новое
                     pass
             
-            # ✅ Создаем новое сообщение
             message = Message.objects.create(
                 room=room,
                 sender_id=sender_id,
@@ -165,27 +144,18 @@ class RoomViewSet(viewsets.ViewSet):
                 deal_data=deal_data
             )
             
-            # Отправляем через WebSocket всем участникам
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{pk}',
                 {
                     'type': 'chat_message',
-                    'message': {
-                        'id': str(message.id),
-                        'room_id': str(message.room_id),
-                        'sender_id': str(message.sender_id),
-                        'text': message.text,
-                        'message_type': message.message_type,
-                        'deal_data': message.deal_data,
-                        'created_at': message.created_at.isoformat(),
-                    }
+                    'message': self._serialize_message(message, request)
                 }
             )
             
             return Response({
                 'status': 'success',
-                'data': MessageSerializer(message).data,
+                'data': MessageSerializer(message, context={'request': request}).data,
                 'message': 'Сообщение отправлено'
             })
             
@@ -193,3 +163,78 @@ class RoomViewSet(viewsets.ViewSet):
             return Response({'error': 'Комната не найдена'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
+
+    @action(detail=False, methods=['post'], url_path='upload')
+    def upload_files(self, request):
+        """
+        Загрузить файлы для последующей отправки в сообщении
+        Возвращает список загруженных файлов с их ID
+        """
+        try:
+            uploaded_files = []
+            files = request.FILES.getlist('files')
+            
+            if not files:
+                return Response({'error': 'Файлы не предоставлены'}, status=400)
+            
+            for file in files:
+                # Валидация
+                if file.size > 20 * 1024 * 1024:  # 20MB
+                    return Response({
+                        'error': f'Файл {file.name} слишком большой (макс 20MB)'
+                    }, status=400)
+                
+                # Создаем временное сообщение для хранения файла
+                # Позже прикрепим к реальному сообщению
+                temp_message = Message.objects.create(
+                    room_id='00000000-0000-0000-0000-000000000000',  # Временная комната
+                    sender_id=request.user.id,
+                    text='__temp_upload__',
+                    message_type='text'
+                )
+                
+                attachment = MessageAttachment.objects.create(
+                    message=temp_message,
+                    file=file,
+                    filename=file.name,
+                    file_size=file.size,
+                    content_type=file.content_type or 'application/octet-stream'
+                )
+                
+                uploaded_files.append({
+                    'id': str(attachment.id),
+                    'message_id': str(temp_message.id),
+                    'name': attachment.filename,
+                    'size': attachment.file_size,
+                    'url': request.build_absolute_uri(attachment.file.url)
+                })
+            
+            return Response({
+                'status': 'success',
+                'data': {'files': uploaded_files}
+            })
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    def _serialize_message(self, message, request):
+        """Сериализация сообщения для WebSocket"""
+        attachments = []
+        for att in message.attachments.all():
+            attachments.append({
+                'id': str(att.id),
+                'name': att.filename,
+                'size': att.file_size,
+                'url': request.build_absolute_uri(att.file.url)
+            })
+        
+        return {
+            'id': str(message.id),
+            'room_id': str(message.room_id),
+            'sender_id': str(message.sender_id),
+            'text': message.text,
+            'message_type': message.message_type,
+            'deal_data': message.deal_data,
+            'attachments': attachments,
+            'created_at': message.created_at.isoformat(),
+        }

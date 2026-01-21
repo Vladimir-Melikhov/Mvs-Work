@@ -133,7 +133,25 @@
             <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
           </div>
         </div>
-
+        <div v-if="dealData.delivery_attachments && dealData.delivery_attachments.length > 0" class="shrink-0">
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
+    <div class="space-y-2">
+      <a 
+        v-for="att in dealData.delivery_attachments" 
+        :key="att.id"
+        :href="att.url" 
+        target="_blank"
+        class="flex items-center gap-2 p-2 rounded-lg bg-white hover:bg-blue-100 transition-all text-sm"
+      >
+        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span class="truncate text-blue-900">{{ att.filename }}</span>
+      </a>
+    </div>
+  </div>
+</div>
         <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="shrink-0">
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Работа завершена</div>
@@ -265,6 +283,37 @@
             class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
             placeholder="Опишите что сделано, добавьте ссылки на результат..."
           ></textarea>
+          <div class="mb-4">
+  <label class="block text-sm font-bold mb-2">Прикрепить файлы (необязательно)</label>
+  <label class="cursor-pointer">
+    <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-500 transition-all text-center">
+      <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+      </svg>
+      <span class="text-sm text-gray-600">Нажмите для выбора файлов</span>
+    </div>
+    <input 
+      type="file" 
+      multiple
+      @change="handleDeliveryFileSelect"
+      class="hidden"
+    >
+  </label>
+  
+  <div v-if="deliveryFiles.length > 0" class="mt-3 space-y-2">
+    <div 
+      v-for="(file, idx) in deliveryFiles" 
+      :key="idx"
+      class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg"
+    >
+      <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <span class="flex-1 text-sm truncate">{{ file.name }}</span>
+      <button @click="removeDeliveryFile(idx)" class="text-red-500 hover:text-red-700">×</button>
+    </div>
+  </div>
+</div>
           <div class="flex gap-3">
             <button @click="showDeliveryModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
             <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Сдать</button>
@@ -566,11 +615,22 @@ const payDeal = async () => {
 const deliverWork = async () => {
   loading.value = true
   try {
-    await axios.post(`/api/market/deals/${dealId.value}/deliver/`, {
-      delivery_message: deliveryMessage.value
+    const formData = new FormData()
+    formData.append('delivery_message', deliveryMessage.value)
+    
+    deliveryFiles.value.forEach(file => {
+      formData.append('files', file)
     })
+    
+    await axios.post(`/api/market/deals/${dealId.value}/deliver/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
     showDeliveryModal.value = false
     deliveryMessage.value = ''
+    deliveryFiles.value = []
     emit('deal-action')
   } catch (e) {
     alert('Ошибка: ' + (e.response?.data?.error || e.message))
@@ -601,7 +661,26 @@ const completeDeal = async () => {
     loading.value = false
   }
 }
+const deliveryFiles = ref([])
 
+const handleDeliveryFileSelect = (event) => {
+  const files = Array.from(event.target.files)
+  
+  const validFiles = files.filter(file => {
+    if (file.size > 20 * 1024 * 1024) {
+      alert(`Файл ${file.name} слишком большой (макс 20MB)`)
+      return false
+    }
+    return true
+  })
+  
+  deliveryFiles.value.push(...validFiles)
+  event.target.value = ''
+}
+
+const removeDeliveryFile = (index) => {
+  deliveryFiles.value.splice(index, 1)
+}
 const requestRevision = async () => {
   loading.value = true
   try {

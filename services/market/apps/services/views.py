@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
 from django.db import transaction
-from .models import Service, ServiceImage, Deal, Review
+from .models import Service, ServiceImage, Deal, Review, DealDeliveryAttachment
 from .serializers import (
     ServiceSerializer,
     ServiceImageSerializer,
@@ -312,10 +312,24 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='deliver')
     def deliver(self, request, pk=None):
-        """Сдать работу"""
+        """Сдать работу с файлами"""
         try:
             deal = Deal.objects.get(id=pk)
             delivery_message = request.data.get('delivery_message', '')
+        
+            # Сохраняем файлы если есть
+            files = request.FILES.getlist('files')
+            for file in files:
+                if file.size > 20 * 1024 * 1024:
+                    return Response({'error': f'Файл {file.name} слишком большой (макс 20MB)'}, status=400)
+            
+                DealDeliveryAttachment.objects.create(
+                    deal=deal,
+                    file=file,
+                    filename=file.name,
+                    file_size=file.size,
+                    content_type=file.content_type or 'application/octet-stream'
+                )
 
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
@@ -324,7 +338,7 @@ class DealViewSet(viewsets.ViewSet):
 
             return Response({
                 'status': 'success',
-                'data': DealSerializer(deal).data,
+                'data': DealSerializer(deal, context={'request': request}).data,
                 'message': 'Работа сдана!'
             })
 

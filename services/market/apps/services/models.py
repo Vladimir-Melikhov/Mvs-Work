@@ -10,6 +10,13 @@ def service_image_upload_path(instance, filename):
     return os.path.join('service_images', str(instance.service_id), filename)
 
 
+def deal_delivery_upload_path(instance, filename):
+    """Генерирует путь для загрузки файлов сдачи работы"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    return os.path.join('deal_deliveries', str(instance.deal_id), filename)
+
+
 class Service(models.Model):
     """Услуга на маркетплейсе"""
 
@@ -87,9 +94,7 @@ class ServiceImage(models.Model):
 
 
 class Deal(models.Model):
-    """
-    МОДЕЛЬ ЗАКАЗА С ПОДДЕРЖКОЙ АРБИТРАЖА
-    """
+    """МОДЕЛЬ ЗАКАЗА С ПОДДЕРЖКОЙ АРБИТРАЖА"""
     STATUS_CHOICES = [
         ('pending', 'Ожидает оплаты'),
         ('paid', 'Оплачен, в работе'),
@@ -199,6 +204,29 @@ class Deal(models.Model):
     @property
     def is_dispute_pending_admin(self) -> bool:
         return self.status == 'dispute' and bool(self.dispute_worker_defense) and not self.dispute_winner
+
+
+class DealDeliveryAttachment(models.Model):
+    """Файлы, прикрепленные к сдаче работы"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='delivery_attachments')
+    file = models.FileField(
+        upload_to=deal_delivery_upload_path,
+        max_length=500,
+        help_text="Файл результата работы (до 20MB)"
+    )
+    filename = models.CharField(max_length=255)
+    file_size = models.IntegerField()
+    content_type = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'deal_delivery_attachments'
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"Delivery file {self.filename} for Deal {self.deal_id}"
 
 
 class Transaction(models.Model):

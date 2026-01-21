@@ -582,9 +582,7 @@ const goToPartnerProfile = () => {
 const handleFileSelect = (event) => {
   const files = Array.from(event.target.files)
   
-  // Валидация файлов
   const validFiles = files.filter(file => {
-    // Максимум 20MB для обычных сообщений
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
       return false
@@ -593,7 +591,7 @@ const handleFileSelect = (event) => {
   })
   
   selectedFiles.value.push(...validFiles)
-  event.target.value = '' // Сброс input
+  event.target.value = ''
 }
 
 const removeFile = (index) => {
@@ -609,7 +607,7 @@ const uploadFiles = async () => {
   })
   
   try {
-    const res = await axios.post('/api/chat/upload/', formData, {
+    const res = await axios.post('/api/chat/rooms/upload/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -678,13 +676,11 @@ const sendMessage = async () => {
   try {
     uploading.value = true
     
-    // Загружаем файлы если есть
     let attachments = []
     if (selectedFiles.value.length > 0) {
       attachments = await uploadFiles()
     }
     
-    // Отправляем сообщение через WebSocket
     socket.send(JSON.stringify({ 
       type: 'message', 
       sender_id: auth.user.id, 
