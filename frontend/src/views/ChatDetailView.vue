@@ -66,21 +66,39 @@
             
             <!-- Вложения -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
-              <a 
+              <div 
                 v-for="(att, idx) in msg.attachments" 
                 :key="idx"
-                :href="att.url" 
-                target="_blank"
-                class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm"
+                class="rounded-lg overflow-hidden"
               >
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                <span class="truncate flex-1">{{ att.name || att.filename }}</span>
-                <span class="text-xs opacity-60 shrink-0">
-                  {{ formatFileSize(att.size || att.file_size) }}
-                </span>
-              </a>
+                <img 
+                  v-if="att.content_type?.startsWith('image/')"
+                  :src="att.url" 
+                  :alt="att.name || att.filename"
+                  class="max-w-full max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                  @click="window.open(att.url, '_blank')"
+                />
+                
+                <a 
+                  v-else
+                  :href="att.url" 
+                  :download="att.name || att.filename"
+                  class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group"
+                >
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span class="truncate flex-1">{{ att.name || att.filename }}</span>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-xs opacity-60">
+                      {{ formatFileSize(att.size || att.file_size) }}
+                    </span>
+                    <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
             </div>
             
             <div 
@@ -325,21 +343,37 @@
             
             <!-- Вложения -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
-              <a 
+              <div 
                 v-for="(att, idx) in msg.attachments" 
                 :key="idx"
-                :href="att.url" 
-                target="_blank"
-                class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs"
+                class="rounded-lg overflow-hidden"
               >
-                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                <span class="truncate flex-1">{{ att.name || att.filename }}</span>
-                <span class="text-xs opacity-60 shrink-0">
-                  {{ formatFileSize(att.size || att.file_size) }}
-                </span>
-              </a>
+                <img 
+                  v-if="att.content_type?.startsWith('image/')"
+                  :src="att.url" 
+                  :alt="att.name || att.filename"
+                  class="max-w-full max-h-64 rounded-lg cursor-pointer"
+                  @click="window.open(att.url, '_blank')"
+                />
+                
+                <a 
+                  v-else
+                  :href="att.url" 
+                  :download="att.name || att.filename"
+                  class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs group"
+                >
+                  <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span class="truncate flex-1">{{ att.name || att.filename }}</span>
+                  <span class="text-xs opacity-60 shrink-0">
+                    {{ formatFileSize(att.size || att.file_size) }}
+                  </span>
+                  <svg class="w-3 h-3 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </a>
+              </div>
             </div>
             
             <div 
@@ -502,13 +536,13 @@ const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 const formatFileSize = (bytes) => {
-
   if (bytes === undefined || bytes === null || isNaN(bytes)) return ''; 
   
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
+
 const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   if (!isSystem) return text
@@ -570,17 +604,101 @@ const goToPartnerProfile = () => {
   if (partnerId) router.push(`/users/${partnerId}`)
 }
 
-const handleFileSelect = (event) => {
+const handleFileSelect = async (event) => {
   const files = Array.from(event.target.files)
-  const validFiles = files.filter(file => {
+  
+  for (const file of files) {
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
-      return false
+      continue
     }
-    return true
-  })
-  selectedFiles.value.push(...validFiles)
+    
+    // ✅ Если это изображение - сжимаем и сразу отправляем
+    if (file.type.startsWith('image/')) {
+      await compressAndSendImage(file)
+    } else {
+      // Обычные файлы добавляем в список для отправки
+      selectedFiles.value.push(file)
+    }
+  }
+  
   event.target.value = ''
+}
+
+const compressAndSendImage = async (file) => {
+  try {
+    uploading.value = true
+    
+    // Создаем canvas для сжатия
+    const img = new Image()
+    const reader = new FileReader()
+    
+    const compressedBlob = await new Promise((resolve, reject) => {
+      reader.onload = (e) => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          
+          // Максимальные размеры
+          const MAX_WIDTH = 1920
+          const MAX_HEIGHT = 1080
+          
+          let width = img.width
+          let height = img.height
+          
+          // Пропорциональное уменьшение
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width
+              width = MAX_WIDTH
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height
+              height = MAX_HEIGHT
+            }
+          }
+          
+          canvas.width = width
+          canvas.height = height
+          
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          canvas.toBlob((blob) => {
+            resolve(blob)
+          }, 'image/jpeg', 0.85) // Качество 85%
+        }
+        img.onerror = reject
+        img.src = e.target.result
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    
+    // Загружаем сжатое изображение
+    const formData = new FormData()
+    formData.append('files', compressedBlob, file.name)
+    
+    const uploadRes = await axios.post('/api/chat/rooms/upload/', formData)
+    
+    if (uploadRes.data.status === 'success') {
+      const uploadedFiles = uploadRes.data.data.files
+      
+      // Отправляем сразу
+      socket.send(JSON.stringify({ 
+        type: 'message', 
+        sender_id: auth.user.id, 
+        text: '',
+        attachments: uploadedFiles.map(f => f.id)
+      }))
+    }
+    
+  } catch (e) {
+    console.error('Image compression error:', e)
+    alert('Ошибка отправки изображения: ' + e.message)
+  } finally {
+    uploading.value = false
+  }
 }
 
 const removeFile = (index) => { selectedFiles.value.splice(index, 1) }
