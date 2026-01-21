@@ -1,9 +1,9 @@
+import os
+import requests
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
 from .models import Deal, Transaction, Review
-import requests
-import os
 from django.conf import settings
 from datetime import datetime, timedelta
 import jwt
@@ -144,10 +144,20 @@ class DealService:
         deal.delivery_message = delivery_message
         deal.save()
 
+        # ✅ ИСПРАВЛЕНИЕ: Отправляем текстовое сообщение С файлами
+        market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+        files_text = ""
+        
+        if deal.delivery_attachments.exists():
+            files_text = "\n\n📎 Прикрепленные файлы:\n"
+            for att in deal.delivery_attachments.all():
+                file_url = f"{market_service_url}{att.file.url}" if att.file else ''
+                files_text += f"• {att.filename} ({att.file_size // 1024} KB)\n{file_url}\n"
+
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}",
+            text=f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}{files_text}",
             auth_token=auth_token
         )
 
@@ -448,6 +458,19 @@ class DealService:
             commission = float(deal.price * DealService.COMMISSION_RATE)
             total = float(deal.price) + commission
             
+            # ✅ ИСПРАВЛЕНИЕ: Формируем URL файлов с правильным хостом (market-сервис)
+            market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+            delivery_attachments = []
+            for att in deal.delivery_attachments.all():
+                if att.file:
+                    file_url = f"{market_service_url}{att.file.url}"
+                    delivery_attachments.append({
+                        'id': str(att.id),
+                        'filename': att.filename,
+                        'file_size': att.file_size,
+                        'url': file_url
+                    })
+            
             deal_data = {
                 'deal_id': str(deal.id),
                 'title': deal.title,
@@ -460,6 +483,7 @@ class DealService:
                 'revision_count': deal.revision_count,
                 'max_revisions': deal.max_revisions,
                 'delivery_message': deal.delivery_message or '',
+                'delivery_attachments': delivery_attachments,  # ✅ ДОБАВЛЕНО
                 'can_pay': deal.can_pay,
                 'can_deliver': deal.can_deliver,
                 'can_request_revision': deal.can_request_revision,
