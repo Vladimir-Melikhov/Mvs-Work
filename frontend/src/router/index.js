@@ -58,7 +58,6 @@ const router = createRouter({
       component: ProfileView,
       meta: { requiresAuth: true }
     },
-    // ✅ НОВЫЙ МАРШРУТ: Публичный профиль пользователя
     {
       path: '/users/:id',
       name: 'public-profile',

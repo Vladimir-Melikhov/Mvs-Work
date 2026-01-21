@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed bottom-4 left-4 right-4 z-50 flex justify-center">
+  <div v-if="route.name !== 'chat-detail'" class="fixed bottom-4 left-4 right-4 z-50 flex justify-center">
     
     <nav class="w-full max-w-[400px] bg-white/10 backdrop-blur-3xl border border-white/20 rounded-full p-2 px-4 flex justify-between items-center shadow-lg shadow-black/5">
       
@@ -49,8 +49,11 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router' // Добавили импорт
 import { useAuthStore } from '../stores/authStore'
 
 const auth = useAuthStore()
+const route = useRoute() // Инициализировали route
+
 const isWorker = computed(() => auth.user?.role === 'worker')
 </script>
