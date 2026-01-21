@@ -6,8 +6,9 @@ import os
 def message_attachment_upload_path(instance, filename):
     """Генерирует путь для загрузки вложений сообщений"""
     ext = filename.split('.')[-1]
-    filename = f"{uuid.uuid4()}.{ext}"
-    return os.path.join('message_attachments', str(instance.message.room_id), filename)
+    new_filename = f"{uuid.uuid4()}.{ext}"
+    # Используем временную папку для файлов без сообщения
+    return os.path.join('message_attachments', 'temp', new_filename)
 
 
 class Room(models.Model):
@@ -57,7 +58,7 @@ class MessageAttachment(models.Model):
     """Файловые вложения к сообщениям"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='attachments')
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='attachments', null=True, blank=True)
     file = models.FileField(
         upload_to=message_attachment_upload_path,
         max_length=500,
@@ -74,3 +75,9 @@ class MessageAttachment(models.Model):
     
     def __str__(self):
         return f"Attachment {self.filename} for Message {self.message_id}"
+    
+    def get_file_url(self):
+        """Возвращает URL файла"""
+        if self.file:
+            return self.file.url
+        return None

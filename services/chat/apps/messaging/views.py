@@ -166,6 +166,7 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
+        """Загрузка файлов - создаются временные вложения без привязки к сообщению"""
         try:
             files = request.FILES.getlist('files')
             if not files:
@@ -173,41 +174,49 @@ class RoomViewSet(viewsets.ViewSet):
 
             uploaded_files = []
             for file in files:
-                # 1. Валидация размера
+                # Валидация размера
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
 
-                # 2. Создаем вложение (предполагаем, что message может быть null в модели)
-                # Если в модели message обязателен, временно создаем Message без room_id 
-                # или используйте специальный флаг.
+                # Создаем временное вложение БЕЗ привязки к message
                 attachment = MessageAttachment.objects.create(
-                    message=None, # Убедитесь, что в модели: message = ForeignKey(..., null=True)
+                    message=None,
                     file=file,
                     filename=file.name,
                     file_size=file.size,
                     content_type=file.content_type or 'application/octet-stream'
                 )
 
+                # Формируем полный URL
+                file_url = request.build_absolute_uri(attachment.file.url)
+
                 uploaded_files.append({
                     'id': str(attachment.id),
                     'name': attachment.filename,
                     'size': attachment.file_size,
-                    'url': request.build_absolute_uri(attachment.file.url)
+                    'url': file_url
                 })
 
             return Response({'status': 'success', 'data': {'files': uploaded_files}})
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response({'error': str(e)}, status=400)
 
     def _serialize_message(self, message, request):
         """Сериализация сообщения для WebSocket"""
         attachments = []
         for att in message.attachments.all():
+            try:
+                file_url = request.build_absolute_uri(att.file.url)
+            except:
+                file_url = att.file.url
+                
             attachments.append({
                 'id': str(att.id),
                 'name': att.filename,
                 'size': att.file_size,
-                'url': request.build_absolute_uri(att.file.url)
+                'url': file_url
             })
         
         return {

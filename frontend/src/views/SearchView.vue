@@ -153,6 +153,7 @@ const categories = [
   { label: 'Разработка', value: 'development' },
   { label: 'Тексты', value: 'copywriting' },
   { label: 'Маркетинг', value: 'marketing' },
+  { label: 'Видео', value: 'video' },
 ]
 
 const totalPages = computed(() => Math.ceil(services.value.length / itemsPerPage))

@@ -73,10 +73,13 @@
                 target="_blank"
                 class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
-                <span class="truncate">{{ att.name }}</span>
+                <span class="truncate flex-1">{{ att.name || att.filename }}</span>
+                <span class="text-xs opacity-60 shrink-0">
+                  {{ formatFileSize(att.size || att.file_size) }}
+                </span>
               </a>
             </div>
             
@@ -329,10 +332,13 @@
                 target="_blank"
                 class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs"
               >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
-                <span class="truncate">{{ att.name }}</span>
+                <span class="truncate flex-1">{{ att.name || att.filename }}</span>
+                <span class="text-xs opacity-60 shrink-0">
+                  {{ formatFileSize(att.size || att.file_size) }}
+                </span>
               </a>
             </div>
             
@@ -495,6 +501,14 @@ const activeDeals = computed(() => {
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
+const formatFileSize = (bytes) => {
+
+  if (bytes === undefined || bytes === null || isNaN(bytes)) return ''; 
+  
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
 const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   if (!isSystem) return text
@@ -571,11 +585,9 @@ const handleFileSelect = (event) => {
 
 const removeFile = (index) => { selectedFiles.value.splice(index, 1) }
 
-// ИЗМЕНЕНО: Теперь принимает messageId
-const uploadFiles = async (messageId) => {
+const uploadFiles = async () => {
   if (selectedFiles.value.length === 0) return []
   const formData = new FormData()
-  formData.append('message_id', messageId) // Отправляем ID сообщения на бэкенд
   selectedFiles.value.forEach(file => {
     formData.append('files', file)
   })
@@ -618,30 +630,13 @@ const connectWebSocket = () => {
   socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/`)
   socket.onopen = () => isConnected.value = true
   
-  // ИЗМЕНЕНО: Обработка загрузки файлов после получения подтверждения от сокета
   socket.onmessage = async (event) => {
     const data = JSON.parse(event.data)
     if (data.type === 'message') {
       const msg = data.data
       messages.value.push(msg)
-      
-      // Если это наше сообщение и есть файлы - загружаем их
-      if (String(msg.sender_id) === String(auth.user.id) && selectedFiles.value.length > 0) {
-        try {
-          await uploadFiles(msg.id)
-          selectedFiles.value = []
-          // После загрузки файлов можно обновить историю, чтобы увидеть вложения
-          refreshMessages() 
-        } catch (e) {
-          alert(e.message)
-        } finally {
-          uploading.value = false
-        }
-      } else if (String(msg.sender_id) === String(auth.user.id)) {
-        uploading.value = false // Сбрасываем лоадер для обычных сообщений
-      }
-      
       scrollToBottom()
+      uploading.value = false
     } else if (data.type === 'message_updated') {
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
       if (idx !== -1) messages.value[idx] = data.data
@@ -656,16 +651,22 @@ const sendMessage = async () => {
   try {
     uploading.value = true
     
-    // Сначала шлем текст (или заглушку для файлов)
+    // Сначала загружаем файлы если есть
+    let uploadedFiles = []
+    if (selectedFiles.value.length > 0) {
+      uploadedFiles = await uploadFiles()
+    }
+    
+    // Затем отправляем сообщение с ID файлов
     socket.send(JSON.stringify({ 
       type: 'message', 
       sender_id: auth.user.id, 
-      text: newMessage.value.trim() || (selectedFiles.value.length > 0 ? 'Файлы' : ''),
-      attachments: [] 
+      text: newMessage.value.trim(),
+      attachments: uploadedFiles.map(f => f.id)
     }))
     
     newMessage.value = ''
-    // selectedFiles НЕ очищаем здесь, очистим в onmessage после успешной загрузки
+    selectedFiles.value = []
   } catch (e) {
     alert('Ошибка отправки: ' + e.message)
     uploading.value = false

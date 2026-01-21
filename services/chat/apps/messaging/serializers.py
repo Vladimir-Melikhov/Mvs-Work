@@ -17,7 +17,10 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         
         request = self.context.get('request')
         if request:
-            return request.build_absolute_uri(obj.file.url)
+            try:
+                return request.build_absolute_uri(obj.file.url)
+            except:
+                return obj.file.url
         return obj.file.url
 
 

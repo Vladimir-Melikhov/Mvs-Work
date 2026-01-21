@@ -3,6 +3,7 @@ import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Message, MessageAttachment
+from django.conf import settings
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -30,7 +31,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if message_type == 'message':
             sender_id = data.get('sender_id')
             text = data.get('text', '')
-            attachments = data.get('attachments', [])  # Список загруженных файлов
+            attachments = data.get('attachments', [])
 
             message = await self.save_message(
                 room_id=self.room_id,
@@ -76,23 +77,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         # Прикрепляем загруженные файлы к сообщению
         if attachment_ids:
-            for att_data in attachment_ids:
+            for att_id in attachment_ids:
                 try:
-                    # Находим временное вложение и переносим на это сообщение
-                    temp_message = Message.objects.get(id=att_data['message_id'])
-                    attachment = MessageAttachment.objects.get(
-                        id=att_data['id'],
-                        message=temp_message
-                    )
-                    
-                    # Переносим файл на реальное сообщение
+                    attachment = MessageAttachment.objects.get(id=att_id, message__isnull=True)
                     attachment.message = message
                     attachment.save()
-                    
-                    # Удаляем временное сообщение
-                    temp_message.delete()
-                    
-                except (Message.DoesNotExist, MessageAttachment.DoesNotExist):
+                except MessageAttachment.DoesNotExist:
                     pass
         
         return message
@@ -102,11 +92,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Сериализация сообщения для отправки"""
         attachments = []
         for att in message.attachments.all():
+            # Формируем полный URL для WebSocket
+            file_url = f"http://localhost:8003{att.file.url}" if att.file else ''
+            
             attachments.append({
                 'id': str(att.id),
                 'name': att.filename,
                 'size': att.file_size,
-                'url': att.file.url
+                'url': file_url
             })
         
         return {
