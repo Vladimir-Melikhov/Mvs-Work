@@ -62,7 +62,15 @@ class MessageAttachment(models.Model):
     file = models.FileField(
         upload_to=message_attachment_upload_path,
         max_length=500,
-        help_text="Файл-вложение (до 20MB)"
+        help_text="Файл-вложение (до 20MB)",
+        null=True,
+        blank=True
+    )
+    # ✅ НОВОЕ ПОЛЕ: URL для файлов, которые хранятся на других сервисах
+    external_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        help_text="URL файла на внешнем сервисе (например, market service)"
     )
     filename = models.CharField(max_length=255, help_text="Оригинальное имя файла")
     file_size = models.IntegerField(help_text="Размер файла в байтах")
@@ -77,7 +85,9 @@ class MessageAttachment(models.Model):
         return f"Attachment {self.filename} for Message {self.message_id}"
     
     def get_file_url(self):
-        """Возвращает URL файла"""
+        """Возвращает URL файла (либо локальный, либо external)"""
+        if self.external_url:
+            return self.external_url
         if self.file:
             return self.file.url
         return None

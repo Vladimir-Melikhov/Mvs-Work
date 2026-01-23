@@ -11,17 +11,18 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'url']
     
     def get_url(self, obj):
-        """Формирует полный URL для файла"""
-        if not obj.file:
+        """Формирует полный URL для файла (либо локальный, либо external)"""
+        file_url = obj.get_file_url()
+        if not file_url:
             return None
         
-        request = self.context.get('request')
-        if request:
-            try:
-                return request.build_absolute_uri(obj.file.url)
-            except:
-                return obj.file.url
-        return obj.file.url
+        # Если это относительный URL - делаем абсолютным
+        if not file_url.startswith('http'):
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(file_url)
+        
+        return file_url
 
 
 class MessageSerializer(serializers.ModelSerializer):

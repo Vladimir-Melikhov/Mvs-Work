@@ -112,7 +112,20 @@
       </div>
 
       <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
-        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all">
+        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all" title="Отправить изображение (сжатое)">
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <input 
+            type="file" 
+            multiple
+            @change="handleImageSelect"
+            class="hidden"
+            accept="image/*"
+          >
+        </label>
+        
+        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all" title="Прикрепить файл">
           <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
@@ -121,7 +134,7 @@
             multiple
             @change="handleFileSelect"
             class="hidden"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar"
+            accept="*/*"
           >
         </label>
         
@@ -387,7 +400,20 @@
       </div>
 
       <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0 mb-2">
-        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0">
+        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0" title="Изображение (сжатое)">
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <input 
+            type="file" 
+            multiple
+            @change="handleImageSelect"
+            class="hidden"
+            accept="image/*"
+          >
+        </label>
+        
+        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0" title="Файл">
           <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
@@ -396,7 +422,7 @@
             multiple
             @change="handleFileSelect"
             class="hidden"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar"
+            accept="*/*"
           >
         </label>
         
@@ -604,7 +630,7 @@ const goToPartnerProfile = () => {
   if (partnerId) router.push(`/users/${partnerId}`)
 }
 
-const handleFileSelect = async (event) => {
+const handleImageSelect = async (event) => {
   const files = Array.from(event.target.files)
   
   for (const file of files) {
@@ -613,13 +639,23 @@ const handleFileSelect = async (event) => {
       continue
     }
     
-    // ✅ Если это изображение - сжимаем и сразу отправляем
-    if (file.type.startsWith('image/')) {
-      await compressAndSendImage(file)
-    } else {
-      // Обычные файлы добавляем в список для отправки
-      selectedFiles.value.push(file)
+    // Сжимаем и сразу отправляем изображение
+    await compressAndSendImage(file)
+  }
+  
+  event.target.value = ''
+}
+
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files)
+  
+  for (const file of files) {
+    if (file.size > 20 * 1024 * 1024) {
+      alert(`Файл ${file.name} слишком большой (макс 20MB)`)
+      continue
     }
+    
+    selectedFiles.value.push(file)
   }
   
   event.target.value = ''
@@ -629,7 +665,6 @@ const compressAndSendImage = async (file) => {
   try {
     uploading.value = true
     
-    // Создаем canvas для сжатия
     const img = new Image()
     const reader = new FileReader()
     
@@ -639,14 +674,12 @@ const compressAndSendImage = async (file) => {
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
           
-          // Максимальные размеры
           const MAX_WIDTH = 1920
           const MAX_HEIGHT = 1080
           
           let width = img.width
           let height = img.height
           
-          // Пропорциональное уменьшение
           if (width > height) {
             if (width > MAX_WIDTH) {
               height *= MAX_WIDTH / width
@@ -666,7 +699,7 @@ const compressAndSendImage = async (file) => {
           
           canvas.toBlob((blob) => {
             resolve(blob)
-          }, 'image/jpeg', 0.85) // Качество 85%
+          }, 'image/jpeg', 0.85)
         }
         img.onerror = reject
         img.src = e.target.result
@@ -675,7 +708,6 @@ const compressAndSendImage = async (file) => {
       reader.readAsDataURL(file)
     })
     
-    // Загружаем сжатое изображение
     const formData = new FormData()
     formData.append('files', compressedBlob, file.name)
     
@@ -684,7 +716,6 @@ const compressAndSendImage = async (file) => {
     if (uploadRes.data.status === 'success') {
       const uploadedFiles = uploadRes.data.data.files
       
-      // Отправляем сразу
       socket.send(JSON.stringify({ 
         type: 'message', 
         sender_id: auth.user.id, 
@@ -769,13 +800,11 @@ const sendMessage = async () => {
   try {
     uploading.value = true
     
-    // Сначала загружаем файлы если есть
     let uploadedFiles = []
     if (selectedFiles.value.length > 0) {
       uploadedFiles = await uploadFiles()
     }
     
-    // Затем отправляем сообщение с ID файлов
     socket.send(JSON.stringify({ 
       type: 'message', 
       sender_id: auth.user.id, 

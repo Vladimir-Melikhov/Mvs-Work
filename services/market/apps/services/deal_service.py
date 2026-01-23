@@ -144,25 +144,56 @@ class DealService:
         deal.delivery_message = delivery_message
         deal.save()
 
-        # ✅ ИСПРАВЛЕНИЕ: Отправляем текстовое сообщение С файлами
-        market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
-        files_text = ""
-        
-        if deal.delivery_attachments.exists():
-            files_text = "\n\n📎 Прикрепленные файлы:\n"
-            for att in deal.delivery_attachments.all():
-                file_url = f"{market_service_url}{att.file.url}" if att.file else ''
-                files_text += f"• {att.filename} ({att.file_size // 1024} KB)\n{file_url}\n"
-
-        DealService._send_text_message(
-            chat_room_id=deal.chat_room_id,
-            sender_id=worker_id,
-            text=f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}{files_text}",
-            auth_token=auth_token
-        )
+        # ✅ ИСПРАВЛЕНИЕ: Отправляем сообщение с attachments
+        DealService._send_delivery_message(deal, worker_id, delivery_message, auth_token)
 
         DealService._send_deal_card(deal, worker_id, 'delivered', auth_token)
         return deal
+
+    @staticmethod
+    def _send_delivery_message(deal: Deal, sender_id: str, delivery_message: str, auth_token: str):
+        """
+        ✅ НОВЫЙ МЕТОД: Отправка сообщения о сдаче работы с файлами как attachments
+        """
+        try:
+            url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
+            
+            # Формируем список ID файлов для отправки
+            attachment_data = []
+            for att in deal.delivery_attachments.all():
+                if att.file:
+                    market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+                    file_url = f"{market_service_url}{att.file.url}"
+                    
+                    attachment_data.append({
+                        'id': str(att.id),
+                        'filename': att.filename,
+                        'file_size': att.file_size,
+                        'content_type': att.content_type or 'application/octet-stream',
+                        'url': file_url
+                    })
+            
+            payload = {
+                'sender_id': str(sender_id),
+                'message_type': 'text',
+                'text': f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}",
+                'deal_data': None,
+                'is_system': True,
+                'attachments': attachment_data  # ✅ Передаём файлы как attachments
+            }
+            
+            headers = {
+                'Authorization': f'Bearer {auth_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=5)
+            
+            if response.status_code != 200:
+                print(f"⚠️ Ошибка отправки сообщения с файлами: {response.text[:200]}")
+            
+        except Exception as e:
+            print(f"🔥 Error sending delivery message: {e}")
 
     @staticmethod
     @transaction.atomic

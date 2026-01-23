@@ -99,7 +99,10 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def send_deal_message(self, request, pk=None):
-        """Отправить или обновить интерактивное сообщение о сделке в комнату"""
+        """
+        Отправить или обновить интерактивное сообщение о сделке в комнату
+        ✅ ИСПРАВЛЕНИЕ: Поддержка attachments в payload для текстовых сообщений
+        """
         try:
             room = Room.objects.get(id=pk)
             
@@ -108,6 +111,7 @@ class RoomViewSet(viewsets.ViewSet):
             text = request.data.get('text', '')
             deal_data = request.data.get('deal_data', {})
             update_message_id = request.data.get('update_message_id')
+            attachments_data = request.data.get('attachments', [])  # ✅ НОВОЕ: Получаем attachments из payload
             
             if update_message_id:
                 try:
@@ -144,6 +148,17 @@ class RoomViewSet(viewsets.ViewSet):
                 deal_data=deal_data
             )
             
+            # ✅ НОВОЕ: Если в payload переданы attachments - создаём записи в БД
+            if attachments_data:
+                for att_data in attachments_data:
+                    MessageAttachment.objects.create(
+                        message=message,
+                        filename=att_data.get('filename', 'file'),
+                        file_size=att_data.get('file_size', 0),
+                        content_type=att_data.get('content_type', 'application/octet-stream'),
+                        external_url=att_data.get('url', '')  # ✅ Используем external_url
+                    )
+            
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{pk}',
@@ -166,7 +181,10 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
-        """Загрузка файлов - создаются временные вложения без привязки к сообщению"""
+        """
+        Загрузка файлов БЕЗ ОБРАБОТКИ
+        Файлы сохраняются в оригинальном виде без сжатия
+        """
         try:
             files = request.FILES.getlist('files')
             if not files:
@@ -178,10 +196,11 @@ class RoomViewSet(viewsets.ViewSet):
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
 
-                # Создаем временное вложение БЕЗ привязки к message
+                # ✅ ВАЖНО: Создаем вложение БЕЗ ОБРАБОТКИ файла
+                # Django FileField сохраняет файл КАК ЕСТЬ
                 attachment = MessageAttachment.objects.create(
-                    message=None,
-                    file=file,
+                    message=None,  # Временное вложение без привязки
+                    file=file,  # Файл сохраняется в оригинальном виде
                     filename=file.name,
                     file_size=file.size,
                     content_type=file.content_type or 'application/octet-stream'
@@ -207,15 +226,22 @@ class RoomViewSet(viewsets.ViewSet):
         """Сериализация сообщения для WebSocket"""
         attachments = []
         for att in message.attachments.all():
-            try:
-                file_url = request.build_absolute_uri(att.file.url)
-            except:
-                file_url = att.file.url
+            # ✅ ИСПРАВЛЕНИЕ: Используем get_file_url() который проверяет external_url и file
+            file_url = att.get_file_url()
+            if not file_url:
+                continue
+                
+            # Если это относительный URL (локальный файл) - делаем абсолютным
+            if not file_url.startswith('http'):
+                file_url = request.build_absolute_uri(file_url)
                 
             attachments.append({
                 'id': str(att.id),
                 'name': att.filename,
+                'filename': att.filename,  # ✅ Добавляем оба поля для совместимости
                 'size': att.file_size,
+                'file_size': att.file_size,  # ✅ Добавляем оба поля
+                'content_type': att.content_type,
                 'url': file_url
             })
         

@@ -133,42 +133,31 @@
             <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
           </div>
         </div>
-        <div v-if="dealData.delivery_attachments && dealData.delivery_attachments.length > 0" class="shrink-0">
-  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-    <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
-    <div class="space-y-2">
-      <!-- ✅ Если это изображение - показываем превью -->
-      <div 
-        v-for="att in dealData.delivery_attachments" 
-        :key="att.id"
-        class="rounded-lg overflow-hidden"
-      >
-        <img 
-          v-if="isImage(att.filename)"
-          :src="att.url" 
-          :alt="att.filename"
-          class="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity mb-2"
-          @click="window.open(att.url, '_blank')"
-        />
         
-        <!-- ✅ Кнопка скачивания -->
-        <a 
-          :href="att.url" 
-          :download="att.filename"
-          class="flex items-center gap-2 p-2 rounded-lg bg-white hover:bg-blue-100 transition-all text-sm group"
-        >
-          <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-          <span class="truncate text-blue-900 flex-1">{{ att.filename }}</span>
-          <svg class="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
+        <!-- ✅ ОБНОВЛЕННЫЙ БЛОК: Только ссылки на файлы, без превью изображений -->
+        <div v-if="dealData.delivery_attachments && dealData.delivery_attachments.length > 0" class="shrink-0">
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
+            <div class="space-y-2">
+              <a 
+                v-for="att in dealData.delivery_attachments" 
+                :key="att.id"
+                :href="att.url" 
+                :download="att.filename"
+                class="flex items-center gap-2 p-2 rounded-lg bg-white hover:bg-blue-100 transition-all text-sm group"
+              >
+                <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span class="truncate text-blue-900 flex-1">{{ att.filename }}</span>
+                <svg class="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+        
         <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="shrink-0">
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Работа завершена</div>
@@ -698,6 +687,7 @@ const handleDeliveryFileSelect = (event) => {
 const removeDeliveryFile = (index) => {
   deliveryFiles.value.splice(index, 1)
 }
+
 const requestRevision = async () => {
   loading.value = true
   try {
@@ -774,11 +764,6 @@ const cancelDeal = async () => {
   } finally {
     loading.value = false
   }
-}
-const isImage = (filename) => {
-  if (!filename) return false
-  const ext = filename.split('.').pop().toLowerCase()
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
 }
 </script>
 

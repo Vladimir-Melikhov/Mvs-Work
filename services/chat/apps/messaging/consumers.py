@@ -92,13 +92,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Сериализация сообщения для отправки"""
         attachments = []
         for att in message.attachments.all():
-            # Формируем полный URL для WebSocket
-            file_url = f"http://localhost:8003{att.file.url}" if att.file else ''
+            # ✅ ИСПРАВЛЕНИЕ: Используем get_file_url() для получения правильного URL
+            file_url = att.get_file_url()
+            if not file_url:
+                continue
+            
+            # Если это относительный URL - делаем абсолютным
+            if not file_url.startswith('http'):
+                file_url = f"http://localhost:8003{file_url}"
             
             attachments.append({
                 'id': str(att.id),
                 'name': att.filename,
+                'filename': att.filename,
                 'size': att.file_size,
+                'file_size': att.file_size,
+                'content_type': att.content_type,
                 'url': file_url
             })
         
