@@ -1,4 +1,3 @@
-
 <template>
   <div class="min-h-screen pt-8 md:pt-12 pb-20 px-4 flex justify-center animate-fade-in">
     <div class="w-full max-w-2xl glass p-6 md:p-10 rounded-[40px] relative">
@@ -171,8 +170,8 @@
           </div>
         </div>
 
-        <!-- ✅ НОВОЕ: Чекбокс публикации -->
-        <div v-if="auth.user?.role === 'worker' && !isEditing" class="bg-white/10 rounded-2xl p-4 border border-white/20">
+        <!-- ✅ ОБНОВЛЕНО: Чекбокс с проверкой подписки -->
+        <div v-if="auth.user?.role === 'worker'" class="bg-white/10 rounded-2xl p-4 border border-white/20">
           <label class="flex items-start gap-3 cursor-pointer group">
             <input 
               type="checkbox" 
@@ -182,7 +181,7 @@
             >
             <div class="flex-1">
               <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors">
-                Опубликовать сразу
+                {{ isEditing ? 'Активное объявление' : 'Опубликовать сразу' }}
               </div>
               <div class="text-sm text-gray-600 mt-1">
                 {{ hasActiveSubscription 
@@ -220,7 +219,7 @@
       </div>
     </div>
 
-    <!-- ✅ НОВОЕ: Модальное окно подписки -->
+    <!-- ✅ Модальное окно подписки -->
     <SubscriptionModal 
       v-if="showSubscriptionModal" 
       @close="showSubscriptionModal = false"
@@ -247,7 +246,7 @@ const form = ref({
   category: 'development',
   ai_template: '',
   tags: [],
-  is_active: true  // ✅ По умолчанию true, но будет заблокирован если нет подписки
+  is_active: true
 })
 
 const imageFiles = ref([null, null, null, null, null])
@@ -260,7 +259,7 @@ const error = ref('')
 const isEditing = ref(false)
 const showSubscriptionModal = ref(false)
 
-// ✅ НОВОЕ: Проверка активной подписки
+// ✅ Проверка активной подписки
 const hasActiveSubscription = computed(() => {
   if (auth.user?.role !== 'worker') return true
   return auth.user?.subscription?.is_active || false
@@ -277,7 +276,6 @@ const handleImageUpload = (event, index) => {
   const file = event.target.files[0]
   if (!file) return
   
-  // Валидация
   if (file.size > 5 * 1024 * 1024) {
     error.value = 'Изображение слишком большое. Максимум 5MB'
     return
@@ -292,7 +290,6 @@ const handleImageUpload = (event, index) => {
   imageFiles.value[index] = file
   error.value = ''
   
-  // Preview
   const reader = new FileReader()
   reader.onload = (e) => {
     imagePreviews.value[index] = e.target.result
@@ -304,7 +301,6 @@ const removeImage = (index) => {
   imageFiles.value[index] = null
   imagePreviews.value[index] = null
   
-  // Если редактирование и есть существующее изображение - удаляем
   if (isEditing.value && existingImages.value[index]) {
     deleteExistingImage(existingImages.value[index].id)
   }
@@ -353,7 +349,6 @@ const fetchServiceData = async () => {
               is_active: data.is_active !== undefined ? data.is_active : true
           }
           
-          // Загружаем существующие изображения
           if (data.images && data.images.length > 0) {
             existingImages.value = data.images
             data.images.forEach((img, idx) => {
@@ -383,7 +378,6 @@ const submitForm = async () => {
   try {
     const formData = new FormData()
     
-    // Основные данные
     formData.append('title', form.value.title)
     formData.append('description', form.value.description)
     formData.append('price', parseFloat(form.value.price))
@@ -391,17 +385,14 @@ const submitForm = async () => {
     formData.append('ai_template', form.value.ai_template || '')
     formData.append('tags', JSON.stringify(form.value.tags))
     
-    // ✅ ВАЖНО: Передаем флаг is_active
+    // ✅ ВАЖНО: Передаем is_active
+    formData.append('is_active', form.value.is_active ? 'true' : 'false')
+    
     if (!isEditing.value) {
-      formData.append('is_active', hasActiveSubscription.value && form.value.is_active ? 'true' : 'false')
       formData.append('owner_name', auth.user.profile?.company_name || auth.user.profile?.full_name || 'Фрилансер')
       formData.append('owner_avatar', auth.user.profile?.avatar_url || '')
-    } else {
-      // При редактировании тоже передаем is_active
-      formData.append('is_active', form.value.is_active ? 'true' : 'false')
     }
     
-    // Изображения
     imageFiles.value.forEach((file, idx) => {
       if (file) {
         formData.append(`image_${idx}`, file)
@@ -415,7 +406,6 @@ const submitForm = async () => {
           }
         })
         
-        // Проверяем требование подписки
         if (response.data.require_subscription) {
           showSubscriptionModal.value = true
           return
@@ -430,7 +420,6 @@ const submitForm = async () => {
           }
         })
         
-        // ✅ Показываем сообщение если объявление создано неактивным
         if (response.data.message) {
           alert(response.data.message)
         }
@@ -441,7 +430,6 @@ const submitForm = async () => {
   } catch (e) {
     console.error('Save service error:', e)
     
-    // ✅ Обработка ошибки подписки
     if (e.response?.data?.require_subscription) {
       showSubscriptionModal.value = true
       return
@@ -459,11 +447,9 @@ const submitForm = async () => {
   }
 }
 
-// ✅ НОВОЕ: Обработчик успешной подписки
 const handleSubscribed = async () => {
   showSubscriptionModal.value = false
   await auth.fetchProfile()
-  // Автоматически включаем чекбокс после успешной подписки
   form.value.is_active = true
 }
 

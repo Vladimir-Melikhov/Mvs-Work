@@ -149,21 +149,21 @@
                 {{ user.profile.company_website.replace('https://', '').replace('http://', '') }}
               </a>
               <div v-if="isWorker" class="mt-2 flex justify-center md:justify-start">
-  <button 
-    @click="handleSubscriptionClick"
-    class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border backdrop-blur-md text-[10px] font-bold uppercase tracking-widest shadow-sm"
-    :class="subscriptionStatus.isActive 
-      ? 'bg-[#7000ff]/10 text-[#7000ff] border-[#7000ff]/30' 
-      : 'bg-[#1a1a2e]/5 text-[#1a1a2e]/60 border-[#1a1a2e]/10 hover:bg-[#7000ff]/5 hover:text-[#7000ff] cursor-pointer'"
-  >
-    <span 
-      class="w-1.5 h-1.5 rounded-full" 
-      :class="subscriptionStatus.isActive ? 'bg-[#7000ff] shadow-[0_0_8px_#7000ff]' : 'bg-[#1a1a2e]/40'"
-    ></span>
-    
-    {{ subscriptionStatus.isActive ? 'Подписка активна' : 'Подписка неактивна' }}
-  </button>
-</div>
+                <button 
+                  @click="handleSubscriptionClick"
+                  class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border backdrop-blur-md text-[10px] font-bold uppercase tracking-widest shadow-sm"
+                  :class="subscriptionStatus.isActive 
+                    ? 'bg-[#7000ff]/10 text-[#7000ff] border-[#7000ff]/30' 
+                    : 'bg-[#1a1a2e]/5 text-[#1a1a2e]/60 border-[#1a1a2e]/10 hover:bg-[#7000ff]/5 hover:text-[#7000ff] cursor-pointer'"
+                >
+                  <span 
+                    class="w-1.5 h-1.5 rounded-full" 
+                    :class="subscriptionStatus.isActive ? 'bg-[#7000ff] shadow-[0_0_8px_#7000ff]' : 'bg-[#1a1a2e]/40'"
+                  ></span>
+                  
+                  {{ subscriptionStatus.isActive ? 'Подписка активна' : 'Подписка неактивна' }}
+                </button>
+              </div>
               <a 
                 v-if="user?.profile?.github_link" 
                 :href="user.profile.github_link" 
@@ -241,7 +241,7 @@
 
     <div v-if="isWorker" class="mt-8 animate-fade-in">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 px-2 gap-3">
-         <h3 class="text-xl font-bold text-[#1a1a2e]">Активные услуги</h3>
+         <h3 class="text-xl font-bold text-[#1a1a2e]">Мои услуги</h3>
          <router-link to="/create-service" class="text-xs font-bold text-[#7000ff] hover:underline bg-white/20 px-3 py-1.5 rounded-full border border-white/20 whitespace-nowrap">
            + Создать новую
          </router-link>
@@ -259,6 +259,7 @@
             class="glass rounded-[32px] p-4 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all relative"
             @click="$router.push(`/services/${service.id}`)" 
           >
+            <!-- ✅ ОБНОВЛЕНО: Бейдж статуса -->
             <div class="absolute top-4 right-4 z-10">
               <div class="flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md"
                    :class="service.is_active 
@@ -392,12 +393,10 @@ const servicesPerPage = 3
 const workerRating = ref(0)
 const totalReviews = ref(0)
 
-// ✅ ЛОГИКА ПОДПИСКИ
 const showSubscriptionModal = ref(false)
 const subscriptionStatus = computed(() => {
   if (!isWorker.value) return { isActive: true, expiresAt: null }
   
-  // Берем данные напрямую из объекта user или user.subscription в зависимости от API
   const subscription = user.value?.subscription
   if (!subscription) return { isActive: false, expiresAt: null }
   
@@ -415,7 +414,7 @@ const handleSubscriptionClick = () => {
 
 const handleSubscribed = async () => {
   showSubscriptionModal.value = false
-  await auth.fetchProfile() // Обновляем данные пользователя
+  await auth.fetchProfile()
 }
 
 const userInitials = computed(() => {
@@ -423,7 +422,6 @@ const userInitials = computed(() => {
   return user.value?.email?.substring(0, 2).toUpperCase() || 'ME'
 })
 
-// ПАГИНАЦИЯ
 const totalServicePages = computed(() => Math.ceil(myServices.value.length / servicesPerPage))
 
 const paginatedServices = computed(() => {
@@ -519,7 +517,6 @@ const fetchMyServices = async () => {
   if (!isWorker.value) return
   loadingServices.value = true
   try {
-    // Загружаем объявления владельца
     const res = await axios.get(`/api/market/services/`, {
         params: { owner_id: auth.user.id }
     })

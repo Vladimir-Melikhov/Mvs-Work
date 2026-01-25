@@ -34,22 +34,30 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Service.objects.all()
         
-        # ✅ КРИТИЧНО: Для публичного списка показываем только активные объявления
+        # ✅ Публичный список: показываем ТОЛЬКО активные объявления
         if self.action == 'list':
-            queryset = queryset.filter(is_active=True)
+            owner_id = self.request.query_params.get('owner_id')
+            
+            if owner_id:
+                # Если запрашиваем объявления конкретного пользователя
+                queryset = queryset.filter(owner_id=owner_id)
+                
+                # Если это НЕ сам владелец - показываем только активные
+                if not self.request.user.is_authenticated or str(self.request.user.id) != str(owner_id):
+                    queryset = queryset.filter(is_active=True)
+            else:
+                # Общий поиск - только активные
+                queryset = queryset.filter(is_active=True)
         
         queryset = queryset.order_by('-created_at')
 
-        owner_id = self.request.query_params.get('owner_id')
-        if owner_id:
-            # Если запрашиваем свои объявления - показываем все (включая неактивные)
-            queryset = queryset.filter(owner_id=owner_id)
-
+        # Фильтр по категориям
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
         if cats_param:
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
 
+        # Поиск
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -69,7 +77,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         try:
             service = self.get_object()
             
-            # ✅ КРИТИЧНО: Блокируем доступ к неактивным объявлениям для всех кроме владельца
+            # ✅ Блокируем доступ к неактивным объявлениям для всех кроме владельца
             if not service.is_active:
                 if not request.user.is_authenticated or str(request.user.id) != str(service.owner_id):
                     return Response({
@@ -85,15 +93,21 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # ✅ ПРОВЕРКА ПОДПИСКИ
+        # ✅ Проверка подписки при создании
         if request.user.role == 'worker':
             has_subscription = self._check_subscription(request.user.id)
-            if not has_subscription:
-                # Создаем неактивное объявление
-                is_active = False
+            
+            # Пользователь может явно указать is_active=false
+            requested_active = request.data.get('is_active', 'true').lower() == 'true'
+            
+            if has_subscription:
+                # С подпиской - уважаем выбор пользователя
+                is_active = requested_active
             else:
-                is_active = request.data.get('is_active', True)
+                # Без подписки - принудительно неактивно
+                is_active = False
         else:
+            # Клиенты не создают объявления, но на всякий случай
             is_active = True
 
         serializer = self.get_serializer(data=request.data)
@@ -128,8 +142,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
         
         response_data = ServiceSerializer(service, context={'request': request}).data
         
-        # Если объявление создано неактивным - добавляем сообщение
-        if not is_active:
+        # Если объявление создано неактивным из-за отсутствия подписки
+        if not is_active and not self._check_subscription(request.user.id):
             return Response({
                 'status': 'success', 
                 'data': response_data, 
@@ -145,10 +159,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
-        # ✅ ПРОВЕРКА ПОДПИСКИ при попытке активации
-        if 'is_active' in request.data and request.data['is_active']:
-            if request.user.role == 'worker':
+        # ✅ Проверка подписки при попытке активации
+        if 'is_active' in request.data:
+            requested_active = str(request.data['is_active']).lower() == 'true'
+            
+            if requested_active and request.user.role == 'worker':
                 has_subscription = self._check_subscription(request.user.id)
+                
                 if not has_subscription:
                     return Response({
                         'status': 'error',
