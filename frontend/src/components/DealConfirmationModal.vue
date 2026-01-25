@@ -44,14 +44,6 @@
                 <span class="text-gray-400">Сумма:</span>
                 <span class="font-mono">{{ order.price }} ₽</span>
               </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-400">Комиссия (8%):</span>
-                <span class="font-mono">{{ commission }} ₽</span>
-              </div>
-              <div class="pt-2 border-t border-white/10 flex justify-between items-end">
-                <span class="text-xs font-bold uppercase text-[#7000ff]">Итого</span>
-                <span class="text-xl font-bold font-mono">{{ total }} ₽</span>
-              </div>
             </div>
           </div>
 

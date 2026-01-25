@@ -56,14 +56,6 @@
               <span class="text-gray-600">Стоимость работы:</span>
               <span class="font-bold">{{ dealData.price }}₽</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-600">Комиссия сервиса (8%):</span>
-              <span class="font-bold">{{ dealData.commission }}₽</span>
-            </div>
-            <div class="flex justify-between pt-2 border-t border-purple-200">
-              <span class="font-bold">Итого к оплате:</span>
-              <span class="font-bold text-lg text-purple-600">{{ dealData.total }}₽</span>
-            </div>
           </div>
         </div>
 
@@ -183,7 +175,7 @@
             class="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
           >
             <span v-if="loading">Обработка...</span>
-            <span v-else>Оплатить заказ ({{ dealData.total }}₽)</span>
+            <span v-else>Оплатить заказ</span>
           </button>
 
           <button 
@@ -605,7 +597,7 @@ const updatePrice = async () => {
 }
 
 const payDeal = async () => {
-  if (!confirm(`Оплатить заказ на сумму ${props.dealData.total}₽?`)) return
+  if (!confirm(`Оплатить заказ на сумму ${props.dealData.price}₽?`)) return
   
   loading.value = true
   try {

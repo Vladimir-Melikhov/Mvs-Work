@@ -79,7 +79,6 @@
                class="text-sm text-[#7000ff] bg-transparent border-b border-transparent hover:border-white/30 focus:border-[#7000ff] outline-none w-full text-center md:text-left transition-all font-medium"
              >
              
-             <!-- ✅ НОВОЕ: Редактирование социальных сетей -->
              <div class="w-full space-y-2 mt-4">
                <input 
                  v-model="editForm.github_link" 
@@ -102,6 +101,7 @@
             <h1 class="text-2xl md:text-4xl font-bold text-[#1a1a2e] tracking-tight break-words">
               {{ user?.profile?.company_name || user?.profile?.full_name || user?.email }}
             </h1>
+            
             
             <div v-if="isWorker && workerRating > 0" class="flex items-center gap-3 mt-3 justify-center md:justify-start flex-wrap">
               <div class="flex gap-1">
@@ -136,7 +136,6 @@
               </div>
             </div>
             
-            <!-- ✅ НОВОЕ: Отображение социальных сетей -->
             <div class="flex items-center gap-3 mt-3 justify-center md:justify-start flex-wrap">
               <a 
                 v-if="user?.profile?.company_website" 
@@ -149,7 +148,22 @@
                 </svg>
                 {{ user.profile.company_website.replace('https://', '').replace('http://', '') }}
               </a>
-              
+              <div v-if="isWorker" class="mt-2 flex justify-center md:justify-start">
+  <button 
+    @click="handleSubscriptionClick"
+    class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border backdrop-blur-md text-[10px] font-bold uppercase tracking-widest shadow-sm"
+    :class="subscriptionStatus.isActive 
+      ? 'bg-[#7000ff]/10 text-[#7000ff] border-[#7000ff]/30' 
+      : 'bg-[#1a1a2e]/5 text-[#1a1a2e]/60 border-[#1a1a2e]/10 hover:bg-[#7000ff]/5 hover:text-[#7000ff] cursor-pointer'"
+  >
+    <span 
+      class="w-1.5 h-1.5 rounded-full" 
+      :class="subscriptionStatus.isActive ? 'bg-[#7000ff] shadow-[0_0_8px_#7000ff]' : 'bg-[#1a1a2e]/40'"
+    ></span>
+    
+    {{ subscriptionStatus.isActive ? 'Подписка активна' : 'Подписка неактивна' }}
+  </button>
+</div>
               <a 
                 v-if="user?.profile?.github_link" 
                 :href="user.profile.github_link" 
@@ -242,9 +256,19 @@
           <div 
             v-for="service in paginatedServices" 
             :key="service.id" 
-            class="glass rounded-[32px] p-4 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all"
+            class="glass rounded-[32px] p-4 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all relative"
             @click="$router.push(`/services/${service.id}`)" 
           >
+            <div class="absolute top-4 right-4 z-10">
+              <div class="flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md"
+                   :class="service.is_active 
+                     ? 'bg-green-50/80 text-green-700 border border-green-200' 
+                     : 'bg-gray-100/80 text-gray-500 border border-gray-200'">
+                <span class="w-1.5 h-1.5 rounded-full" :class="service.is_active ? 'bg-green-500' : 'bg-gray-400'"></span>
+                {{ service.is_active ? 'Активно' : 'Неактивно' }}
+              </div>
+            </div>
+
             <div class="flex items-center gap-3 mb-4">
                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold border border-white/30 overflow-hidden shrink-0">
                  <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
@@ -328,6 +352,12 @@
     >
       Выйти
     </button>
+
+    <SubscriptionModal 
+      v-if="showSubscriptionModal" 
+      @close="showSubscriptionModal = false"
+      @subscribed="handleSubscribed"
+    />
   </div>
 </template>
 
@@ -338,6 +368,7 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import DealsHistory from '../components/DealsHistory.vue'
 import ReviewsSection from '../components/ReviewsSection.vue'
+import SubscriptionModal from '../components/SubscriptionModal.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -361,8 +392,38 @@ const servicesPerPage = 3
 const workerRating = ref(0)
 const totalReviews = ref(0)
 
-const userInitials = computed(() => user.value?.email?.substring(0, 2).toUpperCase() || 'ME')
+// ✅ ЛОГИКА ПОДПИСКИ
+const showSubscriptionModal = ref(false)
+const subscriptionStatus = computed(() => {
+  if (!isWorker.value) return { isActive: true, expiresAt: null }
+  
+  // Берем данные напрямую из объекта user или user.subscription в зависимости от API
+  const subscription = user.value?.subscription
+  if (!subscription) return { isActive: false, expiresAt: null }
+  
+  return {
+    isActive: subscription.is_active,
+    expiresAt: subscription.expires_at
+  }
+})
 
+const handleSubscriptionClick = () => {
+  if (!subscriptionStatus.value.isActive) {
+    showSubscriptionModal.value = true
+  }
+}
+
+const handleSubscribed = async () => {
+  showSubscriptionModal.value = false
+  await auth.fetchProfile() // Обновляем данные пользователя
+}
+
+const userInitials = computed(() => {
+  if (user.value?.profile?.full_name) return user.value.profile.full_name.charAt(0).toUpperCase()
+  return user.value?.email?.substring(0, 2).toUpperCase() || 'ME'
+})
+
+// ПАГИНАЦИЯ
 const totalServicePages = computed(() => Math.ceil(myServices.value.length / servicesPerPage))
 
 const paginatedServices = computed(() => {
@@ -375,45 +436,23 @@ const visibleServicePages = computed(() => {
   const pages = []
   const total = totalServicePages.value
   const current = currentServicePage.value
-  
   if (total <= 5) {
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
+    for (let i = 1; i <= total; i++) pages.push(i)
   } else {
-    if (current <= 3) {
-      pages.push(1, 2, 3, 4, 5)
-    } else if (current >= total - 2) {
-      pages.push(total - 4, total - 3, total - 2, total - 1, total)
-    } else {
-      pages.push(current - 2, current - 1, current, current + 1, current + 2)
-    }
+    if (current <= 3) pages.push(1, 2, 3, 4, 5)
+    else if (current >= total - 2) pages.push(total - 4, total - 3, total - 2, total - 1, total)
+    else pages.push(current - 2, current - 1, current, current + 1, current + 2)
   }
-  
   return pages
 })
 
 const handleAvatarUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
-  
-  if (file.size > 5 * 1024 * 1024) {
-    alert('Файл слишком большой. Максимум 5MB')
-    return
-  }
-  
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!allowedTypes.includes(file.type)) {
-    alert('Неподдерживаемый формат. Используйте JPG, PNG, GIF или WebP')
-    return
-  }
-  
+  if (file.size > 5 * 1024 * 1024) { alert('Файл слишком большой. Максимум 5MB'); return; }
   avatarFile.value = file
-  
   const reader = new FileReader()
-  reader.onload = (e) => {
-    avatarPreview.value = e.target.result
-  }
+  reader.onload = (e) => { avatarPreview.value = e.target.result }
   reader.readAsDataURL(file)
 }
 
@@ -422,7 +461,6 @@ const toggleEdit = () => {
     editForm.value = JSON.parse(JSON.stringify(user.value.profile || {}))
     if (!editForm.value.skills) editForm.value.skills = []
     isCompanyEdit.value = !!editForm.value.company_name
-    
     avatarFile.value = null
     avatarPreview.value = null
   }
@@ -438,52 +476,40 @@ const addSkill = () => {
 
 const saveProfile = async () => {
   uploadingAvatar.value = true
-  
   try {
-    if (isCompanyEdit.value && !isWorker.value) {
-      editForm.value.full_name = null
-    } else {
+    if (isCompanyEdit.value && !isWorker.value) editForm.value.full_name = null
+    else {
       editForm.value.company_name = null
       if (!isWorker.value) editForm.value.company_website = null
     }
     
     const formData = new FormData()
-    
     Object.keys(editForm.value).forEach(key => {
       if (key === 'avatar') return
-      
       const value = editForm.value[key]
       if (value !== null && value !== undefined) {
-        if (key === 'skills') {
-          formData.append(key, JSON.stringify(value))
-        } else {
-          formData.append(key, value)
-        }
+        if (key === 'skills') formData.append(key, JSON.stringify(value))
+        else formData.append(key, value)
       }
     })
     
-    if (avatarFile.value) {
-      formData.append('avatar', avatarFile.value)
+    if (avatarPreview.value) {
+      const blob = await fetch(avatarPreview.value).then(r => r.blob())
+      formData.append('avatar', blob, 'avatar.jpg')
     }
     
     const res = await axios.patch('/api/auth/profile/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
     
     if (res.data.status === 'success') {
       auth.user = res.data.data
-      
       isEditing.value = false
       avatarFile.value = null
       avatarPreview.value = null
-    } else {
-      alert('Ошибка сохранения.')
     }
   } catch (error) {
     console.error('Save error:', error)
-    alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message))
   } finally {
     uploadingAvatar.value = false
   }
@@ -493,12 +519,12 @@ const fetchMyServices = async () => {
   if (!isWorker.value) return
   loadingServices.value = true
   try {
-    const res = await axios.get(`/api/market/services/?owner_id=${auth.user.id}`)
-    if (res.data.status === 'success') {
-       myServices.value = res.data.data
-    } else if (Array.isArray(res.data)) {
-       myServices.value = res.data
-    }
+    // Загружаем объявления владельца
+    const res = await axios.get(`/api/market/services/`, {
+        params: { owner_id: auth.user.id }
+    })
+    if (res.data.status === 'success') myServices.value = res.data.data
+    else if (Array.isArray(res.data)) myServices.value = res.data
   } catch (e) {
     console.error("Failed to fetch my services", e)
   } finally {

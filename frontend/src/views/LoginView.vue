@@ -4,7 +4,7 @@
     <div class="ios-glass-card w-full max-w-[400px] p-8 flex flex-col items-center animate-fade-in">
       
       <h1 class="text-3xl font-bold text-center mb-8 text-[#1a1a2e] drop-shadow-sm tracking-tight">
-        Welcome Back
+        С возвращением!
       </h1>
 
       <div class="w-full space-y-5">
@@ -28,12 +28,12 @@
       </div>
       
       <button @click="handleLogin" class="ios-button mt-8">
-        Login
+        Войти
       </button>
 
       <p class="mt-6 text-center text-gray-500 text-sm font-medium">
-        No account? 
-        <router-link to="/register" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Register</router-link>
+        Нет аккаунта? 
+        <router-link to="/register" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Зарегестрироваться</router-link>
       </p>
     </div>
   </div>

@@ -3,9 +3,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ProfileSerializer
+from .serializers import (
+    RegisterSerializer, 
+    LoginSerializer, 
+    UserSerializer, 
+    ProfileSerializer,
+    SubscriptionSerializer
+)
 from .services import AuthService
-from .models import User
+from .models import User, Subscription, SubscriptionPayment
+from django.db import transaction
 
 
 class RegisterView(APIView):
@@ -181,7 +188,6 @@ class PublicProfileView(APIView):
             user = User.objects.get(id=user_id)
             profile = user.profile
             
-            # Формируем публичные данные профиля
             data = {
                 'id': str(user.id),
                 'email': user.email,
@@ -213,3 +219,80 @@ class PublicProfileView(APIView):
                 'error': 'Пользователь не найден',
                 'data': None
             }, status=status.HTTP_404_NOT_FOUND)
+
+
+class SubscriptionView(APIView):
+    """Управление подпиской"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Получить информацию о подписке"""
+        if request.user.role != 'worker':
+            return Response({
+                'status': 'error',
+                'error': 'Подписка доступна только для воркеров',
+                'data': None
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            subscription = request.user.subscription
+            # Проверяем и обновляем статус
+            subscription.check_and_update_status()
+            
+            return Response({
+                'status': 'success',
+                'data': SubscriptionSerializer(subscription).data,
+                'error': None
+            })
+        except Subscription.DoesNotExist:
+            # Создаем подписку если её нет
+            subscription = Subscription.objects.create(user=request.user, is_active=False)
+            return Response({
+                'status': 'success',
+                'data': SubscriptionSerializer(subscription).data,
+                'error': None
+            })
+
+    @transaction.atomic
+    def post(self, request):
+        """Оплатить подписку (заглушка)"""
+        if request.user.role != 'worker':
+            return Response({
+                'status': 'error',
+                'error': 'Подписка доступна только для воркеров',
+                'data': None
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            subscription = request.user.subscription
+        except Subscription.DoesNotExist:
+            subscription = Subscription.objects.create(user=request.user, is_active=False)
+
+        # Создаем платеж
+        payment = SubscriptionPayment.objects.create(
+            subscription=subscription,
+            amount=Subscription.SUBSCRIPTION_PRICE,
+            status='pending',
+            payment_provider='stub'
+        )
+
+        # ЗАГЛУШКА: Автоматически подтверждаем оплату
+        payment.status = 'completed'
+        payment.save()
+
+        # Активируем подписку на 30 дней
+        subscription.activate(duration_days=30)
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'subscription': SubscriptionSerializer(subscription).data,
+                'payment': {
+                    'id': str(payment.id),
+                    'amount': str(payment.amount),
+                    'status': payment.status
+                }
+            },
+            'message': 'Подписка успешно активирована на 30 дней',
+            'error': None
+        })

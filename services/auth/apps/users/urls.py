@@ -1,5 +1,13 @@
 from django.urls import path
-from .views import RegisterView, LoginView, ProfileView, CheckBalanceView, BatchUsersView, PublicProfileView
+from .views import (
+    RegisterView, 
+    LoginView, 
+    ProfileView, 
+    CheckBalanceView, 
+    BatchUsersView, 
+    PublicProfileView,
+    SubscriptionView
+)
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -8,4 +16,5 @@ urlpatterns = [
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),
     path('users/<uuid:user_id>/', PublicProfileView.as_view(), name='public_profile'),
+    path('subscription/', SubscriptionView.as_view(), name='subscription'),
 ]

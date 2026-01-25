@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.core.files.storage import FileSystemStorage
+from django.utils import timezone
+from datetime import timedelta
 import os
 
 
@@ -100,3 +102,73 @@ class Wallet(models.Model):
 
     def __str__(self) -> str:
         return f"Wallet of {self.user.email}: ${self.balance}"
+
+
+class Subscription(models.Model):
+    """Модель подписки для воркеров"""
+    SUBSCRIPTION_PRICE = 444.00
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='subscription')
+    is_active = models.BooleanField(default=False, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'subscriptions'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f"Subscription of {self.user.email} - {'Active' if self.is_active else 'Inactive'}"
+
+    def activate(self, duration_days=30):
+        """Активировать подписку на указанное количество дней"""
+        self.is_active = True
+        self.started_at = timezone.now()
+        self.expires_at = timezone.now() + timedelta(days=duration_days)
+        self.save()
+
+    def deactivate(self):
+        """Деактивировать подписку"""
+        self.is_active = False
+        self.save()
+
+    def is_expired(self):
+        """Проверить истекла ли подписка"""
+        if not self.expires_at:
+            return True
+        return timezone.now() > self.expires_at
+
+    def check_and_update_status(self):
+        """Проверить и обновить статус подписки если истекла"""
+        if self.is_active and self.is_expired():
+            self.deactivate()
+            return True
+        return False
+
+
+class SubscriptionPayment(models.Model):
+    """История платежей за подписку"""
+    STATUS_CHOICES = [
+        ('pending', 'Ожидает оплаты'),
+        ('completed', 'Оплачено'),
+        ('failed', 'Ошибка'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=Subscription.SUBSCRIPTION_PRICE)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment_provider = models.CharField(max_length=50, default='stub')
+    external_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'subscription_payments'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f"Payment {self.id} - {self.status}"

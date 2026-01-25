@@ -1,7 +1,14 @@
 from rest_framework import serializers
-from .models import User, Profile, Wallet
+from .models import User, Profile, Wallet, Subscription, SubscriptionPayment
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import os
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = ['id', 'is_active', 'started_at', 'expires_at', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -76,10 +83,11 @@ class WalletSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)
     wallet = WalletSerializer(read_only=True)
+    subscription = SubscriptionSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'role', 'profile', 'wallet', 'created_at']
+        fields = ['id', 'email', 'role', 'profile', 'wallet', 'subscription', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 

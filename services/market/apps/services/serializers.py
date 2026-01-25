@@ -32,7 +32,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'price', 
             'owner_id', 'owner_name', 'owner_avatar', 
             'ai_template', 'category', 'tags', 
-            'created_at', 'updated_at', 'images',
+            'created_at', 'updated_at', 'images', 'is_active',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images']
     
@@ -88,10 +88,6 @@ class DealSerializer(serializers.ModelSerializer):
     transactions = TransactionSerializer(many=True, read_only=True)
     review = ReviewSerializer(read_only=True)
     delivery_attachments = DealDeliveryAttachmentSerializer(many=True, read_only=True)
-    
-    commission = serializers.SerializerMethodField()
-    total = serializers.SerializerMethodField()
-    
     can_open_dispute = serializers.ReadOnlyField()
     can_worker_refund = serializers.ReadOnlyField()
     can_worker_defend = serializers.ReadOnlyField()
@@ -109,7 +105,7 @@ class DealSerializer(serializers.ModelSerializer):
             'delivery_message', 'completion_message', 'cancellation_reason',
             'delivery_attachments',
             'created_at', 'paid_at', 'delivered_at', 'completed_at', 'cancelled_at',
-            'transactions', 'review', 'commission', 'total',
+            'transactions', 'review',
             'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel',
             'can_open_dispute', 'can_worker_refund', 'can_worker_defend', 'is_dispute_pending_admin',
             'dispute_client_reason', 'dispute_worker_defense', 
@@ -118,12 +114,6 @@ class DealSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'chat_room_id', 'created_at', 'delivery_attachments']
 
-    def get_commission(self, obj):
-        return float(obj.price * Decimal('0.08'))
-
-    def get_total(self, obj):
-        return float(obj.price * Decimal('1.08'))
-    
     def get_status_display(self, obj):
         status_map = {
             'pending': 'Ожидает оплаты',

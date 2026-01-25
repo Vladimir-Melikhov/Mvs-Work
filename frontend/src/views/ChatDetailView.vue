@@ -1,9 +1,7 @@
 <template>
-  <!-- DESKTOP VERSION -->
   <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
     <div class="flex-1 flex flex-col min-w-0">
-      <!-- Шапка чата -->
       <div class="glass px-6 py-3 rounded-[24px] flex items-center gap-4 mb-3 border border-white/60 shadow-sm shrink-0">
         <button 
           @click="$router.push('/chats')" 

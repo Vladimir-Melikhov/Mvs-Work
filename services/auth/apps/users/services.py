@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Profile, Wallet
+from .models import User, Profile, Wallet, Subscription
 
 
 class AuthService:
@@ -12,6 +12,10 @@ class AuthService:
         
         Profile.objects.create(user=user)
         Wallet.objects.create(user=user)
+        
+        # Создаем подписку для воркеров
+        if role == 'worker':
+            Subscription.objects.create(user=user, is_active=False)
         
         tokens = AuthService._generate_tokens(user)
         return user, tokens
@@ -26,6 +30,15 @@ class AuthService:
         
         if not user.is_active:
             raise ValueError("User is inactive")
+        
+        # Проверяем и обновляем статус подписки если истекла
+        if user.role == 'worker':
+            try:
+                subscription = user.subscription
+                subscription.check_and_update_status()
+            except Subscription.DoesNotExist:
+                # Создаем подписку если её нет
+                Subscription.objects.create(user=user, is_active=False)
         
         tokens = AuthService._generate_tokens(user)
         return user, tokens

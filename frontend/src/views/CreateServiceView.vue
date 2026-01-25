@@ -1,3 +1,4 @@
+
 <template>
   <div class="min-h-screen pt-8 md:pt-12 pb-20 px-4 flex justify-center animate-fade-in">
     <div class="w-full max-w-2xl glass p-6 md:p-10 rounded-[40px] relative">
@@ -69,7 +70,7 @@
           ></textarea>
         </div>
 
-        <!-- ✅ НОВОЕ: Загрузка изображений -->
+        <!-- Загрузка изображений -->
         <div>
           <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">
             Изображения услуги (до 5 шт,  первое изображение - обложка)
@@ -170,6 +171,37 @@
           </div>
         </div>
 
+        <!-- ✅ НОВОЕ: Чекбокс публикации -->
+        <div v-if="auth.user?.role === 'worker' && !isEditing" class="bg-white/10 rounded-2xl p-4 border border-white/20">
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input 
+              type="checkbox" 
+              v-model="form.is_active"
+              :disabled="!hasActiveSubscription"
+              class="mt-1 w-5 h-5 rounded border-2 border-gray-300 text-[#7000ff] focus:ring-[#7000ff] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+            <div class="flex-1">
+              <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors">
+                Опубликовать сразу
+              </div>
+              <div class="text-sm text-gray-600 mt-1">
+                {{ hasActiveSubscription 
+                  ? 'Объявление будет доступно в общей ленте' 
+                  : 'Для публикации требуется активная подписка' 
+                }}
+              </div>
+              <button 
+                v-if="!hasActiveSubscription"
+                type="button"
+                @click.stop="showSubscriptionModal = true"
+                class="text-xs font-bold text-[#7000ff] hover:underline mt-2"
+              >
+                Активировать подписку →
+              </button>
+            </div>
+          </label>
+        </div>
+
         <div v-if="error" class="bg-red-50 border border-red-200 rounded-2xl p-4 animate-fade-in">
           <p class="text-red-600 text-sm font-bold break-words">❌ {{ error }}</p>
         </div>
@@ -187,6 +219,13 @@
 
       </div>
     </div>
+
+    <!-- ✅ НОВОЕ: Модальное окно подписки -->
+    <SubscriptionModal 
+      v-if="showSubscriptionModal" 
+      @close="showSubscriptionModal = false"
+      @subscribed="handleSubscribed"
+    />
   </div>
 </template>
 
@@ -195,6 +234,7 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
+import SubscriptionModal from '../components/SubscriptionModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -206,7 +246,8 @@ const form = ref({
   price: '',
   category: 'development',
   ai_template: '',
-  tags: []
+  tags: [],
+  is_active: true  // ✅ По умолчанию true, но будет заблокирован если нет подписки
 })
 
 const imageFiles = ref([null, null, null, null, null])
@@ -217,6 +258,13 @@ const newTag = ref('')
 const loading = ref(false)
 const error = ref('')
 const isEditing = ref(false)
+const showSubscriptionModal = ref(false)
+
+// ✅ НОВОЕ: Проверка активной подписки
+const hasActiveSubscription = computed(() => {
+  if (auth.user?.role !== 'worker') return true
+  return auth.user?.subscription?.is_active || false
+})
 
 const isFormValid = computed(() => {
   return form.value.title.trim() !== '' &&
@@ -301,7 +349,8 @@ const fetchServiceData = async () => {
               price: data.price,
               category: data.category || 'development',
               ai_template: data.ai_template || '',
-              tags: data.tags || []
+              tags: data.tags || [],
+              is_active: data.is_active !== undefined ? data.is_active : true
           }
           
           // Загружаем существующие изображения
@@ -342,9 +391,14 @@ const submitForm = async () => {
     formData.append('ai_template', form.value.ai_template || '')
     formData.append('tags', JSON.stringify(form.value.tags))
     
+    // ✅ ВАЖНО: Передаем флаг is_active
     if (!isEditing.value) {
+      formData.append('is_active', hasActiveSubscription.value && form.value.is_active ? 'true' : 'false')
       formData.append('owner_name', auth.user.profile?.company_name || auth.user.profile?.full_name || 'Фрилансер')
       formData.append('owner_avatar', auth.user.profile?.avatar_url || '')
+    } else {
+      // При редактировании тоже передаем is_active
+      formData.append('is_active', form.value.is_active ? 'true' : 'false')
     }
     
     // Изображения
@@ -355,24 +409,44 @@ const submitForm = async () => {
     })
     
     if (isEditing.value) {
-        await axios.patch(`/api/market/services/${route.params.id}/`, formData, {
+        const response = await axios.patch(`/api/market/services/${route.params.id}/`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         })
+        
+        // Проверяем требование подписки
+        if (response.data.require_subscription) {
+          showSubscriptionModal.value = true
+          return
+        }
+        
         alert('Услуга успешно обновлена!')
         router.push(`/services/${route.params.id}`)
     } else {
-        await axios.post('/api/market/services/', formData, {
+        const response = await axios.post('/api/market/services/', formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         })
+        
+        // ✅ Показываем сообщение если объявление создано неактивным
+        if (response.data.message) {
+          alert(response.data.message)
+        }
+        
         router.push('/profile')
     }
     
   } catch (e) {
     console.error('Save service error:', e)
+    
+    // ✅ Обработка ошибки подписки
+    if (e.response?.data?.require_subscription) {
+      showSubscriptionModal.value = true
+      return
+    }
+    
     if (e.response?.data?.error) {
       error.value = typeof e.response.data.error === 'object' 
         ? Object.values(e.response.data.error).flat().join(', ')
@@ -383,6 +457,14 @@ const submitForm = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// ✅ НОВОЕ: Обработчик успешной подписки
+const handleSubscribed = async () => {
+  showSubscriptionModal.value = false
+  await auth.fetchProfile()
+  // Автоматически включаем чекбокс после успешной подписки
+  form.value.is_active = true
 }
 
 onMounted(() => {

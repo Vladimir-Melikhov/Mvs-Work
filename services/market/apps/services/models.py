@@ -54,6 +54,13 @@ class Service(models.Model):
     )
     tags = models.JSONField(default=list, blank=True)
     
+    # ✅ НОВОЕ ПОЛЕ: Активность объявления
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Активно ли объявление (требует активной подписки)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -63,6 +70,7 @@ class Service(models.Model):
         indexes = [
             models.Index(fields=['category', '-created_at']),
             models.Index(fields=['owner_id']),
+            models.Index(fields=['is_active', '-created_at']),
         ]
 
     def __str__(self) -> str:

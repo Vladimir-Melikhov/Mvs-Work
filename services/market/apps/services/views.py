@@ -17,6 +17,7 @@ from .serializers import (
 from .services import AIService
 from .deal_service import DealService
 import os
+import requests
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -31,10 +32,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def get_queryset(self):
-        queryset = Service.objects.all().order_by('-created_at')
+        queryset = Service.objects.all()
+        
+        # ✅ КРИТИЧНО: Для публичного списка показываем только активные объявления
+        if self.action == 'list':
+            queryset = queryset.filter(is_active=True)
+        
+        queryset = queryset.order_by('-created_at')
 
         owner_id = self.request.query_params.get('owner_id')
         if owner_id:
+            # Если запрашиваем свои объявления - показываем все (включая неактивные)
             queryset = queryset.filter(owner_id=owner_id)
 
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
@@ -60,6 +68,16 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, pk=None):
         try:
             service = self.get_object()
+            
+            # ✅ КРИТИЧНО: Блокируем доступ к неактивным объявлениям для всех кроме владельца
+            if not service.is_active:
+                if not request.user.is_authenticated or str(request.user.id) != str(service.owner_id):
+                    return Response({
+                        'status': 'error', 
+                        'error': 'Это объявление неактивно', 
+                        'data': None
+                    }, status=403)
+            
             serializer = self.get_serializer(service)
             return Response({'status': 'success', 'data': serializer.data, 'error': None})
         except Service.DoesNotExist:
@@ -67,6 +85,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
+        # ✅ ПРОВЕРКА ПОДПИСКИ
+        if request.user.role == 'worker':
+            has_subscription = self._check_subscription(request.user.id)
+            if not has_subscription:
+                # Создаем неактивное объявление
+                is_active = False
+            else:
+                is_active = request.data.get('is_active', True)
+        else:
+            is_active = True
+
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
@@ -74,17 +103,16 @@ class ServiceViewSet(viewsets.ModelViewSet):
         service = serializer.save(
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
-            owner_avatar=request.data.get('owner_avatar', '')
+            owner_avatar=request.data.get('owner_avatar', ''),
+            is_active=is_active
         )
         
         # Обработка изображений
-        images_data = []
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
                 image_file = request.FILES[image_key]
                 
-                # Валидация
                 if image_file.size > 5 * 1024 * 1024:
                     continue
                 
@@ -98,13 +126,36 @@ class ServiceViewSet(viewsets.ModelViewSet):
                     order=i
                 )
         
-        return Response({'status': 'success', 'data': ServiceSerializer(service, context={'request': request}).data, 'error': None}, status=201)
+        response_data = ServiceSerializer(service, context={'request': request}).data
+        
+        # Если объявление создано неактивным - добавляем сообщение
+        if not is_active:
+            return Response({
+                'status': 'success', 
+                'data': response_data, 
+                'error': None,
+                'message': 'Объявление создано в неактивном статусе. Для публикации требуется активная подписка.'
+            }, status=201)
+        
+        return Response({'status': 'success', 'data': response_data, 'error': None}, status=201)
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
+
+        # ✅ ПРОВЕРКА ПОДПИСКИ при попытке активации
+        if 'is_active' in request.data and request.data['is_active']:
+            if request.user.role == 'worker':
+                has_subscription = self._check_subscription(request.user.id)
+                if not has_subscription:
+                    return Response({
+                        'status': 'error',
+                        'error': 'Для активации объявления требуется активная подписка',
+                        'data': None,
+                        'require_subscription': True
+                    }, status=403)
 
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -125,7 +176,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
                     continue
                 
-                # Удаляем старое изображение с этим order
                 ServiceImage.objects.filter(service=instance, order=i).delete()
                 
                 ServiceImage.objects.create(
@@ -142,7 +192,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
-        # Изображения удалятся автоматически через CASCADE
         instance.delete()
         return Response({'status': 'success', 'data': {'message': 'Услуга удалена'}, 'error': None})
 
@@ -161,11 +210,47 @@ class ServiceViewSet(viewsets.ModelViewSet):
         except ServiceImage.DoesNotExist:
             return Response({'status': 'error', 'error': 'Изображение не найдено'}, status=404)
 
+    @action(detail=False, methods=['post'], url_path='deactivate-all')
+    def deactivate_all(self, request):
+        """Деактивировать все объявления воркера (вызывается при истечении подписки)"""
+        if request.user.role != 'worker':
+            return Response({'status': 'error', 'error': 'Только для воркеров'}, status=403)
+
+        count = Service.objects.filter(
+            owner_id=request.user.id,
+            is_active=True
+        ).update(is_active=False)
+
+        return Response({
+            'status': 'success',
+            'data': {'deactivated_count': count},
+            'message': f'Деактивировано объявлений: {count}'
+        })
+
+    def _check_subscription(self, user_id):
+        """Проверка активной подписки через Auth Service"""
+        try:
+            auth_header = self.request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+            
+            response = requests.get(
+                f'http://localhost:8001/api/auth/subscription/',
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('data', {}).get('is_active', False)
+            
+            return False
+        except Exception as e:
+            print(f"Error checking subscription: {e}")
+            return False
+
 
 class DealViewSet(viewsets.ViewSet):
-    """
-    УПРОЩЁННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ
-    """
+    """УПРОЩЁННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ"""
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
@@ -208,10 +293,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_deal(self, request):
-        """
-        Создать новый заказ
-        Проверяет наличие активных заказов
-        """
+        """Создать новый заказ"""
         serializer = CreateDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
@@ -264,7 +346,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['patch'], url_path='update-price')
     def update_price(self, request, pk=None):
-        """Изменить цену заказа (только исполнитель, только до оплаты)"""
+        """Изменить цену заказа"""
         try:
             deal = Deal.objects.get(id=pk)
             new_price = request.data.get('price')
@@ -317,7 +399,6 @@ class DealViewSet(viewsets.ViewSet):
             deal = Deal.objects.get(id=pk)
             delivery_message = request.data.get('delivery_message', '')
         
-            # Сохраняем файлы если есть
             files = request.FILES.getlist('files')
             for file in files:
                 if file.size > 20 * 1024 * 1024:
@@ -447,7 +528,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='open-dispute')
     def open_dispute(self, request, pk=None):
-        """Открыть спор (только клиент, только после сдачи работы)"""
+        """Открыть спор"""
         try:
             deal = Deal.objects.get(id=pk)
             dispute_reason = request.data.get('dispute_reason', '')
@@ -473,7 +554,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='worker-refund')
     def worker_refund(self, request, pk=None):
-        """Исполнитель возвращает деньги (согласие с претензией)"""
+        """Исполнитель возвращает деньги"""
         try:
             deal = Deal.objects.get(id=pk)
 
@@ -548,7 +629,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='pending-disputes')
     def pending_disputes(self, request):
-        """Получить все активные споры (для админа)"""
+        """Получить все активные споры"""
         disputes = Deal.objects.filter(
             status='dispute',
             dispute_worker_defense__isnull=False,
