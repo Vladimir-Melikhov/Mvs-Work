@@ -30,22 +30,11 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
-    
-    @staticmethod
-    def _parse_bool(value):
-        """✅ Универсальный парсинг булевых значений"""
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.lower() in ('true', '1', 'yes')
-        if isinstance(value, int):
-            return value != 0
-        return bool(value)
 
     def get_queryset(self):
         queryset = Service.objects.all()
         
-        # ✅ Публичный список: показываем ТОЛЬКО активные объявления
+        # ✅ ИСПРАВЛЕНИЕ: Фильтрация по is_active
         if self.action == 'list':
             owner_id = self.request.query_params.get('owner_id')
             
@@ -57,7 +46,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 if not self.request.user.is_authenticated or str(self.request.user.id) != str(owner_id):
                     queryset = queryset.filter(is_active=True)
             else:
-                # Общий поиск - только активные
+                # ✅ Общий поиск - только активные объявления
                 queryset = queryset.filter(is_active=True)
         
         queryset = queryset.order_by('-created_at')
@@ -104,37 +93,22 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # ✅ Проверка подписки при создании
+        # ✅ ИСПРАВЛЕНИЕ: Проверка подписки при создании
+        is_active = True
         if request.user.role == 'worker':
             has_subscription = self._check_subscription(request.user.id)
-            
-            # Пользователь может явно указать is_active=false
-            requested_active = self._parse_bool(request.data.get('is_active', True))
-            
-            if has_subscription:
-                # С подпиской - уважаем выбор пользователя
-                is_active = requested_active
-            else:
-                # Без подписки - принудительно неактивно
-                is_active = False
-        else:
-            # Клиенты не создают объявления, но на всякий случай
-            is_active = True
+            is_active = has_subscription
         
-        # ✅ КРИТИЧНО: Удаляем is_active из данных, чтобы serializer его не перезаписал
-        data_copy = request.data.copy()
-        data_copy.pop('is_active', None)
-
-        serializer = self.get_serializer(data=data_copy)
+        serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # ✅ Принудительно устанавливаем is_active
+        # ✅ ИСПРАВЛЕНИЕ: Явно устанавливаем is_active
         service = serializer.save(
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
             owner_avatar=request.data.get('owner_avatar', ''),
-            is_active=is_active
+            is_active=is_active  # ← КРИТИЧНАЯ СТРОКА
         )
         
         # Обработка изображений
@@ -159,7 +133,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         response_data = ServiceSerializer(service, context={'request': request}).data
         
         # Если объявление создано неактивным из-за отсутствия подписки
-        if not is_active and not has_subscription:
+        if not is_active:
             return Response({
                 'status': 'success', 
                 'data': response_data, 
@@ -175,9 +149,14 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
-        # ✅ Проверка подписки при попытке активации
+        # ✅ ИСПРАВЛЕНИЕ: Явная обработка is_active
+        final_is_active = instance.is_active  # По умолчанию - текущее значение
+        
         if 'is_active' in request.data:
-            requested_active = self._parse_bool(request.data['is_active'])
+            requested_active = request.data.get('is_active')
+            # Парсим булево значение
+            if isinstance(requested_active, str):
+                requested_active = requested_active.lower() in ('true', '1', 'yes')
             
             if requested_active and request.user.role == 'worker':
                 has_subscription = self._check_subscription(request.user.id)
@@ -189,12 +168,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
                         'data': None,
                         'require_subscription': True
                     }, status=403)
+                
+                final_is_active = True
+            else:
+                final_is_active = requested_active
 
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        serializer.save()
+        # ✅ ИСПРАВЛЕНИЕ: Сохраняем с явным указанием is_active
+        service = serializer.save(is_active=final_is_active)
         
         # Обработка изображений при обновлении
         for i in range(5):
@@ -212,12 +196,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 ServiceImage.objects.filter(service=instance, order=i).delete()
                 
                 ServiceImage.objects.create(
-                    service=instance,
+                    service=service,
                     image=image_file,
                     order=i
                 )
 
-        return Response({'status': 'success', 'data': ServiceSerializer(instance, context={'request': request}).data, 'error': None})
+        return Response({'status': 'success', 'data': ServiceSerializer(service, context={'request': request}).data, 'error': None})
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
