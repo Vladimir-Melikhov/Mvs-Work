@@ -30,6 +30,17 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
+    
+    @staticmethod
+    def _parse_bool(value):
+        """✅ Универсальный парсинг булевых значений"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ('true', '1', 'yes')
+        if isinstance(value, int):
+            return value != 0
+        return bool(value)
 
     def get_queryset(self):
         queryset = Service.objects.all()
@@ -98,7 +109,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             has_subscription = self._check_subscription(request.user.id)
             
             # Пользователь может явно указать is_active=false
-            requested_active = request.data.get('is_active', 'true').lower() == 'true'
+            requested_active = self._parse_bool(request.data.get('is_active', True))
             
             if has_subscription:
                 # С подпиской - уважаем выбор пользователя
@@ -109,11 +120,16 @@ class ServiceViewSet(viewsets.ModelViewSet):
         else:
             # Клиенты не создают объявления, но на всякий случай
             is_active = True
+        
+        # ✅ КРИТИЧНО: Удаляем is_active из данных, чтобы serializer его не перезаписал
+        data_copy = request.data.copy()
+        data_copy.pop('is_active', None)
 
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=data_copy)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
+        # ✅ Принудительно устанавливаем is_active
         service = serializer.save(
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
@@ -143,7 +159,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         response_data = ServiceSerializer(service, context={'request': request}).data
         
         # Если объявление создано неактивным из-за отсутствия подписки
-        if not is_active and not self._check_subscription(request.user.id):
+        if not is_active and not has_subscription:
             return Response({
                 'status': 'success', 
                 'data': response_data, 
@@ -161,7 +177,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
         # ✅ Проверка подписки при попытке активации
         if 'is_active' in request.data:
-            requested_active = str(request.data['is_active']).lower() == 'true'
+            requested_active = self._parse_bool(request.data['is_active'])
             
             if requested_active and request.user.role == 'worker':
                 has_subscription = self._check_subscription(request.user.id)
