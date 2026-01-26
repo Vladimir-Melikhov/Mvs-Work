@@ -172,3 +172,10 @@ class SubscriptionPayment(models.Model):
 
     def __str__(self) -> str:
         return f"Payment {self.id} - {self.status}"
+
+
+# ✅ НОВАЯ МОДЕЛЬ: Импорт Service из market (для типизации)
+# ВАЖНО: Это НЕ настоящая модель, а proxy для типизации
+class Service:
+    """Proxy-модель для обновления объявлений через API"""
+    pass

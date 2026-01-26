@@ -11,8 +11,10 @@ from .serializers import (
     SubscriptionSerializer
 )
 from .services import AuthService
-from .models import User, Subscription, SubscriptionPayment
+from .models import User, Subscription, SubscriptionPayment, Service
 from django.db import transaction
+import requests
+import os
 
 
 class RegisterView(APIView):
@@ -99,6 +101,7 @@ class ProfileView(APIView):
             'error': None
         }, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     def patch(self, request):
         """Обновление профиля с поддержкой загрузки аватарки"""
         try:
@@ -113,6 +116,36 @@ class ProfileView(APIView):
             
             if serializer.is_valid():
                 serializer.save()
+                
+                # ✅ СИНХРОНИЗАЦИЯ АВАТАРА: Обновляем owner_avatar во всех объявлениях пользователя
+                if 'avatar' in request.data or serializer.validated_data.get('avatar'):
+                    avatar_url = request.build_absolute_uri(profile.avatar.url) if profile.avatar else ''
+                    
+                    # Получаем market service URL из env
+                    market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+                    
+                    try:
+                        # Обновляем объявления через внешний API
+                        auth_header = request.headers.get('Authorization', '')
+                        
+                        # Отправляем запрос на обновление аватара в объявлениях
+                        update_url = f"{market_service_url}/api/market/services/update-owner-avatar/"
+                        
+                        requests.post(
+                            update_url,
+                            headers={
+                                'Authorization': auth_header,
+                                'Content-Type': 'application/json'
+                            },
+                            json={
+                                'owner_id': str(request.user.id),
+                                'owner_avatar': avatar_url
+                            },
+                            timeout=5
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Не удалось обновить аватар в объявлениях: {e}")
+                
                 return Response({
                     'status': 'success',
                     'data': UserSerializer(request.user, context={'request': request}).data,

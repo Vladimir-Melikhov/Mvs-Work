@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
 from django.db import transaction
@@ -88,6 +89,14 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Создание нового объявления с проверкой подписки"""
         
+        # ✅ ПРОВЕРКА: Только worker может создавать объявления
+        if request.user.role != 'worker':
+            return Response({
+                'status': 'error',
+                'error': 'Создавать объявления могут только исполнители',
+                'data': None
+            }, status=403)
+        
         # DEBUG логирование
         print(f"\n{'='*60}")
         print(f"[CREATE SERVICE]")
@@ -97,15 +106,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         # Определяем is_active на основе подписки
         is_active = False
         
-        if request.user.role == 'worker':
-            # Проверяем подписку через Auth Service
-            has_subscription = self._check_subscription(request.user.id)
-            print(f"Subscription check result: {has_subscription}")
-            is_active = has_subscription
-        else:
-            # Для клиентов подписка не требуется
-            print(f"User is client, no subscription required")
-            is_active = True
+        # Проверяем подписку через Auth Service
+        has_subscription = self._check_subscription(request.user.id)
+        print(f"Subscription check result: {has_subscription}")
+        is_active = has_subscription
         
         print(f"Final is_active value: {is_active}")
         print(f"{'='*60}\n")
@@ -584,6 +588,18 @@ class DealViewSet(viewsets.ViewSet):
             return Response({'error': 'service_id и raw_requirements обязательны'}, status=400)
 
         try:
+            # ✅ ПРОВЕРКА: Объявление должно быть активным
+            try:
+                service = Service.objects.get(id=service_id)
+                if not service.is_active:
+                    return Response({
+                        'status': 'error',
+                        'error': 'Нельзя создать заказ на неактивное объявление',
+                        'data': None
+                    }, status=400)
+            except Service.DoesNotExist:
+                return Response({'error': 'Услуга не найдена'}, status=404)
+
             generated_tz = AIService.generate_tz(service_id, raw_requirements)
 
             return Response({
@@ -723,3 +739,29 @@ class ReviewViewSet(viewsets.ReadOnlyModelViewSet):
         reviews = Review.objects.filter(reviewee_id=worker_id).order_by('-created_at')
         serializer = self.get_serializer(reviews, many=True)
         return Response({'status': 'success', 'data': serializer.data})
+
+
+class UpdateOwnerAvatarView(APIView):
+    """Обновление аватара владельца во всех его объявлениях"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Обновить owner_avatar во всех объявлениях пользователя"""
+        owner_id = request.data.get('owner_id')
+        owner_avatar = request.data.get('owner_avatar', '')
+        
+        if not owner_id:
+            return Response({'error': 'owner_id обязателен'}, status=400)
+        
+        # Проверяем права: только сам владелец может обновить свой аватар
+        if str(request.user.id) != str(owner_id):
+            return Response({'error': 'Нет прав'}, status=403)
+        
+        # Обновляем аватар во всех объявлениях пользователя
+        count = Service.objects.filter(owner_id=owner_id).update(owner_avatar=owner_avatar)
+        
+        return Response({
+            'status': 'success',
+            'data': {'updated_count': count},
+            'message': f'Обновлено объявлений: {count}'
+        })
