@@ -34,30 +34,24 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Service.objects.all()
         
-        # ✅ ИСПРАВЛЕНИЕ: Фильтрация по is_active
         if self.action == 'list':
             owner_id = self.request.query_params.get('owner_id')
             
             if owner_id:
-                # Если запрашиваем объявления конкретного пользователя
                 queryset = queryset.filter(owner_id=owner_id)
                 
-                # Если это НЕ сам владелец - показываем только активные
                 if not self.request.user.is_authenticated or str(self.request.user.id) != str(owner_id):
                     queryset = queryset.filter(is_active=True)
             else:
-                # ✅ Общий поиск - только активные объявления
                 queryset = queryset.filter(is_active=True)
         
         queryset = queryset.order_by('-created_at')
 
-        # Фильтр по категориям
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
         if cats_param:
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
 
-        # Поиск
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -77,7 +71,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         try:
             service = self.get_object()
             
-            # ✅ Блокируем доступ к неактивным объявлениям для всех кроме владельца
             if not service.is_active:
                 if not request.user.is_authenticated or str(request.user.id) != str(service.owner_id):
                     return Response({
@@ -93,22 +86,39 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # ✅ ИСПРАВЛЕНИЕ: Проверка подписки при создании
-        is_active = True
+        """Создание нового объявления с проверкой подписки"""
+        
+        # DEBUG логирование
+        print(f"\n{'='*60}")
+        print(f"[CREATE SERVICE]")
+        print(f"User ID: {request.user.id}")
+        print(f"User Role: {request.user.role}")
+        
+        # Определяем is_active на основе подписки
+        is_active = False
+        
         if request.user.role == 'worker':
+            # Проверяем подписку через Auth Service
             has_subscription = self._check_subscription(request.user.id)
+            print(f"Subscription check result: {has_subscription}")
             is_active = has_subscription
+        else:
+            # Для клиентов подписка не требуется
+            print(f"User is client, no subscription required")
+            is_active = True
+        
+        print(f"Final is_active value: {is_active}")
+        print(f"{'='*60}\n")
         
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # ✅ ИСПРАВЛЕНИЕ: Явно устанавливаем is_active
         service = serializer.save(
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
             owner_avatar=request.data.get('owner_avatar', ''),
-            is_active=is_active  # ← КРИТИЧНАЯ СТРОКА
+            is_active=is_active
         )
         
         # Обработка изображений
@@ -132,7 +142,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         
         response_data = ServiceSerializer(service, context={'request': request}).data
         
-        # Если объявление создано неактивным из-за отсутствия подписки
         if not is_active:
             return Response({
                 'status': 'success', 
@@ -149,12 +158,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
-        # ✅ ИСПРАВЛЕНИЕ: Явная обработка is_active
-        final_is_active = instance.is_active  # По умолчанию - текущее значение
+        final_is_active = instance.is_active
         
         if 'is_active' in request.data:
             requested_active = request.data.get('is_active')
-            # Парсим булево значение
             if isinstance(requested_active, str):
                 requested_active = requested_active.lower() in ('true', '1', 'yes')
             
@@ -177,7 +184,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # ✅ ИСПРАВЛЕНИЕ: Сохраняем с явным указанием is_active
         service = serializer.save(is_active=final_is_active)
         
         # Обработка изображений при обновлении
@@ -245,24 +251,69 @@ class ServiceViewSet(viewsets.ModelViewSet):
         })
 
     def _check_subscription(self, user_id):
-        """Проверка активной подписки через Auth Service"""
+        """
+        Проверка активной подписки через Auth Service.
+        
+        ВАЖНО: Проверяется subscriptions.is_active, а НЕ users.is_active!
+        
+        Args:
+            user_id: ID пользователя для проверки
+            
+        Returns:
+            bool: True если подписка активна, False иначе
+        """
         try:
+            # Получаем токен из заголовка
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
             
+            # КРИТИЧНО: Эндпоинт должен возвращать данные о ПОДПИСКЕ, а не о пользователе
+            subscription_url = f'http://localhost:8001/api/auth/subscription/'
+            
+            print(f"\n[SUBSCRIPTION CHECK]")
+            print(f"User ID: {user_id}")
+            print(f"URL: {subscription_url}")
+            
             response = requests.get(
-                f'http://localhost:8001/api/auth/subscription/',
+                subscription_url,
                 headers={'Authorization': f'Bearer {token}'},
                 timeout=5
             )
             
+            print(f"Status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
-                return data.get('data', {}).get('is_active', False)
+                print(f"Response: {data}")
+                
+                # Извлекаем is_active из данных подписки
+                subscription_is_active = data.get('data', {}).get('is_active', False)
+                
+                print(f"subscription.is_active: {subscription_is_active}")
+                print(f"Result: {'✓ HAS SUBSCRIPTION' if subscription_is_active else '✗ NO SUBSCRIPTION'}\n")
+                
+                return bool(subscription_is_active)
             
+            elif response.status_code == 404:
+                # Подписка не найдена
+                print(f"Result: ✗ NO SUBSCRIPTION (404)\n")
+                return False
+            
+            else:
+                # Любая другая ошибка
+                print(f"Result: ✗ ERROR (status {response.status_code})\n")
+                return False
+            
+        except requests.exceptions.Timeout:
+            print(f"[ERROR] Auth Service timeout\n")
             return False
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Request failed: {e}\n")
+            return False
+            
         except Exception as e:
-            print(f"Error checking subscription: {e}")
+            print(f"[ERROR] Unexpected error: {e}\n")
             return False
 
 

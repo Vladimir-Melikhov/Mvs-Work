@@ -45,8 +45,16 @@ class AuthService:
 
     @staticmethod
     def _generate_tokens(user: User) -> Dict[str, str]:
-        """Generate JWT tokens"""
+        """
+        ✅ ИСПРАВЛЕНО: Generate JWT tokens with role in payload
+        """
         refresh = RefreshToken.for_user(user)
+        
+        # ✅ КРИТИЧНО: Добавляем роль в payload
+        refresh['role'] = user.role
+        refresh['email'] = user.email
+        
+        # Access token наследует эти поля от refresh token
         return {
             'access': str(refresh.access_token),
             'refresh': str(refresh),
