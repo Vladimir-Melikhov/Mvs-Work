@@ -89,7 +89,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Создание нового объявления с проверкой подписки"""
         
-        # ✅ ПРОВЕРКА: Только worker может создавать объявления
         if request.user.role != 'worker':
             return Response({
                 'status': 'error',
@@ -97,22 +96,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'data': None
             }, status=403)
         
-        # DEBUG логирование
-        print(f"\n{'='*60}")
-        print(f"[CREATE SERVICE]")
-        print(f"User ID: {request.user.id}")
-        print(f"User Role: {request.user.role}")
-        
-        # Определяем is_active на основе подписки
         is_active = False
         
-        # Проверяем подписку через Auth Service
         has_subscription = self._check_subscription(request.user.id)
-        print(f"Subscription check result: {has_subscription}")
         is_active = has_subscription
-        
-        print(f"Final is_active value: {is_active}")
-        print(f"{'='*60}\n")
         
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -125,7 +112,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
             is_active=is_active
         )
         
-        # Обработка изображений
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
@@ -190,7 +176,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
         service = serializer.save(is_active=final_is_active)
         
-        # Обработка изображений при обновлении
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
@@ -255,28 +240,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
         })
 
     def _check_subscription(self, user_id):
-        """
-        Проверка активной подписки через Auth Service.
-        
-        ВАЖНО: Проверяется subscriptions.is_active, а НЕ users.is_active!
-        
-        Args:
-            user_id: ID пользователя для проверки
-            
-        Returns:
-            bool: True если подписка активна, False иначе
-        """
+        """Проверка активной подписки через Auth Service"""
         try:
-            # Получаем токен из заголовка
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
             
-            # КРИТИЧНО: Эндпоинт должен возвращать данные о ПОДПИСКЕ, а не о пользователе
             subscription_url = f'http://localhost:8001/api/auth/subscription/'
-            
-            print(f"\n[SUBSCRIPTION CHECK]")
-            print(f"User ID: {user_id}")
-            print(f"URL: {subscription_url}")
             
             response = requests.get(
                 subscription_url,
@@ -284,45 +253,19 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 timeout=5
             )
             
-            print(f"Status: {response.status_code}")
-            
             if response.status_code == 200:
                 data = response.json()
-                print(f"Response: {data}")
-                
-                # Извлекаем is_active из данных подписки
                 subscription_is_active = data.get('data', {}).get('is_active', False)
-                
-                print(f"subscription.is_active: {subscription_is_active}")
-                print(f"Result: {'✓ HAS SUBSCRIPTION' if subscription_is_active else '✗ NO SUBSCRIPTION'}\n")
-                
                 return bool(subscription_is_active)
             
-            elif response.status_code == 404:
-                # Подписка не найдена
-                print(f"Result: ✗ NO SUBSCRIPTION (404)\n")
-                return False
-            
-            else:
-                # Любая другая ошибка
-                print(f"Result: ✗ ERROR (status {response.status_code})\n")
-                return False
-            
-        except requests.exceptions.Timeout:
-            print(f"[ERROR] Auth Service timeout\n")
             return False
             
-        except requests.exceptions.RequestException as e:
-            print(f"[ERROR] Request failed: {e}\n")
-            return False
-            
-        except Exception as e:
-            print(f"[ERROR] Unexpected error: {e}\n")
+        except Exception:
             return False
 
 
 class DealViewSet(viewsets.ViewSet):
-    """УПРОЩЁННОЕ API ДЛЯ РАБОТЫ С ЗАКАЗАМИ"""
+    """API для работы с заказами"""
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
@@ -365,7 +308,13 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_deal(self, request):
-        """Создать новый заказ"""
+        """
+        Создать новый заказ
+        
+        ЛОГИКА: 
+        - client_id = тот, кто создает заказ (request.user.id)
+        - worker_id = тот, у кого заказывают (второй участник чата)
+        """
         serializer = CreateDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
@@ -374,6 +323,7 @@ class DealViewSet(viewsets.ViewSet):
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
+            # Получаем информацию о чате
             import requests as req
             chat_url = f"http://localhost:8003/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
@@ -384,16 +334,25 @@ class DealViewSet(viewsets.ViewSet):
             chat_data = chat_response.json()
             members = chat_data['data']['members']
 
-            user_id = str(request.user.id)
-            user_role = request.user.role
-            other_member = [m for m in members if str(m) != user_id][0]
+            # ПРАВИЛЬНАЯ ЛОГИКА:
+            # client_id - тот, кто создает заказ (инициатор)
+            # worker_id - второй участник чата (исполнитель)
+            current_user_id = str(request.user.id)
+            
+            # Находим второго участника чата
+            other_member_id = None
+            for member_id in members:
+                if str(member_id) != current_user_id:
+                    other_member_id = str(member_id)
+                    break
+            
+            if not other_member_id:
+                return Response({'error': 'Не найден второй участник чата'}, status=400)
 
-            if user_role == 'client':
-                client_id = user_id
-                worker_id = other_member
-            else:
-                worker_id = user_id
-                client_id = other_member
+            # Клиент - тот, кто создает заказ
+            # Воркер - тот, у кого заказывают
+            client_id = current_user_id
+            worker_id = other_member_id
 
             deal = DealService.create_deal(
                 chat_room_id=serializer.validated_data['chat_room_id'],
@@ -588,7 +547,6 @@ class DealViewSet(viewsets.ViewSet):
             return Response({'error': 'service_id и raw_requirements обязательны'}, status=400)
 
         try:
-            # ✅ ПРОВЕРКА: Объявление должно быть активным
             try:
                 service = Service.objects.get(id=service_id)
                 if not service.is_active:
@@ -753,11 +711,9 @@ class UpdateOwnerAvatarView(APIView):
         if not owner_id:
             return Response({'error': 'owner_id обязателен'}, status=400)
         
-        # Проверяем права: только сам владелец может обновить свой аватар
         if str(request.user.id) != str(owner_id):
             return Response({'error': 'Нет прав'}, status=403)
         
-        # Обновляем аватар во всех объявлениях пользователя
         count = Service.objects.filter(owner_id=owner_id).update(owner_avatar=owner_avatar)
         
         return Response({

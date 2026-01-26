@@ -259,16 +259,6 @@
             class="glass rounded-[32px] p-4 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all relative"
             @click="$router.push(`/services/${service.id}`)" 
           >
-            <!-- ✅ ОБНОВЛЕНО: Бейдж статуса -->
-            <div class="absolute top-4 right-4 z-10">
-              <div class="flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md"
-                   :class="service.is_active 
-                     ? 'bg-green-50/80 text-green-700 border border-green-200' 
-                     : 'bg-gray-100/80 text-gray-500 border border-gray-200'">
-                <span class="w-1.5 h-1.5 rounded-full" :class="service.is_active ? 'bg-green-500' : 'bg-gray-400'"></span>
-                {{ service.is_active ? 'Активно' : 'Неактивно' }}
-              </div>
-            </div>
 
             <div class="flex items-center gap-3 mb-4">
                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold border border-white/30 overflow-hidden shrink-0">
@@ -292,6 +282,15 @@
                <span v-for="tag in service.tags?.slice(0,2)" :key="tag" class="px-2 py-1 rounded-lg bg-white/20 text-[10px] font-bold text-gray-600 border border-white/20 break-words">
                  #{{ tag }}
                </span>
+               <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md transition-all shadow-sm"
+       :class="service.is_active 
+         ? 'bg-[#7000ff]/10 text-[#7000ff] border border-[#7000ff]/20' 
+         : 'bg-gray-100/50 text-gray-400 border border-gray-200'">
+    <span class="w-1.5 h-1.5 rounded-full" 
+          :class="service.is_active ? 'bg-[#7000ff] shadow-[0_0_5px_#7000ff]' : 'bg-gray-400'">
+    </span>
+    {{ service.is_active ? 'Активно' : 'Архив' }}
+  </div>
             </div>
           </div>
         </div>

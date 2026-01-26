@@ -50,7 +50,7 @@
           : 'space-y-4'"
       >
 
-        <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-4 border border-purple-200 shrink-0">
+        <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-4 border border-purple-200 shrink-0">
           <div class="space-y-1 text-sm">
             <div class="flex justify-between">
               <span class="text-gray-600">Стоимость работы:</span>
@@ -64,17 +64,17 @@
           <div 
             :class="[
               'rounded-xl p-4 border-2',
-              dealData.dispute_result.winner === 'client' ? 'bg-green-50 border-green-300' : 'bg-blue-50 border-blue-300'
+              dealData.dispute_result.winner === 'client' ? 'bg-purple-50 border-purple-300' : 'bg-indigo-50 border-indigo-300'
             ]"
           >
             <div class="text-sm font-bold mb-2 flex items-center gap-2"
-                 :class="dealData.dispute_result.winner === 'client' ? 'text-green-800' : 'text-blue-800'">
+                 :class="dealData.dispute_result.winner === 'client' ? 'text-purple-800' : 'text-indigo-800'">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {{ dealData.dispute_result.message }}
             </div>
-            <div class="text-xs" :class="dealData.dispute_result.winner === 'client' ? 'text-green-600' : 'text-blue-600'">
+            <div class="text-xs" :class="dealData.dispute_result.winner === 'client' ? 'text-purple-600' : 'text-indigo-600'">
               {{ dealData.dispute_result.winner === 'client' ? 'Средства возвращены клиенту' : 'Средства выплачены исполнителю' }}
             </div>
           </div>
@@ -82,27 +82,27 @@
 
         <!-- ✅ ИНФОРМАЦИЯ О СПОРЕ -->
         <div v-if="dealData.status === 'dispute'" class="shrink-0">
-          <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
-            <div class="text-xs font-bold text-red-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+          <div class="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mb-3">
+            <div class="text-xs font-bold text-fuchsia-800 uppercase tracking-wider mb-2 flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               Претензия клиента
             </div>
-            <div class="text-sm text-red-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_client_reason }}</div>
+            <div class="text-sm text-fuchsia-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_client_reason }}</div>
           </div>
 
-          <div v-if="dealData.dispute_worker_defense" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3">
-            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+          <div v-if="dealData.dispute_worker_defense" class="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-3">
+            <div class="text-xs font-bold text-violet-800 uppercase tracking-wider mb-2 flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               Защита исполнителя
             </div>
-            <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_worker_defense }}</div>
+            <div class="text-sm text-violet-900 whitespace-pre-line leading-relaxed">{{ dealData.dispute_worker_defense }}</div>
           </div>
 
-          <div v-if="dealData.is_dispute_pending_admin" class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
+          <div v-if="dealData.is_dispute_pending_admin" class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm text-purple-800">
             <div class="font-bold mb-1 flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -114,35 +114,35 @@
         </div>
 
         <div v-if="dealData.revision_count > 0" class="shrink-0">
-          <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
-            <span class="font-bold text-orange-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
+          <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm">
+            <span class="font-bold text-purple-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
           </div>
         </div>
 
         <div v-if="dealData.status === 'delivered' && dealData.delivery_message" class="shrink-0">
-          <div class="bg-green-50 border border-green-200 rounded-xl p-4">
-            <div class="text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Результат работы</div>
-            <div class="text-sm text-green-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Результат работы</div>
+            <div class="text-sm text-indigo-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
           </div>
         </div>
         
         <!-- ✅ ОБНОВЛЕННЫЙ БЛОК: Только ссылки на файлы, без превью изображений -->
         <div v-if="dealData.delivery_attachments && dealData.delivery_attachments.length > 0" class="shrink-0">
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
+          <div class="bg-violet-50 border border-violet-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-violet-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
             <div class="space-y-2">
               <a 
                 v-for="att in dealData.delivery_attachments" 
                 :key="att.id"
                 :href="att.url" 
                 :download="att.filename"
-                class="flex items-center gap-2 p-2 rounded-lg bg-white hover:bg-blue-100 transition-all text-sm group"
+                class="flex items-center gap-2 p-2 rounded-lg bg-white hover:bg-violet-100 transition-all text-sm group"
               >
-                <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-violet-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
-                <span class="truncate text-blue-900 flex-1">{{ att.filename }}</span>
-                <svg class="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="truncate text-violet-900 flex-1">{{ att.filename }}</span>
+                <svg class="w-4 h-4 text-violet-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               </a>
@@ -151,9 +151,9 @@
         </div>
         
         <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="shrink-0">
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Работа завершена</div>
-            <div class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
+          <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <div class="text-xs font-bold text-purple-800 uppercase tracking-wider mb-2">Работа завершена</div>
+            <div class="text-sm text-purple-900 whitespace-pre-line leading-relaxed">{{ dealData.delivery_message }}</div>
           </div>
         </div>
 
@@ -163,25 +163,34 @@
           <button 
             v-if="showUpdatePriceButton"
             @click="showPriceModal = true"
-            class="w-full border-2 border-blue-300 text-blue-600 py-2 rounded-xl font-bold hover:bg-blue-50 transition-all"
+            class="w-full border-2 border-purple-300 text-purple-600 py-2 rounded-xl font-bold hover:bg-purple-50 transition-all"
           >
             Изменить цену
           </button>
 
           <button 
-            v-if="showPayButton"
-            @click="payDeal"
-            :disabled="loading"
-            class="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-          >
-            <span v-if="loading">Обработка...</span>
-            <span v-else>Оплатить заказ</span>
-          </button>
+  v-if="showPayButton"
+  @click="payDeal"
+  :disabled="loading"
+  class="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+>
+  <span v-if="loading" class="flex items-center justify-center gap-2">
+    <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    Обработка...
+  </span>
+  <span v-else class="flex flex-col items-center gap-1">
+    <span class="text-base font-bold">Оплатить заказ</span>
+    <span class="text-xs font-normal opacity-90">Перед оплатой уточните цену у исполнителя</span>
+  </span>
+</button>
 
           <button 
             v-if="showDeliverButton"
             @click="showDeliveryModal = true"
-            class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
           >
             Сдать работу
           </button>
@@ -189,7 +198,7 @@
           <button 
             v-if="showCompleteButton"
             @click="showCompletionModal = true"
-            class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            class="w-full bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
           >
             Принять работу и завершить
           </button>
@@ -197,7 +206,7 @@
           <button 
             v-if="showRevisionButton"
             @click="showRevisionModal = true"
-            class="w-full border-2 border-orange-300 text-orange-600 py-2 rounded-xl font-bold hover:bg-orange-50 transition-all"
+            class="w-full border-2 border-purple-300 text-purple-700 py-2 rounded-xl font-bold hover:bg-purple-50 transition-all"
           >
             Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
           </button>
@@ -206,7 +215,7 @@
           <button 
             v-if="showOpenDisputeButton"
             @click="showDisputeModal = true"
-            class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+            class="w-full border-2 border-fuchsia-300 text-fuchsia-600 py-2 rounded-xl font-bold hover:bg-fuchsia-50 transition-all flex items-center justify-center gap-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -219,7 +228,7 @@
             v-if="showWorkerRefundButton"
             @click="workerRefund"
             :disabled="loading"
-            class="w-full border-2 border-green-300 text-green-600 py-2 rounded-xl font-bold hover:bg-green-50 transition-all disabled:opacity-50"
+            class="w-full border-2 border-purple-300 text-purple-600 py-2 rounded-xl font-bold hover:bg-purple-50 transition-all disabled:opacity-50"
           >
             <span v-if="loading">Обработка...</span>
             <span v-else>Вернуть деньги</span>
@@ -228,7 +237,7 @@
           <button 
             v-if="showWorkerDefendButton"
             @click="showDefenseModal = true"
-            class="w-full border-2 border-blue-300 text-blue-600 py-2 rounded-xl font-bold hover:bg-blue-50 transition-all"
+            class="w-full border-2 border-indigo-300 text-indigo-600 py-2 rounded-xl font-bold hover:bg-indigo-50 transition-all"
           >
             Оспорить
           </button>
@@ -236,7 +245,7 @@
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"
-            class="w-full border-2 border-red-300 text-red-600 py-2 rounded-xl font-bold hover:bg-red-50 transition-all"
+            class="w-full border-2 border-fuchsia-300 text-fuchsia-600 py-2 rounded-xl font-bold hover:bg-fuchsia-50 transition-all"
           >
             Отменить заказ
           </button>
@@ -259,14 +268,14 @@
               v-model="newPrice" 
               type="number" 
               min="1"
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Введите новую цену..."
             >
           </div>
           
           <div class="flex gap-3">
             <button @click="showPriceModal = false; newPrice = dealData.price" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Изменить</button>
+            <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-purple-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Изменить</button>
           </div>
         </div>
       </div>
@@ -278,13 +287,13 @@
           <textarea 
             v-model="deliveryMessage" 
             rows="4"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4 text-sm"
             placeholder="Опишите что сделано, добавьте ссылки на результат..."
           ></textarea>
           <div class="mb-4">
   <label class="block text-sm font-bold mb-2">Прикрепить файлы (необязательно)</label>
   <label class="cursor-pointer">
-    <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-500 transition-all text-center">
+    <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-500 transition-all text-center">
       <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
       </svg>
@@ -302,19 +311,19 @@
     <div 
       v-for="(file, idx) in deliveryFiles" 
       :key="idx"
-      class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg"
+      class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg"
     >
-      <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
       <span class="flex-1 text-sm truncate">{{ file.name }}</span>
-      <button @click="removeDeliveryFile(idx)" class="text-red-500 hover:text-red-700">×</button>
+      <button @click="removeDeliveryFile(idx)" class="text-fuchsia-500 hover:text-fuchsia-700">×</button>
     </div>
   </div>
 </div>
           <div class="flex gap-3">
             <button @click="showDeliveryModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Сдать</button>
+            <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-indigo-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Сдать</button>
           </div>
         </div>
       </div>
@@ -349,12 +358,12 @@
           <textarea 
             v-model="completionMessage" 
             rows="3"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4 text-sm"
             placeholder="Ваш отзыв..."
           ></textarea>
           <div class="flex gap-3">
             <button @click="showCompletionModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-green-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Принять</button>
+            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-violet-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Принять</button>
           </div>
         </div>
       </div>
@@ -367,12 +376,12 @@
           <textarea 
             v-model="revisionReason" 
             rows="4"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4 text-sm"
             placeholder="Опишите что нужно доработать..."
           ></textarea>
           <div class="flex gap-3">
             <button @click="showRevisionModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="requestRevision" :disabled="!revisionReason.trim() || loading" class="flex-1 bg-orange-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Запросить</button>
+            <button @click="requestRevision" :disabled="!revisionReason.trim() || loading" class="flex-1 bg-purple-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Запросить</button>
           </div>
         </div>
       </div>
@@ -380,17 +389,17 @@
       <!-- ✅ МОДАЛЬНОЕ ОКНО: ОТКРЫТЬ СПОР -->
       <div v-if="showDisputeModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
-          <h3 class="text-xl font-bold mb-2 text-red-600">Открыть спор</h3>
+          <h3 class="text-xl font-bold mb-2 text-fuchsia-600">Открыть спор</h3>
           <p class="text-sm text-gray-600 mb-4">Опишите, что не так с выполненной работой. Исполнитель сможет вернуть деньги или оспорить вашу претензию.</p>
           <textarea 
             v-model="disputeReason" 
             rows="5"
-            class="w-full p-3 rounded-xl border border-red-200 resize-none focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-fuchsia-200 resize-none focus:outline-none focus:ring-2 focus:ring-fuchsia-500 mb-4 text-sm"
             placeholder="Подробно опишите проблему..."
           ></textarea>
           <div class="flex gap-3">
             <button @click="showDisputeModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="openDispute" :disabled="!disputeReason.trim() || loading" class="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Открыть спор</button>
+            <button @click="openDispute" :disabled="!disputeReason.trim() || loading" class="flex-1 bg-fuchsia-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Открыть спор</button>
           </div>
         </div>
       </div>
@@ -398,17 +407,17 @@
       <!-- ✅ МОДАЛЬНОЕ ОКНО: ЗАЩИТА ИСПОЛНИТЕЛЯ -->
       <div v-if="showDefenseModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
-          <h3 class="text-xl font-bold mb-2 text-blue-600">Оспорить претензию</h3>
+          <h3 class="text-xl font-bold mb-2 text-indigo-600">Оспорить претензию</h3>
           <p class="text-sm text-gray-600 mb-4">Представьте свои аргументы. После отправки спор будет передан администратору для принятия решения.</p>
           <textarea 
             v-model="defenseText" 
             rows="5"
-            class="w-full p-3 rounded-xl border border-blue-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-indigo-200 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4 text-sm"
             placeholder="Объясните, почему претензия необоснована..."
           ></textarea>
           <div class="flex gap-3">
             <button @click="showDefenseModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="workerDefend" :disabled="!defenseText.trim() || loading" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отправить</button>
+            <button @click="workerDefend" :disabled="!defenseText.trim() || loading" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отправить</button>
           </div>
         </div>
       </div>
@@ -416,17 +425,17 @@
       <!-- Отмена заказа -->
       <div v-if="showCancelModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
-          <h3 class="text-xl font-bold mb-2 text-red-600">Отменить заказ?</h3>
+          <h3 class="text-xl font-bold mb-2 text-fuchsia-600">Отменить заказ?</h3>
           <p class="text-sm text-gray-600 mb-4" v-if="dealData.status === 'paid'">Средства будут возвращены клиенту.</p>
           <textarea 
             v-model="cancelReason" 
             rows="3"
-            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 text-sm"
+            class="w-full p-3 rounded-xl border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-fuchsia-500 mb-4 text-sm"
             placeholder="Причина отмены..."
           ></textarea>
           <div class="flex gap-3">
             <button @click="showCancelModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Назад</button>
-            <button @click="cancelDeal" :disabled="loading" class="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отменить</button>
+            <button @click="cancelDeal" :disabled="loading" class="flex-1 bg-fuchsia-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Отменить</button>
           </div>
         </div>
       </div>
@@ -485,24 +494,24 @@ const isWorker = computed(() => String(auth.user.id) === String(props.dealData.w
 // Стили статуса
 const borderColor = computed(() => {
   const colors = {
-    'pending': 'border-purple-300',
-    'paid': 'border-blue-300',
-    'delivered': 'border-green-300',
-    'dispute': 'border-red-300',
-    'completed': 'border-orange-300',
-    'cancelled': 'border-gray-300',
+    'pending': 'border-violet-200',
+    'paid': 'border-purple-300',
+    'delivered': 'border-indigo-300',
+    'dispute': 'border-fuchsia-300',
+    'completed': 'border-purple-400',
+    'cancelled': 'border-violet-300',
   }
   return colors[props.dealData.status] || 'border-gray-200'
 })
 
 const statusIconBg = computed(() => {
   const bgs = {
-    'pending': 'bg-gradient-to-br from-purple-400 to-purple-600',
-    'paid': 'bg-gradient-to-br from-blue-400 to-blue-600',
-    'delivered': 'bg-gradient-to-br from-green-400 to-green-600',
-    'dispute': 'bg-gradient-to-br from-red-400 to-red-600',
-    'completed': 'bg-gradient-to-br from-orange-400 to-orange-600',
-    'cancelled': 'bg-gradient-to-br from-gray-400 to-gray-600',
+    'pending': 'bg-gradient-to-br from-violet-400 to-violet-600',
+    'paid': 'bg-gradient-to-br from-purple-500 to-violet-600',
+    'delivered': 'bg-gradient-to-br from-indigo-500 to-purple-600',
+    'dispute': 'bg-gradient-to-br from-fuchsia-500 to-pink-600',
+    'completed': 'bg-gradient-to-br from-purple-600 to-violet-700',
+    'cancelled': 'bg-gradient-to-br from-violet-500 to-purple-600',
   }
   return bgs[props.dealData.status] || 'bg-gray-500'
 })
@@ -533,12 +542,12 @@ const statusLabel = computed(() => {
 
 const statusTextColor = computed(() => {
   const colors = {
-    'pending': 'text-purple-600',
-    'paid': 'text-blue-600',
-    'delivered': 'text-green-600',
-    'dispute': 'text-red-600',
-    'completed': 'text-orange-600',
-    'cancelled': 'text-gray-600',
+    'pending': 'text-violet-600',
+    'paid': 'text-purple-600',
+    'delivered': 'text-indigo-600',
+    'dispute': 'text-fuchsia-600',
+    'completed': 'text-purple-700',
+    'cancelled': 'text-violet-700',
   }
   return colors[props.dealData.status] || 'text-gray-600'
 })
@@ -774,11 +783,11 @@ const cancelDeal = async () => {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(112, 0, 255, 0.3);
+  background: rgba(124, 58, 237, 0.3);
   border-radius: 10px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(112, 0, 255, 0.5);
+  background: rgba(124, 58, 237, 0.5);
 }
 </style>
