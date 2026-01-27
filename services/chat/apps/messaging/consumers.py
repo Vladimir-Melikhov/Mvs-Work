@@ -75,7 +75,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             deal_data=deal_data
         )
         
-        # Прикрепляем загруженные файлы к сообщению
         if attachment_ids:
             for att_id in attachment_ids:
                 try:
@@ -92,12 +91,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Сериализация сообщения для отправки"""
         attachments = []
         for att in message.attachments.all():
-            # ✅ ИСПРАВЛЕНИЕ: Используем get_file_url() для получения правильного URL
             file_url = att.get_file_url()
             if not file_url:
                 continue
             
-            # Если это относительный URL - делаем абсолютным
             if not file_url.startswith('http'):
                 file_url = f"http://localhost:8003{file_url}"
             
@@ -108,7 +105,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'size': att.file_size,
                 'file_size': att.file_size,
                 'content_type': att.content_type,
-                'url': file_url
+                'url': file_url,
+                'display_mode': att.display_mode
             })
         
         return {

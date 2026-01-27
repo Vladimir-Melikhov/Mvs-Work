@@ -7,7 +7,7 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = MessageAttachment
-        fields = ['id', 'filename', 'file_size', 'content_type', 'url', 'created_at']
+        fields = ['id', 'filename', 'file_size', 'content_type', 'url', 'display_mode', 'created_at']
         read_only_fields = ['id', 'created_at', 'url']
     
     def get_url(self, obj):
@@ -16,7 +16,6 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         if not file_url:
             return None
         
-        # Если это относительный URL - делаем абсолютным
         if not file_url.startswith('http'):
             request = self.context.get('request')
             if request:

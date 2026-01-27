@@ -157,7 +157,8 @@ class RoomViewSet(viewsets.ViewSet):
                         filename=att_data.get('filename', 'file'),
                         file_size=att_data.get('file_size', 0),
                         content_type=att_data.get('content_type', 'application/octet-stream'),
-                        external_url=att_data.get('url', '')
+                        external_url=att_data.get('url', ''),
+                        display_mode='attachment'
                     )
             
             channel_layer = get_channel_layer()
@@ -183,8 +184,8 @@ class RoomViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
         """
-        ✅ СТАРЫЙ ЭНДПОИНТ: Для изображений со сжатием (используется иконкой 📷)
-        Сохранение файлов БЕЗ обработки через прямое сохранение Django ORM
+        СТАРЫЙ ЭНДПОИНТ: Для изображений со сжатием (иконка 📷)
+        display_mode = 'inline' (показывать как картинку)
         """
         try:
             files = request.FILES.getlist('files')
@@ -193,7 +194,6 @@ class RoomViewSet(viewsets.ViewSet):
 
             uploaded_files = []
             for file in files:
-                # Валидация размера
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
 
@@ -203,7 +203,8 @@ class RoomViewSet(viewsets.ViewSet):
                     message=None,
                     filename=file.name,
                     file_size=file.size,
-                    content_type=file.content_type or 'application/octet-stream'
+                    content_type=file.content_type or 'application/octet-stream',
+                    display_mode='inline'
                 )
                 
                 ext = os.path.splitext(file.name)[1]
@@ -237,8 +238,8 @@ class RoomViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='upload-raw-files')
     def upload_raw_files(self, request):
         """
-        🔥 НОВЫЙ ЭНДПОИНТ: Для СЫРЫХ файлов БЕЗ КАКОЙ-ЛИБО обработки (используется иконкой 📎)
-        Полностью отдельный путь загрузки, обходит всю логику сжатия изображений
+        НОВЫЙ ЭНДПОИНТ: Для СЫРЫХ файлов БЕЗ обработки (иконка 📎)
+        display_mode = 'attachment' (показывать как файл для скачивания)
         """
         try:
             files = request.FILES.getlist('files')
@@ -252,50 +253,42 @@ class RoomViewSet(viewsets.ViewSet):
             uploaded = []
             
             for uploaded_file in files:
-                # Валидация размера
                 if uploaded_file.size > 20 * 1024 * 1024:
                     return Response({
                         'status': 'error',
                         'error': f'Файл {uploaded_file.name} превышает 20MB'
                     }, status=400)
                 
-                # Сохраняем ОРИГИНАЛЬНЫЕ параметры
                 original_size = uploaded_file.size
                 original_name = uploaded_file.name
                 
-                print(f"📎 [upload-raw] Получен RAW файл: {original_name}, размер: {original_size} байт, тип: {type(uploaded_file)}")
+                print(f"📎 [upload-raw] Получен RAW файл: {original_name}, размер: {original_size} байт")
                 
-                # Создаём attachment БЕЗ сохранения
                 attachment = MessageAttachment(
                     message=None,
                     filename=original_name,
                     file_size=original_size,
-                    content_type=uploaded_file.content_type or 'application/octet-stream'
+                    content_type=uploaded_file.content_type or 'application/octet-stream',
+                    display_mode='attachment'
                 )
                 
-                # Генерируем уникальное имя файла
                 ext = os.path.splitext(original_name)[1]
                 unique_filename = f"{uuid.uuid4()}{ext}"
                 
-                # 🔥 КРИТИЧНО: Прямое сохранение через FileField
-                # Оборачиваем UploadedFile в Django File для корректной работы
                 attachment.file.save(
                     unique_filename, 
                     File(uploaded_file),
                     save=True
                 )
                 
-                # Проверяем фактический размер после сохранения
                 actual_size = attachment.file.size
                 print(f"✅ [upload-raw] Сохранено: {attachment.file.name}, размер: {actual_size} байт")
                 
-                # Если размер изменился - логируем и обновляем
                 if actual_size != original_size:
                     print(f"⚠️ [upload-raw] ВНИМАНИЕ: Размер изменился! Было: {original_size}, стало: {actual_size}")
                     attachment.file_size = actual_size
                     attachment.save(update_fields=['file_size'])
                 
-                # Формируем полный URL
                 file_url = request.build_absolute_uri(attachment.file.url)
                 
                 uploaded.append({
@@ -306,7 +299,7 @@ class RoomViewSet(viewsets.ViewSet):
                     'content_type': attachment.content_type
                 })
                 
-                print(f"🎯 [upload-raw] Готов к отправке: {attachment.filename}, размер в БД: {attachment.file_size} байт")
+                print(f"🎯 [upload-raw] Готов к отправке: {attachment.filename}, display_mode=attachment")
             
             return Response({
                 'status': 'success',
@@ -340,7 +333,8 @@ class RoomViewSet(viewsets.ViewSet):
                 'size': att.file_size,
                 'file_size': att.file_size,
                 'content_type': att.content_type,
-                'url': file_url
+                'url': file_url,
+                'display_mode': att.display_mode
             })
         
         return {

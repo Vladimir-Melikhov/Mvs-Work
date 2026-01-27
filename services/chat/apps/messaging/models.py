@@ -57,6 +57,11 @@ class Message(models.Model):
 class MessageAttachment(models.Model):
     """Файловые вложения к сообщениям"""
     
+    DISPLAY_MODE_CHOICES = [
+        ('inline', 'Показать как изображение'),
+        ('attachment', 'Показать как файл для скачивания'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='attachments', null=True, blank=True)
     file = models.FileField(
@@ -66,7 +71,6 @@ class MessageAttachment(models.Model):
         null=True,
         blank=True
     )
-    # ✅ НОВОЕ ПОЛЕ: URL для файлов, которые хранятся на других сервисах
     external_url = models.URLField(
         max_length=1000,
         blank=True,
@@ -75,6 +79,12 @@ class MessageAttachment(models.Model):
     filename = models.CharField(max_length=255, help_text="Оригинальное имя файла")
     file_size = models.IntegerField(help_text="Размер файла в байтах")
     content_type = models.CharField(max_length=100, blank=True)
+    display_mode = models.CharField(
+        max_length=20,
+        choices=DISPLAY_MODE_CHOICES,
+        default='inline',
+        help_text="Как отображать файл в чате"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

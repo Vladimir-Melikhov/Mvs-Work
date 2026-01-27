@@ -137,12 +137,23 @@ const formatDate = (dateStr) => {
 }
 
 const formatLastMessage = (message) => {
-  if (!message || !message.text) return 'No messages yet'
+  if (!message || !message.text) {
+    // Если текста нет, но есть вложения - показываем "Вложение"
+    if (message && message.attachments && message.attachments.length > 0) {
+      return '<span class="text-gray-500 italic">📎 Вложение</span>'
+    }
+    return 'No messages yet'
+  }
+  
+  // Если есть вложения - показываем "Вложение" независимо от текста
+  if (message.attachments && message.attachments.length > 0) {
+    return '<span class="text-gray-500 italic">📎 Вложение</span>'
+  }
   
   // Сначала очищаем от markdown
   let text = stripMarkdown(message.text)
 
-  // ✅ ПРОВЕРКА: Если это не системное сообщение (не начинается с маркера), возвращаем просто текст
+  // Проверка: Если это не системное сообщение, возвращаем просто текст
   const systemMarkers = ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌']
   const isSystem = systemMarkers.some(marker => text.trim().startsWith(marker))
   
