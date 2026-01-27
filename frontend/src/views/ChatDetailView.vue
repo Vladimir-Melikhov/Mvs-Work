@@ -62,37 +62,51 @@
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
             ></div>
             
-            <!-- Вложения -->
+            <!-- 🔥 НОВАЯ ЛОГИКА ВЛОЖЕНИЙ -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
               <div 
                 v-for="(att, idx) in msg.attachments" 
                 :key="idx"
-                class="rounded-lg overflow-hidden"
               >
+                <!-- Если изображение И display_mode НЕ 'attachment' → показываем визуально -->
                 <img 
-                  v-if="att.content_type?.startsWith('image/')"
+                  v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
                   :src="att.url" 
                   :alt="att.name || att.filename"
                   class="max-w-full max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                   @click="window.open(att.url, '_blank')"
                 />
                 
+                <!-- Иначе → показываем как файл для скачивания -->
                 <a 
                   v-else
                   :href="att.url" 
-                  :download="att.name || att.filename"
-                  class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group"
+                  target="_blank"
+                  class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group cursor-pointer"
                 >
-                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                  <span class="truncate flex-1">{{ att.name || att.filename }}</span>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <span class="text-xs opacity-60">
-                      {{ formatFileSize(att.size || att.file_size) }}
-                    </span>
-                    <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <!-- Иконка файла -->
+                  <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center shrink-0">
+                    <svg v-if="att.content_type?.startsWith('image/')" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  
+                  <!-- Информация о файле -->
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium truncate">{{ att.name || att.filename }}</div>
+                    <div class="text-xs opacity-60 flex items-center gap-2">
+                      <span>{{ formatFileSize(att.size || att.file_size) }}</span>
+                      <span v-if="att.content_type?.startsWith('image/')" class="text-blue-400">• Изображение</span>
+                    </div>
+                  </div>
+                  
+                  <!-- Иконка открытия -->
+                  <div class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   </div>
                 </a>
@@ -243,10 +257,9 @@
 
   </div>
 
-  <!-- MOBILE VERSION - Полноэкранная -->
+  <!-- MOBILE VERSION -->
   <div class="md:hidden flex flex-col" style="height: 100vh; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f2f4f8;">
     
-    <!-- Шапка чата -->
     <div class="glass px-3 py-2 rounded-b-[24px] flex items-center gap-2 border-b border-white/60 shadow-sm shrink-0">
       <button 
         @click="$router.push('/chats')" 
@@ -255,10 +268,7 @@
         ←
       </button>
       
-      <div 
-        class="cursor-pointer"
-        @click="goToPartnerProfile"
-      >
+      <div class="cursor-pointer" @click="goToPartnerProfile">
         <UserAvatar 
           :avatar-url="partner?.avatar"
           :name="partner?.name || 'U'"
@@ -299,7 +309,6 @@
       </button>
     </div>
 
-    <!-- Служба поддержки -->
     <div v-if="mobileShowSupport" class="p-3 shrink-0">
       <a 
         :href="supportLink" 
@@ -319,7 +328,6 @@
       </a>
     </div>
 
-    <!-- Основной контент -->
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0 px-2">
       <div 
         ref="messagesContainer"
@@ -351,15 +359,14 @@
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
             ></div>
             
-            <!-- Вложения -->
+            <!-- 🔥 НОВАЯ ЛОГИКА ВЛОЖЕНИЙ (мобильная) -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
               <div 
                 v-for="(att, idx) in msg.attachments" 
                 :key="idx"
-                class="rounded-lg overflow-hidden"
               >
                 <img 
-                  v-if="att.content_type?.startsWith('image/')"
+                  v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
                   :src="att.url" 
                   :alt="att.name || att.filename"
                   class="max-w-full max-h-64 rounded-lg cursor-pointer"
@@ -369,18 +376,25 @@
                 <a 
                   v-else
                   :href="att.url" 
-                  :download="att.name || att.filename"
+                  target="_blank"
                   class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs group"
                 >
-                  <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                  <span class="truncate flex-1">{{ att.name || att.filename }}</span>
-                  <span class="text-xs opacity-60 shrink-0">
-                    {{ formatFileSize(att.size || att.file_size) }}
-                  </span>
-                  <svg class="w-3 h-3 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <div class="w-6 h-6 rounded bg-white/20 flex items-center justify-center shrink-0">
+                    <svg v-if="att.content_type?.startsWith('image/')" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium truncate text-xs">{{ att.name || att.filename }}</div>
+                    <div class="text-[10px] opacity-60">{{ formatFileSize(att.size || att.file_size) }}</div>
+                  </div>
+                  
+                  <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                 </a>
               </div>
@@ -441,7 +455,6 @@
         </button>
       </div>
       
-      <!-- Превью выбранных файлов (мобильная) -->
       <div v-if="selectedFiles.length > 0" class="mb-2 flex flex-wrap gap-1">
         <div 
           v-for="(file, idx) in selectedFiles" 
@@ -454,7 +467,6 @@
       </div>
     </div>
 
-    <!-- Список заказов (мобильная) -->
     <div v-else class="flex-1 overflow-y-auto p-2">
       <div v-if="activeDeals.length === 0" class="glass rounded-[32px] p-6 border border-white/40 flex flex-col items-center justify-center text-center h-full">
         <div class="text-5xl mb-3 opacity-30">📋</div>
@@ -629,32 +641,105 @@ const goToPartnerProfile = () => {
 const handleImageSelect = async (event) => {
   const files = Array.from(event.target.files)
   
-  for (const file of files) {
-    if (file.size > 20 * 1024 * 1024) {
-      alert(`Файл ${file.name} слишком большой (макс 20MB)`)
-      continue
+  if (files.length === 0) return
+  
+  uploading.value = true
+  
+  try {
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`Файл ${file.name} слишком большой (макс 20MB)`)
+        continue
+      }
+      
+      await compressAndSendImage(file)
+    }
+  } catch (error) {
+    console.error('Ошибка отправки изображений:', error)
+    alert('Не удалось отправить изображения: ' + error.message)
+  } finally {
+    uploading.value = false
+    event.target.value = ''
+  }
+}
+
+const compressAndSendImage = async (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    
+    reader.onload = (e) => {
+      const img = new Image()
+      
+      img.onload = () => {
+        try {
+          const MAX_WIDTH = 1920
+          const MAX_HEIGHT = 1080
+          
+          let width = img.width
+          let height = img.height
+          
+          if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+            const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height)
+            width = Math.floor(width * ratio)
+            height = Math.floor(height * ratio)
+          }
+          
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          canvas.toBlob(async (blob) => {
+            try {
+              const formData = new FormData()
+              formData.append('files', blob, file.name.replace(/\.[^/.]+$/, '.jpg'))
+              
+              const response = await axios.post('/api/chat/rooms/upload/', formData)
+              
+              if (response.data.status === 'success') {
+                const uploadedFiles = response.data.data.files
+                
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                  socket.send(JSON.stringify({
+                    type: 'message',
+                    sender_id: auth.user.id,
+                    text: '',
+                    attachments: uploadedFiles.map(f => f.id)
+                  }))
+                }
+              }
+              
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          }, 'image/jpeg', 0.85)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      
+      img.onerror = () => reject(new Error('Не удалось загрузить изображение'))
+      img.src = e.target.result
     }
     
-    await compressAndSendImage(file)
-  }
-  
-  event.target.value = ''
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
+    reader.readAsDataURL(file)
+  })
 }
 
 const handleFileSelect = (event) => {
   const files = Array.from(event.target.files)
   
+  if (files.length === 0) return
+  
   for (const file of files) {
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
       continue
     }
-    
-    console.log('📎 Добавлен файл БЕЗ сжатия:', {
-      name: file.name,
-      size: file.size,
-      type: file.type
-    })
     
     selectedFiles.value.push(file)
   }
@@ -662,109 +747,34 @@ const handleFileSelect = (event) => {
   event.target.value = ''
 }
 
-const compressAndSendImage = async (file) => {
-  try {
-    uploading.value = true
-    
-    const img = new Image()
-    const reader = new FileReader()
-    
-    const compressedBlob = await new Promise((resolve, reject) => {
-      reader.onload = (e) => {
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          
-          const MAX_WIDTH = 1920
-          const MAX_HEIGHT = 1080
-          
-          let width = img.width
-          let height = img.height
-          
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height
-              height = MAX_HEIGHT
-            }
-          }
-          
-          canvas.width = width
-          canvas.height = height
-          
-          ctx.drawImage(img, 0, 0, width, height)
-          
-          canvas.toBlob((blob) => {
-            resolve(blob)
-          }, 'image/jpeg', 0.85)
-        }
-        img.onerror = reject
-        img.src = e.target.result
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-    
-    const formData = new FormData()
-    formData.append('files', compressedBlob, file.name)
-    
-    const uploadRes = await axios.post('/api/chat/rooms/upload/', formData)
-    
-    if (uploadRes.data.status === 'success') {
-      const uploadedFiles = uploadRes.data.data.files
-      
-      socket.send(JSON.stringify({ 
-        type: 'message', 
-        sender_id: auth.user.id, 
-        text: '',
-        attachments: uploadedFiles.map(f => f.id)
-      }))
-    }
-    
-  } catch (e) {
-    console.error('Image compression error:', e)
-    alert('Ошибка отправки изображения: ' + e.message)
-  } finally {
-    uploading.value = false
-  }
+const removeFile = (index) => { 
+  selectedFiles.value.splice(index, 1) 
 }
 
-const removeFile = (index) => { selectedFiles.value.splice(index, 1) }
-
-const uploadFiles = async () => {
+const uploadRawFiles = async () => {
   if (selectedFiles.value.length === 0) return []
   
-  console.log('⬆️ Загружаю файлы БЕЗ сжатия:', selectedFiles.value.map(f => ({
-    name: f.name,
-    size: f.size,
-    type: f.type
-  })))
-  
   const formData = new FormData()
+  
   selectedFiles.value.forEach(file => {
     formData.append('files', file)
   })
-  // КРИТИЧЕСКИ ВАЖНО: Явно сообщаем бэкенду НЕ сжимать файлы
-  formData.append('no_compression', 'true')
   
   try {
-    const res = await axios.post('/api/chat/rooms/upload/', formData, {
+    const response = await axios.post('/api/chat/rooms/upload-raw-files/', formData, {
       headers: {
-        'X-No-Compression': '1'  // Дополнительный хедер для бэкенда
+        'Content-Type': 'multipart/form-data'
       }
     })
     
-    console.log('✅ Файлы загружены:', res.data)
-    
-    if (res.data.status === 'success') return res.data.data.files
-  } catch (e) {
-    console.error('Upload error detail:', e.response?.data)
-    throw new Error(e.response?.data?.error || 'Ошибка загрузки файлов')
+    if (response.data.status === 'success') {
+      return response.data.data.files
+    }
+  } catch (error) {
+    console.error('❌ [RAW] Ошибка загрузки:', error.response?.data)
+    throw new Error(error.response?.data?.error || 'Ошибка загрузки файлов')
   }
+  
   return []
 }
 
@@ -819,7 +829,7 @@ const sendMessage = async () => {
     
     let uploadedFiles = []
     if (selectedFiles.value.length > 0) {
-      uploadedFiles = await uploadFiles()
+      uploadedFiles = await uploadRawFiles()
     }
     
     socket.send(JSON.stringify({ 
@@ -831,10 +841,9 @@ const sendMessage = async () => {
     
     newMessage.value = ''
     selectedFiles.value = []
-  } catch (e) {
-    alert('Ошибка отправки: ' + e.message)
+  } catch (error) {
+    alert('Ошибка отправки: ' + error.message)
   } finally {
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: uploading снимается ВСЕГДА
     uploading.value = false
   }
 }

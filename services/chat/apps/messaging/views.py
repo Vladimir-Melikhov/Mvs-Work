@@ -7,7 +7,8 @@ from .models import Room, Message, MessageAttachment
 from .serializers import RoomSerializer, MessageSerializer, MessageAttachmentSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import UploadedFile
+from django.core.files.base import File
 import os
 import uuid
 
@@ -182,8 +183,8 @@ class RoomViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
         """
-        ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Загрузка файлов БЕЗ ОБРАБОТКИ Pillow
-        Использует ContentFile для сохранения файлов "как есть"
+        ✅ СТАРЫЙ ЭНДПОИНТ: Для изображений со сжатием (используется иконкой 📷)
+        Сохранение файлов БЕЗ обработки через прямое сохранение Django ORM
         """
         try:
             files = request.FILES.getlist('files')
@@ -196,42 +197,28 @@ class RoomViewSet(viewsets.ViewSet):
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
 
-                print(f"📥 Получен файл: {file.name}, размер: {file.size} байт")
+                print(f"📥 [upload] Получен файл: {file.name}, размер: {file.size} байт")
 
-                # ✅ КРИТИЧЕСКИ ВАЖНО: Читаем файл как байты БЕЗ обработки Pillow
-                file_content = file.read()
-                
-                print(f"✅ Прочитано {len(file_content)} байт из файла")
-                
-                # Создаем ContentFile из байтов - это обходит обработку Django/Pillow
-                content_file = ContentFile(file_content)
-                
-                # Генерируем уникальное имя файла
-                ext = os.path.splitext(file.name)[1]
-                unique_filename = f"{uuid.uuid4()}{ext}"
-                
-                # Создаем вложение с временным file_size
-                attachment = MessageAttachment.objects.create(
+                attachment = MessageAttachment(
                     message=None,
                     filename=file.name,
-                    file_size=0,  # ✅ Временное значение, обновим после сохранения
+                    file_size=file.size,
                     content_type=file.content_type or 'application/octet-stream'
                 )
                 
-                # Сохраняем файл вручную через ContentFile (без обработки)
-                attachment.file.save(unique_filename, content_file, save=False)
+                ext = os.path.splitext(file.name)[1]
+                unique_filename = f"{uuid.uuid4()}{ext}"
                 
-                # ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем РЕАЛЬНЫЙ размер ПОСЛЕ сохранения
-                attachment.file_size = attachment.file.size
-                attachment.save()
+                attachment.file.save(unique_filename, file, save=True)
                 
-                # Проверяем что размер сохранился правильно
-                print(f"💾 Сохранено: {attachment.file.name}, размер: {attachment.file_size} байт")
+                actual_size = attachment.file.size
+                print(f"💾 [upload] Сохранено: {attachment.file.name}, размер: {actual_size} байт")
                 
-                if attachment.file_size != len(file_content):
-                    print(f"⚠️ ВНИМАНИЕ: Размер изменился! Было: {len(file_content)}, стало: {attachment.file_size}")
+                if actual_size != file.size:
+                    print(f"⚠️ [upload] Размер изменился! Было: {file.size}, стало: {actual_size}")
+                    attachment.file_size = actual_size
+                    attachment.save(update_fields=['file_size'])
 
-                # Формируем полный URL
                 file_url = request.build_absolute_uri(attachment.file.url)
 
                 uploaded_files.append({
@@ -246,6 +233,94 @@ class RoomViewSet(viewsets.ViewSet):
             import traceback
             traceback.print_exc()
             return Response({'error': str(e)}, status=400)
+
+    @action(detail=False, methods=['post'], url_path='upload-raw-files')
+    def upload_raw_files(self, request):
+        """
+        🔥 НОВЫЙ ЭНДПОИНТ: Для СЫРЫХ файлов БЕЗ КАКОЙ-ЛИБО обработки (используется иконкой 📎)
+        Полностью отдельный путь загрузки, обходит всю логику сжатия изображений
+        """
+        try:
+            files = request.FILES.getlist('files')
+            
+            if not files:
+                return Response({
+                    'status': 'error',
+                    'error': 'Файлы не переданы'
+                }, status=400)
+            
+            uploaded = []
+            
+            for uploaded_file in files:
+                # Валидация размера
+                if uploaded_file.size > 20 * 1024 * 1024:
+                    return Response({
+                        'status': 'error',
+                        'error': f'Файл {uploaded_file.name} превышает 20MB'
+                    }, status=400)
+                
+                # Сохраняем ОРИГИНАЛЬНЫЕ параметры
+                original_size = uploaded_file.size
+                original_name = uploaded_file.name
+                
+                print(f"📎 [upload-raw] Получен RAW файл: {original_name}, размер: {original_size} байт, тип: {type(uploaded_file)}")
+                
+                # Создаём attachment БЕЗ сохранения
+                attachment = MessageAttachment(
+                    message=None,
+                    filename=original_name,
+                    file_size=original_size,
+                    content_type=uploaded_file.content_type or 'application/octet-stream'
+                )
+                
+                # Генерируем уникальное имя файла
+                ext = os.path.splitext(original_name)[1]
+                unique_filename = f"{uuid.uuid4()}{ext}"
+                
+                # 🔥 КРИТИЧНО: Прямое сохранение через FileField
+                # Оборачиваем UploadedFile в Django File для корректной работы
+                attachment.file.save(
+                    unique_filename, 
+                    File(uploaded_file),
+                    save=True
+                )
+                
+                # Проверяем фактический размер после сохранения
+                actual_size = attachment.file.size
+                print(f"✅ [upload-raw] Сохранено: {attachment.file.name}, размер: {actual_size} байт")
+                
+                # Если размер изменился - логируем и обновляем
+                if actual_size != original_size:
+                    print(f"⚠️ [upload-raw] ВНИМАНИЕ: Размер изменился! Было: {original_size}, стало: {actual_size}")
+                    attachment.file_size = actual_size
+                    attachment.save(update_fields=['file_size'])
+                
+                # Формируем полный URL
+                file_url = request.build_absolute_uri(attachment.file.url)
+                
+                uploaded.append({
+                    'id': str(attachment.id),
+                    'name': attachment.filename,
+                    'size': attachment.file_size,
+                    'url': file_url,
+                    'content_type': attachment.content_type
+                })
+                
+                print(f"🎯 [upload-raw] Готов к отправке: {attachment.filename}, размер в БД: {attachment.file_size} байт")
+            
+            return Response({
+                'status': 'success',
+                'data': {'files': uploaded}
+            })
+            
+        except Exception as e:
+            import traceback
+            print(f"❌ [upload-raw] Ошибка загрузки файла:")
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=400)
 
     def _serialize_message(self, message, request):
         """Сериализация сообщения для WebSocket"""
