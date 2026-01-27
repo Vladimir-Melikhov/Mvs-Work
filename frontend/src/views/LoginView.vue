@@ -12,7 +12,7 @@
           <input 
             v-model="email" 
             type="email" 
-            placeholder="Email" 
+            placeholder="Почта" 
             class="ios-input"
           >
         </div>
@@ -21,7 +21,7 @@
           <input 
             v-model="password" 
             type="password" 
-            placeholder="Password" 
+            placeholder="Пароль" 
             class="ios-input"
           >
         </div>

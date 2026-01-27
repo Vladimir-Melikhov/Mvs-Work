@@ -123,7 +123,7 @@
           >
         </label>
         
-        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all" title="Прикрепить файл">
+        <label class="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/40 transition-all" title="Прикрепить файл (без сжатия)">
           <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
@@ -132,7 +132,6 @@
             multiple
             @change="handleFileSelect"
             class="hidden"
-            accept="*/*"
           >
         </label>
         
@@ -411,7 +410,7 @@
           >
         </label>
         
-        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0" title="Файл">
+        <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0" title="Файл (без сжатия)">
           <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
@@ -420,7 +419,6 @@
             multiple
             @change="handleFileSelect"
             class="hidden"
-            accept="*/*"
           >
         </label>
         
@@ -637,7 +635,6 @@ const handleImageSelect = async (event) => {
       continue
     }
     
-    // Сжимаем и сразу отправляем изображение
     await compressAndSendImage(file)
   }
   
@@ -652,6 +649,12 @@ const handleFileSelect = (event) => {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
       continue
     }
+    
+    console.log('📎 Добавлен файл БЕЗ сжатия:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    })
     
     selectedFiles.value.push(file)
   }
@@ -734,12 +737,29 @@ const removeFile = (index) => { selectedFiles.value.splice(index, 1) }
 
 const uploadFiles = async () => {
   if (selectedFiles.value.length === 0) return []
+  
+  console.log('⬆️ Загружаю файлы БЕЗ сжатия:', selectedFiles.value.map(f => ({
+    name: f.name,
+    size: f.size,
+    type: f.type
+  })))
+  
   const formData = new FormData()
   selectedFiles.value.forEach(file => {
     formData.append('files', file)
   })
+  // КРИТИЧЕСКИ ВАЖНО: Явно сообщаем бэкенду НЕ сжимать файлы
+  formData.append('no_compression', 'true')
+  
   try {
-    const res = await axios.post('/api/chat/rooms/upload/', formData)
+    const res = await axios.post('/api/chat/rooms/upload/', formData, {
+      headers: {
+        'X-No-Compression': '1'  // Дополнительный хедер для бэкенда
+      }
+    })
+    
+    console.log('✅ Файлы загружены:', res.data)
+    
     if (res.data.status === 'success') return res.data.data.files
   } catch (e) {
     console.error('Upload error detail:', e.response?.data)
@@ -783,7 +803,6 @@ const connectWebSocket = () => {
       const msg = data.data
       messages.value.push(msg)
       scrollToBottom()
-      uploading.value = false
     } else if (data.type === 'message_updated') {
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
       if (idx !== -1) messages.value[idx] = data.data
@@ -814,6 +833,8 @@ const sendMessage = async () => {
     selectedFiles.value = []
   } catch (e) {
     alert('Ошибка отправки: ' + e.message)
+  } finally {
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: uploading снимается ВСЕГДА
     uploading.value = false
   }
 }

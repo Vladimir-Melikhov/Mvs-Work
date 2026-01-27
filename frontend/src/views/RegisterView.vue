@@ -2,8 +2,8 @@
   <div class="min-h-[85vh] flex items-center justify-center p-6 pt-16">
     <div class="ios-glass-card w-full max-w-[420px] p-8 flex flex-col items-center animate-fade-in">
       
-      <h1 class="text-3xl font-bold text-center mb-2 text-[#1a1a2e] tracking-tight">Join FreelanceHub</h1>
-      <p class="text-center text-gray-500 mb-8 text-sm font-medium">Start your journey today</p>
+      <h1 class="text-3xl font-bold text-center mb-2 text-[#1a1a2e] tracking-tight">Добро пожаловать!</h1>
+      <p class="text-center text-gray-500 mb-8 text-sm font-medium">Присоеденитесь к нам уже сейчас!</p>
       
       <div class="role-selector w-full p-1.5 rounded-[22px] mb-8 flex relative">
         <div 
@@ -15,14 +15,14 @@
           class="role-btn"
           :class="role === 'client' ? 'text-[#1a1a2e]' : 'text-gray-500'"
         >
-          I want to Hire
+          Я заказчик
         </button>
         <button 
           @click="role = 'worker'" 
           class="role-btn"
           :class="role === 'worker' ? 'text-[#7000ff]' : 'text-gray-500'"
         >
-          I want to Work
+          Я исполнитель
         </button>
       </div>
 
@@ -30,21 +30,21 @@
         <input 
           v-model="email" 
           type="email" 
-          placeholder="Email address" 
+          placeholder="Почта" 
           class="ios-input"
         >
         
         <input 
           v-model="password" 
           type="password" 
-          placeholder="Password (min 6 chars)" 
+          placeholder="Пароль (минимум 6 символов)" 
           class="ios-input"
         >
 
         <input 
           v-model="confirmPassword" 
           type="password" 
-          placeholder="Confirm Password" 
+          placeholder="Повторите пароль" 
           class="ios-input"
           :class="{'border-red-400 bg-red-50/50': password && confirmPassword && password !== confirmPassword}"
         >
@@ -59,12 +59,12 @@
         :disabled="isLoading"
         class="ios-button mt-8"
       >
-        {{ isLoading ? 'Creating Account...' : 'Create Account' }}
+        {{ isLoading ? 'Создаем аккаунт...' : 'Создать аккаунт' }}
       </button>
 
       <p class="mt-6 text-center text-gray-500 text-sm font-medium">
-        Already have an account? 
-        <router-link to="/login" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Log in</router-link>
+        Есть аккаунт?
+        <router-link to="/login" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Войти</router-link>
       </p>
     </div>
   </div>

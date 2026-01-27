@@ -7,7 +7,9 @@ from .models import Room, Message, MessageAttachment
 from .serializers import RoomSerializer, MessageSerializer, MessageAttachmentSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.core.files.base import ContentFile
 import os
+import uuid
 
 
 class RoomViewSet(viewsets.ViewSet):
@@ -101,7 +103,6 @@ class RoomViewSet(viewsets.ViewSet):
     def send_deal_message(self, request, pk=None):
         """
         Отправить или обновить интерактивное сообщение о сделке в комнату
-        ✅ ИСПРАВЛЕНИЕ: Поддержка attachments в payload для текстовых сообщений
         """
         try:
             room = Room.objects.get(id=pk)
@@ -111,7 +112,7 @@ class RoomViewSet(viewsets.ViewSet):
             text = request.data.get('text', '')
             deal_data = request.data.get('deal_data', {})
             update_message_id = request.data.get('update_message_id')
-            attachments_data = request.data.get('attachments', [])  # ✅ НОВОЕ: Получаем attachments из payload
+            attachments_data = request.data.get('attachments', [])
             
             if update_message_id:
                 try:
@@ -148,7 +149,6 @@ class RoomViewSet(viewsets.ViewSet):
                 deal_data=deal_data
             )
             
-            # ✅ НОВОЕ: Если в payload переданы attachments - создаём записи в БД
             if attachments_data:
                 for att_data in attachments_data:
                     MessageAttachment.objects.create(
@@ -156,7 +156,7 @@ class RoomViewSet(viewsets.ViewSet):
                         filename=att_data.get('filename', 'file'),
                         file_size=att_data.get('file_size', 0),
                         content_type=att_data.get('content_type', 'application/octet-stream'),
-                        external_url=att_data.get('url', '')  # ✅ Используем external_url
+                        external_url=att_data.get('url', '')
                     )
             
             channel_layer = get_channel_layer()
@@ -182,8 +182,8 @@ class RoomViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
         """
-        Загрузка файлов БЕЗ ОБРАБОТКИ
-        Файлы сохраняются в оригинальном виде без сжатия
+        ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Загрузка файлов БЕЗ ОБРАБОТКИ Pillow
+        Использует ContentFile для сохранения файлов "как есть"
         """
         try:
             files = request.FILES.getlist('files')
@@ -196,15 +196,40 @@ class RoomViewSet(viewsets.ViewSet):
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
 
-                # ✅ ВАЖНО: Создаем вложение БЕЗ ОБРАБОТКИ файла
-                # Django FileField сохраняет файл КАК ЕСТЬ
+                print(f"📥 Получен файл: {file.name}, размер: {file.size} байт")
+
+                # ✅ КРИТИЧЕСКИ ВАЖНО: Читаем файл как байты БЕЗ обработки Pillow
+                file_content = file.read()
+                
+                print(f"✅ Прочитано {len(file_content)} байт из файла")
+                
+                # Создаем ContentFile из байтов - это обходит обработку Django/Pillow
+                content_file = ContentFile(file_content)
+                
+                # Генерируем уникальное имя файла
+                ext = os.path.splitext(file.name)[1]
+                unique_filename = f"{uuid.uuid4()}{ext}"
+                
+                # Создаем вложение с временным file_size
                 attachment = MessageAttachment.objects.create(
-                    message=None,  # Временное вложение без привязки
-                    file=file,  # Файл сохраняется в оригинальном виде
+                    message=None,
                     filename=file.name,
-                    file_size=file.size,
+                    file_size=0,  # ✅ Временное значение, обновим после сохранения
                     content_type=file.content_type or 'application/octet-stream'
                 )
+                
+                # Сохраняем файл вручную через ContentFile (без обработки)
+                attachment.file.save(unique_filename, content_file, save=False)
+                
+                # ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем РЕАЛЬНЫЙ размер ПОСЛЕ сохранения
+                attachment.file_size = attachment.file.size
+                attachment.save()
+                
+                # Проверяем что размер сохранился правильно
+                print(f"💾 Сохранено: {attachment.file.name}, размер: {attachment.file_size} байт")
+                
+                if attachment.file_size != len(file_content):
+                    print(f"⚠️ ВНИМАНИЕ: Размер изменился! Было: {len(file_content)}, стало: {attachment.file_size}")
 
                 # Формируем полный URL
                 file_url = request.build_absolute_uri(attachment.file.url)
@@ -226,21 +251,19 @@ class RoomViewSet(viewsets.ViewSet):
         """Сериализация сообщения для WebSocket"""
         attachments = []
         for att in message.attachments.all():
-            # ✅ ИСПРАВЛЕНИЕ: Используем get_file_url() который проверяет external_url и file
             file_url = att.get_file_url()
             if not file_url:
                 continue
                 
-            # Если это относительный URL (локальный файл) - делаем абсолютным
             if not file_url.startswith('http'):
                 file_url = request.build_absolute_uri(file_url)
                 
             attachments.append({
                 'id': str(att.id),
                 'name': att.filename,
-                'filename': att.filename,  # ✅ Добавляем оба поля для совместимости
+                'filename': att.filename,
                 'size': att.file_size,
-                'file_size': att.file_size,  # ✅ Добавляем оба поля
+                'file_size': att.file_size,
                 'content_type': att.content_type,
                 'url': file_url
             })
