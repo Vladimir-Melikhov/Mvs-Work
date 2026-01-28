@@ -11,10 +11,13 @@ from .serializers import (
     SubscriptionSerializer
 )
 from .services import AuthService
-from .models import User, Subscription, SubscriptionPayment, Service
+from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile
 from django.db import transaction
+from django.utils import timezone
+from datetime import timedelta
 import requests
 import os
+import secrets
 
 
 class RegisterView(APIView):
@@ -329,3 +332,202 @@ class SubscriptionView(APIView):
             'message': 'Подписка успешно активирована на 30 дней',
             'error': None
         })
+
+
+# ✅ TELEGRAM INTEGRATION VIEWS
+
+class TelegramGenerateLinkView(APIView):
+    """Генерация одноразовой ссылки для привязки Telegram"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            # Удаляем все старые неиспользованные токены
+            TelegramLinkToken.objects.filter(
+                user=request.user,
+                used=False
+            ).delete()
+            
+            # Генерируем новый токен
+            token = secrets.token_urlsafe(32)
+            
+            # Создаем запись с временем жизни 10 минут
+            link_token = TelegramLinkToken.objects.create(
+                user=request.user,
+                token=token,
+                expires_at=timezone.now() + timedelta(minutes=10)
+            )
+            
+            # Формируем ссылку на бота
+            bot_username = os.getenv('TELEGRAM_BOT_USERNAME', 'your_bot')
+            deep_link = f"https://t.me/{bot_username}?start={token}"
+            
+            return Response({
+                'status': 'success',
+                'data': {
+                    'link': deep_link,
+                    'token': token,
+                    'expires_at': link_token.expires_at.isoformat()
+                },
+                'error': None
+            })
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e),
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TelegramVerifyTokenView(APIView):
+    """Верификация токена и привязка Telegram (вызывается ботом)"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """Ожидает: {"token": "...", "telegram_chat_id": 123456789}"""
+        try:
+            token = request.data.get('token')
+            telegram_chat_id = request.data.get('telegram_chat_id')
+            
+            if not token or not telegram_chat_id:
+                return Response({
+                    'status': 'error',
+                    'error': 'token и telegram_chat_id обязательны'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Находим токен
+            try:
+                link_token = TelegramLinkToken.objects.get(token=token)
+            except TelegramLinkToken.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'error': 'Неверный или истекший токен'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Проверяем валидность
+            if not link_token.is_valid():
+                return Response({
+                    'status': 'error',
+                    'error': 'Токен истек или уже использован'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Привязываем Telegram
+            profile = link_token.user.profile
+            profile.telegram_chat_id = telegram_chat_id
+            profile.telegram_notifications_enabled = True
+            profile.save()
+            
+            # Помечаем токен использованным
+            link_token.used = True
+            link_token.save()
+            
+            return Response({
+                'status': 'success',
+                'data': {
+                    'user_email': link_token.user.email,
+                    'telegram_chat_id': telegram_chat_id
+                },
+                'message': 'Telegram успешно привязан'
+            })
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TelegramDisconnectView(APIView):
+    """Отключение Telegram уведомлений"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            profile = request.user.profile
+            profile.telegram_chat_id = None
+            profile.telegram_notifications_enabled = False
+            profile.save()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Telegram уведомления отключены'
+            })
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TelegramGetUserByIdView(APIView):
+    """Получить user_id по telegram_chat_id (для бота)"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """Ожидает: {"telegram_chat_id": 123456789}"""
+        try:
+            telegram_chat_id = request.data.get('telegram_chat_id')
+            
+            if not telegram_chat_id:
+                return Response({
+                    'status': 'error',
+                    'error': 'telegram_chat_id обязателен'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            profile = Profile.objects.get(telegram_chat_id=telegram_chat_id)
+            
+            return Response({
+                'status': 'success',
+                'data': {
+                    'user_id': str(profile.user.id),
+                    'email': profile.user.email
+                }
+            })
+            
+        except Profile.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Пользователь не найден'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ✅ INTERNAL API (защищен middleware с JWT)
+
+class InternalUserProfileView(APIView):
+    """Внутренний эндпоинт для получения профиля (защищен JWT middleware)"""
+    authentication_classes = []  # ✅ Отключаем JWT аутентификацию
+    permission_classes = [AllowAny]  # ✅ Защита через middleware
+    
+    def get(self, request, user_id):
+        try:
+            user = User.objects.select_related('profile').get(id=user_id)
+            
+            profile_data = {}
+            if hasattr(user, 'profile'):
+                profile_data = {
+                    'full_name': user.profile.full_name,
+                    'company_name': user.profile.company_name,
+                    'telegram_chat_id': user.profile.telegram_chat_id,
+                    'telegram_notifications_enabled': user.profile.telegram_notifications_enabled,
+                }
+            
+            return Response({
+                'status': 'success',
+                'data': {
+                    'id': str(user.id),
+                    'email': user.email,
+                    'profile': profile_data
+                }
+            })
+        except User.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'User not found'
+            }, status=404)

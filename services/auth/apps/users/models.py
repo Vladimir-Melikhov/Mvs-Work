@@ -75,6 +75,18 @@ class Profile(models.Model):
     github_link = models.URLField(blank=True, null=True, help_text="Ссылка на GitHub профиль")
     behance_link = models.URLField(blank=True, null=True, help_text="Ссылка на Behance профиль")
     
+    # ✅ НОВОЕ: Telegram интеграция
+    telegram_chat_id = models.BigIntegerField(
+        null=True, 
+        blank=True, 
+        unique=True,
+        help_text="Telegram Chat ID для уведомлений"
+    )
+    telegram_notifications_enabled = models.BooleanField(
+        default=False,
+        help_text="Включены ли Telegram уведомления"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -174,8 +186,30 @@ class SubscriptionPayment(models.Model):
         return f"Payment {self.id} - {self.status}"
 
 
-# ✅ НОВАЯ МОДЕЛЬ: Импорт Service из market (для типизации)
-# ВАЖНО: Это НЕ настоящая модель, а proxy для типизации
+# ✅ НОВАЯ МОДЕЛЬ: Одноразовые токены для привязки Telegram
+class TelegramLinkToken(models.Model):
+    """Одноразовые токены для привязки Telegram аккаунта"""
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='telegram_tokens')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'telegram_link_tokens'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Token for {self.user.email} - {'Used' if self.used else 'Active'}"
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def is_valid(self):
+        return not self.used and not self.is_expired()
+
+
 class Service:
     """Proxy-модель для обновления объявлений через API"""
     pass

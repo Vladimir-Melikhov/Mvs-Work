@@ -30,8 +30,10 @@ class ProfileSerializer(serializers.ModelSerializer):
             'rating',
             'github_link',
             'behance_link',
+            'telegram_chat_id',
+            'telegram_notifications_enabled',
         ]
-        read_only_fields = ['rating', 'avatar_url']
+        read_only_fields = ['rating', 'avatar_url', 'telegram_chat_id']
     
     def get_avatar_url(self, obj):
         """Возвращает полный URL аватарки"""

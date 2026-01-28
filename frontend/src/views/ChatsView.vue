@@ -11,29 +11,41 @@
         <div class="inline-block w-8 h-8 border-4 border-[#7000ff]/30 border-t-[#7000ff] rounded-full animate-spin"></div>
       </div>
 
-      <div v-else-if="chats.length > 0" class="space-y-4">
+      <div v-else-if="sortedChats.length > 0" class="space-y-4">
         <div 
-          v-for="chat in chats" 
+          v-for="chat in sortedChats" 
           :key="chat.id" 
-          class="glass p-4 rounded-[32px] flex items-center gap-4 cursor-pointer group hover:bg-white/20 transition-all active:scale-[0.98]"
+          class="glass p-4 rounded-[32px] flex items-center gap-4 cursor-pointer group hover:bg-white/20 transition-all active:scale-[0.98] relative"
           @click="openChat(chat.id)"
         >
-          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex-shrink-0 flex items-center justify-center text-white text-xl font-bold border border-white/20 shadow-md overflow-hidden">
+          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex-shrink-0 flex items-center justify-center text-white text-xl font-bold border border-white/20 shadow-md overflow-hidden relative">
             <img v-if="getPartner(chat).avatar" :src="getPartner(chat).avatar" class="w-full h-full object-cover">
             <span v-else>{{ getInitials(getPartner(chat).name) }}</span>
+            
+            <!-- Счетчик непрочитанных сообщений -->
+            <div 
+              v-if="chat.unread_count > 0" 
+              class="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg border-2 border-white"
+            >
+              {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
+            </div>
           </div>
 
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-baseline mb-1">
-              <h3 class="text-lg font-bold text-[#1a1a2e] truncate">
+              <h3 
+                class="text-lg font-bold truncate"
+                :class="chat.unread_count > 0 ? 'text-[#7000ff]' : 'text-[#1a1a2e]'"
+              >
                 {{ getPartner(chat).name || 'Loading...' }}
               </h3>
-              <span class="text-xs text-gray-500 font-medium">
+              <span class="text-xs text-gray-500 font-medium ml-2 shrink-0">
                 {{ formatDate(chat.updated_at) }}
               </span>
             </div>
             <div 
-              class="text-gray-600 text-sm truncate group-hover:text-[#1a1a2e] transition-colors"
+              class="text-sm truncate group-hover:text-[#1a1a2e] transition-colors"
+              :class="chat.unread_count > 0 ? 'text-[#1a1a2e] font-semibold' : 'text-gray-600'"
             >
               <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">Вы: </span>
               <span v-html="formatLastMessage(chat.last_message)"></span>
@@ -60,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
@@ -71,6 +83,15 @@ const auth = useAuthStore()
 const chats = ref([]) 
 const loading = ref(false)
 const usersMap = ref({})
+
+// ✅ Сортировка чатов по времени последнего сообщения (новые сверху)
+const sortedChats = computed(() => {
+  return [...chats.value].sort((a, b) => {
+    const dateA = new Date(a.updated_at || 0)
+    const dateB = new Date(b.updated_at || 0)
+    return dateB - dateA // Новые сверху
+  })
+})
 
 const fetchChats = async () => {
   loading.value = true
@@ -133,33 +154,41 @@ const getInitials = (name) => {
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
+  if (diffMins < 1) return 'Только что'
+  if (diffMins < 60) return `${diffMins} мин назад`
+  if (diffHours < 24) return `${diffHours} ч назад`
+  if (diffDays === 1) return 'Вчера'
+  if (diffDays < 7) return `${diffDays} дн назад`
+  
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }
 
 const formatLastMessage = (message) => {
   if (!message || !message.text) {
-    // Если текста нет, но есть вложения - показываем "Вложение"
     if (message && message.attachments && message.attachments.length > 0) {
       return '<span class="text-gray-500 italic">📎 Вложение</span>'
     }
     return 'No messages yet'
   }
   
-  // Если есть вложения - показываем "Вложение" независимо от текста
   if (message.attachments && message.attachments.length > 0) {
     return '<span class="text-gray-500 italic">📎 Вложение</span>'
   }
   
-  // Сначала очищаем от markdown
   let text = stripMarkdown(message.text)
 
-  // Проверка: Если это не системное сообщение, возвращаем просто текст
   const systemMarkers = ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌']
   const isSystem = systemMarkers.some(marker => text.trim().startsWith(marker))
   
   if (!isSystem) return text
   
-  // Затем заменяем emoji на иконки только для системных сообщений
   const emojiMap = {
     '💰': { type: 'money', color: 'success' },
     '✅': { type: 'check', color: 'success' },

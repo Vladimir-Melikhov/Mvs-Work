@@ -3,7 +3,10 @@ import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Message, MessageAttachment
+from .auth_client import AuthServiceClient
 from django.conf import settings
+import os
+import requests
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -40,6 +43,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 message_type='text',
                 attachment_ids=attachments
             )
+
+            # ✅ Отправка Telegram уведомления
+            await self.send_telegram_notification(message, sender_id)
 
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -119,3 +125,93 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'attachments': attachments,
             'created_at': message.created_at.isoformat(),
         }
+    
+    @database_sync_to_async
+    def get_room_members(self, message):
+        """Получить членов комнаты"""
+        return message.room.members
+    
+    async def send_telegram_notification(self, message, sender_id):
+        """✅ Отправка Telegram уведомления с JWT аутентификацией"""
+        try:
+            print(f"[TELEGRAM] 🔔 Начало отправки уведомления")
+            
+            # Получаем членов комнаты
+            members = await self.get_room_members(message)
+            print(f"[TELEGRAM] Участники: {members}")
+            
+            # Находим получателя
+            receiver_id = None
+            for member_id in members:
+                if str(member_id) != str(sender_id):
+                    receiver_id = str(member_id)
+                    break
+            
+            if not receiver_id:
+                print(f"[TELEGRAM] ❌ Получатель не найден")
+                return
+            
+            print(f"[TELEGRAM] ✅ Получатель: {receiver_id}")
+            
+            # Используем JWT-клиент
+            auth_client = AuthServiceClient()
+            
+            # Получаем данные получателя
+            receiver_data = auth_client.get_user_profile(receiver_id)
+            
+            if not receiver_data:
+                print(f"[TELEGRAM] ❌ Не удалось получить профиль получателя")
+                return
+            
+            profile = receiver_data.get('profile', {})
+            telegram_chat_id = profile.get('telegram_chat_id')
+            telegram_enabled = profile.get('telegram_notifications_enabled', False)
+            
+            print(f"[TELEGRAM] chat_id={telegram_chat_id}, enabled={telegram_enabled}")
+            
+            if not telegram_chat_id or not telegram_enabled:
+                print(f"[TELEGRAM] ❌ Уведомления не включены")
+                return
+            
+            # Получаем данные отправителя
+            sender_data = auth_client.get_user_profile(sender_id)
+            sender_name = "Пользователь"
+            
+            if sender_data:
+                sender_profile = sender_data.get('profile', {})
+                sender_name = sender_profile.get('full_name') or sender_profile.get('company_name') or sender_data.get('email', 'Пользователь')
+            
+            print(f"[TELEGRAM] Отправитель: {sender_name}")
+            
+            # Отправляем через бота
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if not bot_token:
+                print(f"[TELEGRAM] ❌ Bot token не найден")
+                return
+            
+            text_preview = message.text[:100] + ('...' if len(message.text) > 100 else '')
+            notification_text = f"💬 <b>Новое сообщение от {sender_name}</b>\n\n{text_preview}"
+            
+            print(f"[TELEGRAM] 📤 Отправка в {telegram_chat_id}")
+            
+            telegram_response = requests.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    'chat_id': telegram_chat_id,
+                    'text': notification_text,
+                    'parse_mode': 'HTML'
+                },
+                timeout=10
+            )
+            
+            print(f"[TELEGRAM] Telegram API: {telegram_response.status_code}")
+            
+            if telegram_response.status_code == 200:
+                print(f"[TELEGRAM] ✅ Уведомление отправлено!")
+            else:
+                print(f"[TELEGRAM] ❌ Ошибка: {telegram_response.json()}")
+            
+        except Exception as e:
+            print(f"[TELEGRAM] ⚠️ Ошибка: {e}")
+            import traceback
+            traceback.print_exc()

@@ -6,8 +6,13 @@ from .views import (
     CheckBalanceView, 
     BatchUsersView, 
     PublicProfileView,
-    SubscriptionView
+    SubscriptionView,
+    TelegramGenerateLinkView,
+    TelegramVerifyTokenView,
+    TelegramDisconnectView,
+    TelegramGetUserByIdView,
 )
+from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -17,4 +22,9 @@ urlpatterns = [
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),
     path('users/<uuid:user_id>/', PublicProfileView.as_view(), name='public_profile'),
     path('subscription/', SubscriptionView.as_view(), name='subscription'),
+    path('internal/users/<uuid:user_id>/profile/', views.InternalUserProfileView.as_view(), name='internal-user-profile'),
+    path('telegram/generate-link/', TelegramGenerateLinkView.as_view(), name='telegram_generate_link'),
+    path('telegram/verify-token/', TelegramVerifyTokenView.as_view(), name='telegram_verify_token'),
+    path('telegram/disconnect/', TelegramDisconnectView.as_view(), name='telegram_disconnect'),
+    path('telegram/get-user/', TelegramGetUserByIdView.as_view(), name='telegram_get_user'),
 ]
