@@ -1,3 +1,4 @@
+# services/auth/config/settings.py
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -92,6 +93,12 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.FormParser',
     ],
     'UNAUTHENTICATED_USER': None,
+    'DEFAULT_THROTTLE_RATES': {
+        'auth': '5/minute',
+        'subscription': '10/hour',
+        'profile_update': '20/hour',
+        'telegram_link': '3/hour',
+    }
 }
 
 # CORS
@@ -101,7 +108,17 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
-# ✅ ДОБАВЛЕНО: Настройки медиа-файлов
+# CSRF для API
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+# Для API отключаем CSRF (используем JWT)
+CSRF_COOKIE_HTTPONLY = False
+CSRF_USE_SESSIONS = False
+
+# Настройки медиа-файлов
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -111,6 +128,19 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 
 # Разрешенные форматы изображений
 ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+
+# Security Settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'

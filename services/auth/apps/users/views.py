@@ -1,3 +1,4 @@
+# services/auth/apps/users/views.py
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,6 +13,12 @@ from .serializers import (
 )
 from .services import AuthService
 from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile
+from .throttling import (
+    AuthenticationThrottle, 
+    SubscriptionThrottle, 
+    ProfileUpdateThrottle,
+    TelegramLinkThrottle
+)
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
@@ -22,6 +29,7 @@ import secrets
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthenticationThrottle]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -59,6 +67,7 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthenticationThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -107,6 +116,15 @@ class ProfileView(APIView):
     @transaction.atomic
     def patch(self, request):
         """Обновление профиля с поддержкой загрузки аватарки"""
+        # Применяем throttling только для обновлений
+        throttle = ProfileUpdateThrottle()
+        if not throttle.allow_request(request, self):
+            return Response({
+                'status': 'error',
+                'error': 'Слишком много попыток обновления. Попробуйте позже.',
+                'data': None
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
         try:
             profile = request.user.profile
             
@@ -120,18 +138,15 @@ class ProfileView(APIView):
             if serializer.is_valid():
                 serializer.save()
                 
-                # ✅ СИНХРОНИЗАЦИЯ АВАТАРА: Обновляем owner_avatar во всех объявлениях пользователя
+                # Синхронизация аватара с market service
                 if 'avatar' in request.data or serializer.validated_data.get('avatar'):
                     avatar_url = request.build_absolute_uri(profile.avatar.url) if profile.avatar else ''
                     
-                    # Получаем market service URL из env
                     market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
                     
                     try:
-                        # Обновляем объявления через внешний API
                         auth_header = request.headers.get('Authorization', '')
                         
-                        # Отправляем запрос на обновление аватара в объявлениях
                         update_url = f"{market_service_url}/api/market/services/update-owner-avatar/"
                         
                         requests.post(
@@ -260,6 +275,7 @@ class PublicProfileView(APIView):
 class SubscriptionView(APIView):
     """Управление подпиской"""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [SubscriptionThrottle]
 
     def get(self, request):
         """Получить информацию о подписке"""
@@ -272,7 +288,6 @@ class SubscriptionView(APIView):
 
         try:
             subscription = request.user.subscription
-            # Проверяем и обновляем статус
             subscription.check_and_update_status()
             
             return Response({
@@ -281,7 +296,6 @@ class SubscriptionView(APIView):
                 'error': None
             })
         except Subscription.DoesNotExist:
-            # Создаем подписку если её нет
             subscription = Subscription.objects.create(user=request.user, is_active=False)
             return Response({
                 'status': 'success',
@@ -304,7 +318,6 @@ class SubscriptionView(APIView):
         except Subscription.DoesNotExist:
             subscription = Subscription.objects.create(user=request.user, is_active=False)
 
-        # Создаем платеж
         payment = SubscriptionPayment.objects.create(
             subscription=subscription,
             amount=Subscription.SUBSCRIPTION_PRICE,
@@ -312,11 +325,9 @@ class SubscriptionView(APIView):
             payment_provider='stub'
         )
 
-        # ЗАГЛУШКА: Автоматически подтверждаем оплату
         payment.status = 'completed'
         payment.save()
 
-        # Активируем подписку на 30 дней
         subscription.activate(duration_days=30)
 
         return Response({
@@ -334,11 +345,10 @@ class SubscriptionView(APIView):
         })
 
 
-# ✅ TELEGRAM INTEGRATION VIEWS
-
 class TelegramGenerateLinkView(APIView):
     """Генерация одноразовой ссылки для привязки Telegram"""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [TelegramLinkThrottle]
     
     def post(self, request):
         try:
@@ -396,7 +406,6 @@ class TelegramVerifyTokenView(APIView):
                     'error': 'token и telegram_chat_id обязательны'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Находим токен
             try:
                 link_token = TelegramLinkToken.objects.get(token=token)
             except TelegramLinkToken.DoesNotExist:
@@ -405,7 +414,6 @@ class TelegramVerifyTokenView(APIView):
                     'error': 'Неверный или истекший токен'
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Проверяем валидность
             if not link_token.is_valid():
                 return Response({
                     'status': 'error',
@@ -498,12 +506,10 @@ class TelegramGetUserByIdView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ✅ INTERNAL API (защищен middleware с JWT)
-
 class InternalUserProfileView(APIView):
     """Внутренний эндпоинт для получения профиля (защищен JWT middleware)"""
-    authentication_classes = []  # ✅ Отключаем JWT аутентификацию
-    permission_classes = [AllowAny]  # ✅ Защита через middleware
+    authentication_classes = []
+    permission_classes = [AllowAny]
     
     def get(self, request, user_id):
         try:

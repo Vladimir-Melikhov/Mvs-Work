@@ -1,6 +1,28 @@
+# services/market/apps/services/models.py
 import uuid
 from django.db import models
+from django.core.exceptions import ValidationError
 import os
+
+
+def validate_tags(value):
+    """Валидация тегов - должен быть список строк"""
+    if not isinstance(value, list):
+        raise ValidationError('Tags должны быть списком')
+    
+    if len(value) > 20:
+        raise ValidationError('Максимум 20 тегов')
+    
+    for tag in value:
+        if not isinstance(tag, str):
+            raise ValidationError('Каждый тег должен быть строкой')
+        
+        if len(tag) > 50:
+            raise ValidationError('Тег не может быть длиннее 50 символов')
+        
+        # Проверка на опасные символы
+        if any(char in tag for char in ['<', '>', '"', "'", ';', '--', '/*', '*/', 'DROP', 'SELECT']):
+            raise ValidationError('Тег содержит недопустимые символы')
 
 
 def service_image_upload_path(instance, filename):
@@ -52,9 +74,12 @@ class Service(models.Model):
         default='other',
         db_index=True
     )
-    tags = models.JSONField(default=list, blank=True)
+    tags = models.JSONField(
+        default=list, 
+        blank=True,
+        validators=[validate_tags]
+    )
     
-    # ✅ НОВОЕ ПОЛЕ: Активность объявления
     is_active = models.BooleanField(
         default=True,
         db_index=True,
@@ -75,6 +100,14 @@ class Service(models.Model):
 
     def __str__(self) -> str:
         return self.title
+    
+    def clean(self):
+        """Дополнительная валидация перед сохранением"""
+        super().clean()
+        
+        # Валидация тегов
+        if self.tags:
+            validate_tags(self.tags)
 
 
 class ServiceImage(models.Model):
