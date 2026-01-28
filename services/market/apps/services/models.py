@@ -3,6 +3,7 @@ import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
 import os
+import bleach
 
 
 def validate_tags(value):
@@ -20,8 +21,8 @@ def validate_tags(value):
         if len(tag) > 50:
             raise ValidationError('Тег не может быть длиннее 50 символов')
         
-        # Проверка на опасные символы
-        if any(char in tag for char in ['<', '>', '"', "'", ';', '--', '/*', '*/', 'DROP', 'SELECT']):
+        dangerous = ['--', '/*', '*/', 'drop', 'select', 'insert', 'update', 'delete', 'union', 'exec', 'script']
+        if any(pattern in tag.lower() for pattern in dangerous):
             raise ValidationError('Тег содержит недопустимые символы')
 
 
@@ -100,14 +101,31 @@ class Service(models.Model):
 
     def __str__(self) -> str:
         return self.title
-    
+
     def clean(self):
         """Дополнительная валидация перед сохранением"""
         super().clean()
-        
-        # Валидация тегов
+
         if self.tags:
             validate_tags(self.tags)
+
+        ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h3', 'h4', 'a']
+        ALLOWED_ATTRS = {'a': ['href', 'title']}
+
+        self.description = bleach.clean(
+            self.description,
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRS,
+            strip=True
+        )
+
+        if self.ai_template:
+            self.ai_template = bleach.clean(
+                self.ai_template,
+                tags=ALLOWED_TAGS,
+                attributes=ALLOWED_ATTRS,
+                strip=True
+            )
 
 
 class ServiceImage(models.Model):
