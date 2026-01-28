@@ -5,9 +5,29 @@ from django.core.files.storage import FileSystemStorage
 from django.utils import timezone
 from datetime import timedelta
 import os
-
+from django.core.exceptions import ValidationError
 
 avatar_storage = FileSystemStorage(location='media/avatars')
+
+
+def validate_skills(value):
+    """Валидация навыков"""
+    if not isinstance(value, list):
+        raise ValidationError('Skills должны быть списком')
+    
+    if len(value) > 50:
+        raise ValidationError('Максимум 50 навыков')
+    
+    for skill in value:
+        if not isinstance(skill, str):
+            raise ValidationError('Каждый навык должен быть строкой')
+        
+        if len(skill) > 100:
+            raise ValidationError('Навык не может быть длиннее 100 символов')
+        
+        # Проверка на опасные символы
+        if any(char in skill for char in ['<', '>', '"', "'", ';', '--', '/*', '*/']):
+            raise ValidationError('Навык содержит недопустимые символы')
 
 
 def avatar_upload_path(instance, filename):
@@ -70,7 +90,7 @@ class Profile(models.Model):
     )
     
     bio = models.TextField(blank=True, null=True)
-    skills = models.JSONField(default=list, blank=True)
+    skills = models.JSONField(default=list, blank=True, validators=[validate_skills])
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     github_link = models.URLField(blank=True, null=True, help_text="Ссылка на GitHub профиль")
     behance_link = models.URLField(blank=True, null=True, help_text="Ссылка на Behance профиль")
