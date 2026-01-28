@@ -19,6 +19,7 @@ from .services import AIService
 from .deal_service import DealService
 import os
 import requests
+import magic
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -85,6 +86,29 @@ class ServiceViewSet(viewsets.ModelViewSet):
         except Service.DoesNotExist:
             return Response({'status': 'error', 'error': 'Услуга не найдена', 'data': None}, status=404)
 
+    def _validate_image_file(self, image_file):
+        """Валидация изображения с MIME-type проверкой"""
+        if image_file.size > 5 * 1024 * 1024:
+            raise ValueError('Размер файла превышает 5MB')
+        
+        ext = os.path.splitext(image_file.name)[1][1:].lower()
+        allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        
+        if ext not in allowed_extensions:
+            raise ValueError(f'Недопустимое расширение: {ext}')
+        
+        # MIME-type проверка
+        file_head = image_file.read(2048)
+        image_file.seek(0)
+        
+        mime = magic.from_buffer(file_head, mime=True)
+        allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        
+        if mime not in allowed_mimes:
+            raise ValueError(f'Недопустимый MIME-type: {mime}')
+        
+        return True
+
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         """Создание нового объявления с проверкой подписки"""
@@ -112,23 +136,24 @@ class ServiceViewSet(viewsets.ModelViewSet):
             is_active=is_active
         )
         
+        # Валидация и сохранение изображений
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
                 image_file = request.FILES[image_key]
                 
-                if image_file.size > 5 * 1024 * 1024:
+                try:
+                    self._validate_image_file(image_file)
+                    
+                    ServiceImage.objects.create(
+                        service=service,
+                        image=image_file,
+                        order=i
+                    )
+                except ValueError as e:
+                    # Пропускаем невалидные файлы
+                    print(f"Ошибка валидации изображения {i}: {e}")
                     continue
-                
-                ext = os.path.splitext(image_file.name)[1][1:].lower()
-                if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-                    continue
-                
-                ServiceImage.objects.create(
-                    service=service,
-                    image=image_file,
-                    order=i
-                )
         
         response_data = ServiceSerializer(service, context={'request': request}).data
         
@@ -176,25 +201,25 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
         service = serializer.save(is_active=final_is_active)
         
+        # Валидация и обновление изображений
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
                 image_file = request.FILES[image_key]
                 
-                if image_file.size > 5 * 1024 * 1024:
+                try:
+                    self._validate_image_file(image_file)
+                    
+                    ServiceImage.objects.filter(service=instance, order=i).delete()
+                    
+                    ServiceImage.objects.create(
+                        service=service,
+                        image=image_file,
+                        order=i
+                    )
+                except ValueError as e:
+                    print(f"Ошибка валидации изображения {i}: {e}")
                     continue
-                
-                ext = os.path.splitext(image_file.name)[1][1:].lower()
-                if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-                    continue
-                
-                ServiceImage.objects.filter(service=instance, order=i).delete()
-                
-                ServiceImage.objects.create(
-                    service=service,
-                    image=image_file,
-                    order=i
-                )
 
         return Response({'status': 'success', 'data': ServiceSerializer(service, context={'request': request}).data, 'error': None})
 
@@ -245,7 +270,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
             
-            subscription_url = f'http://localhost:8001/api/auth/subscription/'
+            subscription_url = 'http://localhost:8001/api/auth/subscription/'
             
             response = requests.get(
                 subscription_url,
@@ -308,13 +333,7 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_deal(self, request):
-        """
-        Создать новый заказ
-        
-        ЛОГИКА: 
-        - client_id = тот, кто создает заказ (request.user.id)
-        - worker_id = тот, у кого заказывают (второй участник чата)
-        """
+        """Создать новый заказ"""
         serializer = CreateDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
@@ -323,7 +342,6 @@ class DealViewSet(viewsets.ViewSet):
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
-            # Получаем информацию о чате
             import requests as req
             chat_url = f"http://localhost:8003/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
@@ -334,12 +352,8 @@ class DealViewSet(viewsets.ViewSet):
             chat_data = chat_response.json()
             members = chat_data['data']['members']
 
-            # ПРАВИЛЬНАЯ ЛОГИКА:
-            # client_id - тот, кто создает заказ (инициатор)
-            # worker_id - второй участник чата (исполнитель)
             current_user_id = str(request.user.id)
             
-            # Находим второго участника чата
             other_member_id = None
             for member_id in members:
                 if str(member_id) != current_user_id:
@@ -349,8 +363,6 @@ class DealViewSet(viewsets.ViewSet):
             if not other_member_id:
                 return Response({'error': 'Не найден второй участник чата'}, status=400)
 
-            # Клиент - тот, кто создает заказ
-            # Воркер - тот, у кого заказывают
             client_id = current_user_id
             worker_id = other_member_id
 

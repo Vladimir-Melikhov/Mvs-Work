@@ -18,16 +18,10 @@ class DealService:
 
     @staticmethod
     def _get_system_token() -> str:
-        """
-        Генерирует системный JWT-токен для внутренних операций
-        Используется когда админ обновляет заказ без пользовательской сессии
-        
-        ✅ ИСПРАВЛЕНО: Использует тот же формат, что и djangorestframework-simplejwt
-        """
+        """Генерирует системный JWT-токен для внутренних операций"""
         from rest_framework_simplejwt.tokens import AccessToken
         
         token = AccessToken()
-
         token['user_id'] = '00000000-0000-0000-0000-000000000000'
         token['email'] = 'system@marketplace.internal'
         token['role'] = 'system'
@@ -36,20 +30,26 @@ class DealService:
 
     @staticmethod
     def check_active_deal(client_id: str, worker_id: str):
-        """Проверка наличия активного заказа между двумя пользователями"""
-        active_deal = Deal.objects.filter(
-            client_id=client_id,
-            worker_id=worker_id,
-            status__in=['pending', 'paid', 'delivered', 'dispute']
-        ).first()
+        """Проверка наличия активного заказа между двумя пользователями с блокировкой"""
+        from django.db import connection
         
-        return active_deal
+        # Используем SELECT FOR UPDATE для предотвращения race condition
+        with transaction.atomic():
+            active_deal = Deal.objects.select_for_update().filter(
+                client_id=client_id,
+                worker_id=worker_id,
+                status__in=['pending', 'paid', 'delivered', 'dispute']
+            ).first()
+            
+            return active_deal
 
     @staticmethod
     @transaction.atomic
     def create_deal(chat_room_id: str, client_id: str, worker_id: str, 
                     title: str, description: str, price: Decimal, auth_token: str):
-        """Создать новый заказ"""
+        """Создать новый заказ с защитой от race condition"""
+        
+        # Проверяем с блокировкой
         active_deal = DealService.check_active_deal(client_id, worker_id)
         if active_deal:
             raise ValueError(f"У вас уже есть активный заказ с этим исполнителем. ID заказа: {active_deal.id}")
@@ -144,21 +144,16 @@ class DealService:
         deal.delivery_message = delivery_message
         deal.save()
 
-        # ✅ ИСПРАВЛЕНИЕ: Отправляем сообщение с attachments
         DealService._send_delivery_message(deal, worker_id, delivery_message, auth_token)
-
         DealService._send_deal_card(deal, worker_id, 'delivered', auth_token)
         return deal
 
     @staticmethod
     def _send_delivery_message(deal: Deal, sender_id: str, delivery_message: str, auth_token: str):
-        """
-        ✅ НОВЫЙ МЕТОД: Отправка сообщения о сдаче работы с файлами как attachments
-        """
+        """Отправка сообщения о сдаче работы с файлами как attachments"""
         try:
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
-            # Формируем список ID файлов для отправки
             attachment_data = []
             for att in deal.delivery_attachments.all():
                 if att.file:
@@ -179,7 +174,7 @@ class DealService:
                 'text': f"📦 РЕЗУЛЬТАТ РАБОТЫ\n\n{delivery_message}",
                 'deal_data': None,
                 'is_system': True,
-                'attachments': attachment_data  # ✅ Передаём файлы как attachments
+                'attachments': attachment_data
             }
             
             headers = {
@@ -222,16 +217,10 @@ class DealService:
         DealService._send_deal_card(deal, client_id, 'revision', auth_token)
         return deal
 
-    # ============================================================
-    # ✅ НОВЫЕ МЕТОДЫ ДЛЯ АРБИТРАЖА
-    # ============================================================
-
     @staticmethod
     @transaction.atomic
     def open_dispute(deal: Deal, client_id: str, dispute_reason: str, auth_token: str):
-        """
-        Открыть спор (только клиент, только после сдачи работы)
-        """
+        """Открыть спор (только клиент, только после сдачи работы)"""
         if str(client_id) != str(deal.client_id):
             raise ValueError("Открыть спор может только клиент")
 
@@ -256,9 +245,7 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def worker_refund(deal: Deal, worker_id: str, auth_token: str):
-        """
-        Исполнитель соглашается с претензией и возвращает деньги
-        """
+        """Исполнитель соглашается с претензией и возвращает деньги"""
         if str(worker_id) != str(deal.worker_id):
             raise ValueError("Только исполнитель может вернуть деньги")
 
@@ -268,7 +255,6 @@ class DealService:
         if deal.dispute_worker_defense:
             raise ValueError("Нельзя вернуть деньги после подачи защиты")
 
-        # Возврат средств
         transaction_obj = deal.transactions.filter(status='held').first()
         if transaction_obj:
             transaction_obj.status = 'refunded'
@@ -294,10 +280,7 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def worker_defend(deal: Deal, worker_id: str, defense_text: str, auth_token: str):
-        """
-        Исполнитель оспаривает претензию
-        Отправляет данные администратору в Telegram
-        """
+        """Исполнитель оспаривает претензию"""
         if str(worker_id) != str(deal.worker_id):
             raise ValueError("Только исполнитель может подать защиту")
 
@@ -318,8 +301,6 @@ class DealService:
         )
 
         DealService._send_deal_card(deal, worker_id, 'defense_submitted', auth_token)
-
-        # ✅ ОТПРАВКА В TELEGRAM
         DealService._send_to_telegram_admin(deal)
 
         return deal
@@ -327,12 +308,7 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def admin_resolve_dispute(deal: Deal, winner: str, admin_comment: str = '', auth_token: str = ''):
-        """
-        Администратор разрешает спор
-        winner: 'client' или 'worker'
-        
-        ✅ ИСПРАВЛЕНИЕ: Всегда генерирует системный токен если auth_token отсутствует
-        """
+        """Администратор разрешает спор"""
         if deal.status != 'dispute':
             raise ValueError("Разрешить можно только активный спор")
 
@@ -348,7 +324,6 @@ class DealService:
         transaction_obj = deal.transactions.filter(status='held').first()
 
         if winner == 'client':
-            # Возврат средств клиенту
             if transaction_obj:
                 transaction_obj.status = 'refunded'
                 transaction_obj.save()
@@ -357,8 +332,7 @@ class DealService:
             deal.cancelled_at = timezone.now()
             deal.cancellation_reason = f"Спор разрешен в пользу клиента. {admin_comment}"
 
-        else:  # winner == 'worker'
-            # Выплата исполнителю
+        else:
             if transaction_obj:
                 transaction_obj.status = 'captured'
                 transaction_obj.save()
@@ -369,22 +343,13 @@ class DealService:
 
         deal.save()
         
-        # ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Генерируем системный токен если нет пользовательского
         if not auth_token:
             auth_token = DealService._get_system_token()
-            print(f"🔑 Сгенерирован системный токен для обновления чата")
         
-        # ✅ Теперь ВСЕГДА обновляем карточку в чате
         action_type = 'refunded' if winner == 'client' else 'completed'
-        print(f"📤 Отправляем обновленную карточку: winner={winner}, action={action_type}")
-        
         DealService._send_deal_card(deal, deal.client_id, action_type, auth_token)
         
         return deal
-
-    # ============================================================
-    # СУЩЕСТВУЮЩИЕ МЕТОДЫ
-    # ============================================================
 
     @staticmethod
     @transaction.atomic
@@ -420,17 +385,13 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def cancel_deal(deal: Deal, canceller_id: str, reason: str, auth_token: str):
-        """
-        Отмена заказа (ТОЛЬКО ДО СДАЧИ РАБОТЫ)
-        После сдачи - только через спор
-        """
+        """Отмена заказа (ТОЛЬКО ДО СДАЧИ РАБОТЫ)"""
         if str(canceller_id) not in [str(deal.client_id), str(deal.worker_id)]:
             raise ValueError("Вы не участник заказа")
 
         if deal.status == 'completed':
             raise ValueError("Нельзя отменить завершённый заказ")
 
-        # ✅ КРИТИЧЕСКИ ВАЖНО: После сдачи работы отмена запрещена
         if deal.status in ['delivered', 'dispute']:
             raise ValueError("После сдачи работы отмена невозможна. Используйте спор.")
 
@@ -476,20 +437,14 @@ class DealService:
     def _send_deal_card(deal: Deal, sender_id: str, action_type: str, auth_token: str):
         """Отправка/обновление карточки заказа в чате"""
         try:
-            print(f"📨 _send_deal_card вызван: deal_id={deal.id}, status={deal.status}, action_type={action_type}")
-            print(f"   dispute_winner={deal.dispute_winner}, token_exists={bool(auth_token)}")
-            
-            # ✅ ПРОВЕРКА: Если токена нет - генерируем системный
             if not auth_token:
                 auth_token = DealService._get_system_token()
-                print(f"⚠️ Токен отсутствовал, сгенерирован системный")
             
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
             commission = float(deal.price * DealService.COMMISSION_RATE)
             total = float(deal.price) + commission
             
-            # ✅ ИСПРАВЛЕНИЕ: Формируем URL файлов с правильным хостом (market-сервис)
             market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
             delivery_attachments = []
             for att in deal.delivery_attachments.all():
@@ -514,14 +469,13 @@ class DealService:
                 'revision_count': deal.revision_count,
                 'max_revisions': deal.max_revisions,
                 'delivery_message': deal.delivery_message or '',
-                'delivery_attachments': delivery_attachments,  # ✅ ДОБАВЛЕНО
+                'delivery_attachments': delivery_attachments,
                 'can_pay': deal.can_pay,
                 'can_deliver': deal.can_deliver,
                 'can_request_revision': deal.can_request_revision,
                 'can_complete': deal.can_complete,
                 'can_cancel': deal.can_cancel,
                 'can_update_price': deal.can_update_price,
-                # ✅ НОВЫЕ ПОЛЯ ДЛЯ АРБИТРАЖА
                 'can_open_dispute': deal.can_open_dispute,
                 'can_worker_refund': deal.can_worker_refund,
                 'can_worker_defend': deal.can_worker_defend,
@@ -531,9 +485,7 @@ class DealService:
                 'dispute_created_at': deal.dispute_created_at.isoformat() if deal.dispute_created_at else None,
                 'dispute_resolved_at': deal.dispute_resolved_at.isoformat() if deal.dispute_resolved_at else None,
                 'dispute_winner': deal.dispute_winner or '',
-                # Читаемый статус с учетом спора
                 'status_display': DealService._get_status_display(deal),
-                # Результат спора
                 'dispute_result': DealService._get_dispute_result(deal),
             }
             
@@ -561,9 +513,6 @@ class DealService:
             
             if deal.last_message_id:
                 payload['update_message_id'] = str(deal.last_message_id)
-                print(f"🔄 Обновляем существующее сообщение: {deal.last_message_id}")
-            else:
-                print(f"📝 Создаем новое сообщение")
             
             headers = {
                 'Authorization': f'Bearer {auth_token}',
@@ -572,8 +521,6 @@ class DealService:
             
             response = requests.post(url, headers=headers, json=payload, timeout=5)
             
-            print(f"📬 Ответ от чата: status_code={response.status_code}")
-            
             if response.status_code == 200:
                 response_data = response.json()
                 if response_data.get('status') == 'success':
@@ -581,20 +528,13 @@ class DealService:
                     if message_id and not deal.last_message_id:
                         deal.last_message_id = message_id
                         deal.save(update_fields=['last_message_id'])
-                        print(f"✅ Сохранен ID сообщения: {message_id}")
-            else:
-                print(f"❌ Ошибка чата: {response.text[:200]}")
             
         except Exception as e:
             print(f"🔥 Error sending deal card: {e}")
-            import traceback
-            traceback.print_exc()
 
     @staticmethod
     def _send_to_telegram_admin(deal: Deal):
-        """
-        Отправка уведомления о споре администратору в Telegram
-        """
+        """Отправка уведомления о споре администратору в Telegram"""
         try:
             bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
             admin_id = os.getenv('TELEGRAM_ADMIN_ID')
@@ -650,7 +590,6 @@ class DealService:
         
         base_status = status_map.get(deal.status, deal.status)
         
-        # Если есть победитель в споре - добавляем информацию
         if deal.dispute_winner:
             if deal.dispute_winner == 'client':
                 if deal.status == 'cancelled':

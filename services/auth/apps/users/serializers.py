@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import User, Profile, Wallet, Subscription, SubscriptionPayment
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import os
+import magic
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -45,13 +46,20 @@ class ProfileSerializer(serializers.ModelSerializer):
         return None
     
     def validate_avatar(self, value):
-        """Валидация загружаемого файла"""
+        """Валидация загружаемого файла с MIME-type проверкой"""
         if value is None:
             return value
             
         if not isinstance(value, InMemoryUploadedFile):
             return value
         
+        # Проверка размера
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "Размер файла не должен превышать 5MB"
+            )
+        
+        # Проверка расширения
         ext = os.path.splitext(value.name)[1][1:].lower()
         allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
         
@@ -60,9 +68,27 @@ class ProfileSerializer(serializers.ModelSerializer):
                 f"Неподдерживаемый формат файла. Разрешены: {', '.join(allowed_extensions)}"
             )
         
-        if value.size > 5 * 1024 * 1024:
+        # MIME-type валидация
+        try:
+            # Читаем первые 2048 байт для определения типа
+            file_head = value.read(2048)
+            value.seek(0)  # Возвращаем указатель в начало
+            
+            mime = magic.from_buffer(file_head, mime=True)
+            allowed_mimes = [
+                'image/jpeg',
+                'image/png', 
+                'image/gif',
+                'image/webp'
+            ]
+            
+            if mime not in allowed_mimes:
+                raise serializers.ValidationError(
+                    f"Недопустимый тип файла: {mime}. Ожидается изображение."
+                )
+        except Exception as e:
             raise serializers.ValidationError(
-                "Размер файла не должен превышать 5MB"
+                f"Не удалось проверить тип файла: {str(e)}"
             )
         
         return value

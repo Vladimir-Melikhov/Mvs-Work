@@ -6,28 +6,43 @@ from django.utils import timezone
 from datetime import timedelta
 import os
 from django.core.exceptions import ValidationError
+import bleach
 
 avatar_storage = FileSystemStorage(location='media/avatars')
 
 
 def validate_skills(value):
-    """Валидация навыков"""
+    """Валидация навыков с sanitization"""
     if not isinstance(value, list):
         raise ValidationError('Skills должны быть списком')
     
     if len(value) > 50:
         raise ValidationError('Максимум 50 навыков')
     
+    cleaned_skills = []
     for skill in value:
         if not isinstance(skill, str):
             raise ValidationError('Каждый навык должен быть строкой')
         
-        if len(skill) > 100:
+        # Sanitization - удаляем HTML теги и опасные символы
+        clean_skill = bleach.clean(skill, tags=[], strip=True)
+        clean_skill = clean_skill.strip()
+        
+        if len(clean_skill) > 100:
             raise ValidationError('Навык не может быть длиннее 100 символов')
         
-        # Проверка на опасные символы
-        if any(char in skill for char in ['<', '>', '"', "'", ';', '--', '/*', '*/']):
-            raise ValidationError('Навык содержит недопустимые символы')
+        if not clean_skill:
+            continue
+        
+        # Проверка на SQL-инъекции
+        dangerous_patterns = ['--', '/*', '*/', 'DROP', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'UNION']
+        if any(pattern.lower() in clean_skill.lower() for pattern in dangerous_patterns):
+            raise ValidationError(f'Навык содержит недопустимые символы: {skill}')
+        
+        cleaned_skills.append(clean_skill)
+    
+    # Возвращаем очищенный список
+    return cleaned_skills
 
 
 def avatar_upload_path(instance, filename):
@@ -90,12 +105,11 @@ class Profile(models.Model):
     )
     
     bio = models.TextField(blank=True, null=True)
-    skills = models.JSONField(default=list, blank=True, validators=[validate_skills])
+    skills = models.JSONField(default=list, blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     github_link = models.URLField(blank=True, null=True, help_text="Ссылка на GitHub профиль")
     behance_link = models.URLField(blank=True, null=True, help_text="Ссылка на Behance профиль")
     
-    # ✅ НОВОЕ: Telegram интеграция
     telegram_chat_id = models.BigIntegerField(
         null=True, 
         blank=True, 
@@ -115,6 +129,31 @@ class Profile(models.Model):
 
     def __str__(self) -> str:
         return f"Profile of {self.user.email}"
+    
+    def clean(self):
+        """Валидация и sanitization при сохранении"""
+        super().clean()
+        
+        # Sanitize text fields
+        if self.bio:
+            self.bio = bleach.clean(self.bio, tags=[], strip=True)
+        
+        if self.full_name:
+            self.full_name = bleach.clean(self.full_name, tags=[], strip=True)
+        
+        if self.company_name:
+            self.company_name = bleach.clean(self.company_name, tags=[], strip=True)
+        
+        if self.headline:
+            self.headline = bleach.clean(self.headline, tags=[], strip=True)
+        
+        # Валидация и очистка навыков
+        if self.skills:
+            self.skills = validate_skills(self.skills)
+    
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
     
     def get_avatar_url(self):
         """Возвращает URL аватарки или None"""
@@ -206,7 +245,6 @@ class SubscriptionPayment(models.Model):
         return f"Payment {self.id} - {self.status}"
 
 
-# ✅ НОВАЯ МОДЕЛЬ: Одноразовые токены для привязки Telegram
 class TelegramLinkToken(models.Model):
     """Одноразовые токены для привязки Telegram аккаунта"""
     

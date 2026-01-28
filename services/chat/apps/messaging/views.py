@@ -11,11 +11,64 @@ from django.core.files.uploadedfile import UploadedFile
 from django.core.files.base import File
 import os
 import uuid
+import magic
 
 
 class RoomViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _validate_file(self, file, max_size_mb=20):
+        """Валидация файла с MIME-type проверкой"""
+        if file.size > max_size_mb * 1024 * 1024:
+            raise ValueError(f'Файл превышает {max_size_mb}MB')
+        
+        # MIME-type проверка
+        file_head = file.read(2048)
+        file.seek(0)
+        
+        mime = magic.from_buffer(file_head, mime=True)
+        
+        # Разрешенные MIME-types (расширенный список)
+        allowed_mimes = [
+            # Изображения
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            # Документы
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            # Текстовые
+            'text/plain', 'text/csv', 'text/html',
+            # Архивы
+            'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+            # Видео
+            'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo',
+            # Аудио
+            'audio/mpeg', 'audio/wav', 'audio/ogg',
+            # Код
+            'application/json', 'application/xml',
+            # Общий бинарный (для неопределенных типов)
+            'application/octet-stream'
+        ]
+        
+        # Для application/octet-stream проверяем расширение
+        if mime == 'application/octet-stream':
+            ext = os.path.splitext(file.name)[1].lower()
+            safe_extensions = [
+                '.txt', '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
+                '.ppt', '.pptx', '.zip', '.rar', '.7z', '.json', 
+                '.xml', '.csv', '.jpg', '.jpeg', '.png', '.gif'
+            ]
+            if ext not in safe_extensions:
+                raise ValueError(f'Небезопасный тип файла: {mime} с расширением {ext}')
+        elif mime not in allowed_mimes:
+            raise ValueError(f'Недопустимый MIME-type: {mime}')
+        
+        return True
 
     def list(self, request):
         """Получить все комнаты пользователя"""
@@ -102,9 +155,7 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def send_deal_message(self, request, pk=None):
-        """
-        Отправить или обновить интерактивное сообщение о сделке в комнату
-        """
+        """Отправить или обновить интерактивное сообщение о сделке в комнату"""
         try:
             room = Room.objects.get(id=pk)
             
@@ -183,10 +234,7 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload')
     def upload_files(self, request):
-        """
-        СТАРЫЙ ЭНДПОИНТ: Для изображений со сжатием (иконка 📷)
-        display_mode = 'inline' (показывать как картинку)
-        """
+        """Для изображений со сжатием (display_mode = 'inline')"""
         try:
             files = request.FILES.getlist('files')
             if not files:
@@ -194,40 +242,39 @@ class RoomViewSet(viewsets.ViewSet):
 
             uploaded_files = []
             for file in files:
-                if file.size > 20 * 1024 * 1024:
-                    return Response({'error': f'Файл {file.name} > 20MB'}, status=400)
+                try:
+                    self._validate_file(file, max_size_mb=20)
+                    
+                    attachment = MessageAttachment(
+                        message=None,
+                        filename=file.name,
+                        file_size=file.size,
+                        content_type=file.content_type or 'application/octet-stream',
+                        display_mode='inline'
+                    )
+                    
+                    ext = os.path.splitext(file.name)[1]
+                    unique_filename = f"{uuid.uuid4()}{ext}"
+                    
+                    attachment.file.save(unique_filename, file, save=True)
+                    
+                    actual_size = attachment.file.size
+                    if actual_size != file.size:
+                        attachment.file_size = actual_size
+                        attachment.save(update_fields=['file_size'])
 
-                print(f"📥 [upload] Получен файл: {file.name}, размер: {file.size} байт")
+                    file_url = request.build_absolute_uri(attachment.file.url)
 
-                attachment = MessageAttachment(
-                    message=None,
-                    filename=file.name,
-                    file_size=file.size,
-                    content_type=file.content_type or 'application/octet-stream',
-                    display_mode='inline'
-                )
-                
-                ext = os.path.splitext(file.name)[1]
-                unique_filename = f"{uuid.uuid4()}{ext}"
-                
-                attachment.file.save(unique_filename, file, save=True)
-                
-                actual_size = attachment.file.size
-                print(f"💾 [upload] Сохранено: {attachment.file.name}, размер: {actual_size} байт")
-                
-                if actual_size != file.size:
-                    print(f"⚠️ [upload] Размер изменился! Было: {file.size}, стало: {actual_size}")
-                    attachment.file_size = actual_size
-                    attachment.save(update_fields=['file_size'])
-
-                file_url = request.build_absolute_uri(attachment.file.url)
-
-                uploaded_files.append({
-                    'id': str(attachment.id),
-                    'name': attachment.filename,
-                    'size': attachment.file_size,
-                    'url': file_url
-                })
+                    uploaded_files.append({
+                        'id': str(attachment.id),
+                        'name': attachment.filename,
+                        'size': attachment.file_size,
+                        'url': file_url
+                    })
+                    
+                except ValueError as e:
+                    print(f"Ошибка валидации файла {file.name}: {e}")
+                    continue
 
             return Response({'status': 'success', 'data': {'files': uploaded_files}})
         except Exception as e:
@@ -237,10 +284,7 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload-raw-files')
     def upload_raw_files(self, request):
-        """
-        НОВЫЙ ЭНДПОИНТ: Для СЫРЫХ файлов БЕЗ обработки (иконка 📎)
-        display_mode = 'attachment' (показывать как файл для скачивания)
-        """
+        """Для СЫРЫХ файлов БЕЗ обработки (display_mode = 'attachment')"""
         try:
             files = request.FILES.getlist('files')
             
@@ -253,53 +297,47 @@ class RoomViewSet(viewsets.ViewSet):
             uploaded = []
             
             for uploaded_file in files:
-                if uploaded_file.size > 20 * 1024 * 1024:
-                    return Response({
-                        'status': 'error',
-                        'error': f'Файл {uploaded_file.name} превышает 20MB'
-                    }, status=400)
-                
-                original_size = uploaded_file.size
-                original_name = uploaded_file.name
-                
-                print(f"📎 [upload-raw] Получен RAW файл: {original_name}, размер: {original_size} байт")
-                
-                attachment = MessageAttachment(
-                    message=None,
-                    filename=original_name,
-                    file_size=original_size,
-                    content_type=uploaded_file.content_type or 'application/octet-stream',
-                    display_mode='attachment'
-                )
-                
-                ext = os.path.splitext(original_name)[1]
-                unique_filename = f"{uuid.uuid4()}{ext}"
-                
-                attachment.file.save(
-                    unique_filename, 
-                    File(uploaded_file),
-                    save=True
-                )
-                
-                actual_size = attachment.file.size
-                print(f"✅ [upload-raw] Сохранено: {attachment.file.name}, размер: {actual_size} байт")
-                
-                if actual_size != original_size:
-                    print(f"⚠️ [upload-raw] ВНИМАНИЕ: Размер изменился! Было: {original_size}, стало: {actual_size}")
-                    attachment.file_size = actual_size
-                    attachment.save(update_fields=['file_size'])
-                
-                file_url = request.build_absolute_uri(attachment.file.url)
-                
-                uploaded.append({
-                    'id': str(attachment.id),
-                    'name': attachment.filename,
-                    'size': attachment.file_size,
-                    'url': file_url,
-                    'content_type': attachment.content_type
-                })
-                
-                print(f"🎯 [upload-raw] Готов к отправке: {attachment.filename}, display_mode=attachment")
+                try:
+                    self._validate_file(uploaded_file, max_size_mb=20)
+                    
+                    original_size = uploaded_file.size
+                    original_name = uploaded_file.name
+                    
+                    attachment = MessageAttachment(
+                        message=None,
+                        filename=original_name,
+                        file_size=original_size,
+                        content_type=uploaded_file.content_type or 'application/octet-stream',
+                        display_mode='attachment'
+                    )
+                    
+                    ext = os.path.splitext(original_name)[1]
+                    unique_filename = f"{uuid.uuid4()}{ext}"
+                    
+                    attachment.file.save(
+                        unique_filename, 
+                        File(uploaded_file),
+                        save=True
+                    )
+                    
+                    actual_size = attachment.file.size
+                    if actual_size != original_size:
+                        attachment.file_size = actual_size
+                        attachment.save(update_fields=['file_size'])
+                    
+                    file_url = request.build_absolute_uri(attachment.file.url)
+                    
+                    uploaded.append({
+                        'id': str(attachment.id),
+                        'name': attachment.filename,
+                        'size': attachment.file_size,
+                        'url': file_url,
+                        'content_type': attachment.content_type
+                    })
+                    
+                except ValueError as e:
+                    print(f"Ошибка валидации файла {uploaded_file.name}: {e}")
+                    continue
             
             return Response({
                 'status': 'success',
@@ -308,7 +346,6 @@ class RoomViewSet(viewsets.ViewSet):
             
         except Exception as e:
             import traceback
-            print(f"❌ [upload-raw] Ошибка загрузки файла:")
             traceback.print_exc()
             return Response({
                 'status': 'error',

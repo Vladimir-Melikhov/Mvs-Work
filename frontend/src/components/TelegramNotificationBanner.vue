@@ -1,4 +1,3 @@
-<!-- frontend/src/components/TelegramNotificationBanner.vue -->
 <template>
     <div 
       v-if="showBanner"
@@ -27,6 +26,7 @@
       </button>
     </div>
     
+    <!-- Teleport выносит модалку в body -->
     <Teleport to="body">
       <TelegramLinkModal 
         v-if="showModal"
@@ -37,27 +37,17 @@
   </template>
   
   <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed } from 'vue'
   import { useAuthStore } from '../stores/authStore'
   import TelegramLinkModal from './TelegramLinkModal.vue'
   
   const auth = useAuthStore()
   const showModal = ref(false)
   const isClosed = ref(false)
-  const bannerDismissedKey = 'telegram_banner_dismissed'
   
   const showBanner = computed(() => {
     if (isClosed.value) return false
-    
-    // Проверяем localStorage - если пользователь закрыл баннер
-    if (localStorage.getItem(bannerDismissedKey) === 'true') {
-      return false
-    }
-    
-    // Показываем только если Telegram НЕ подключен
-    if (!auth.user?.profile) return false
-    
-    return !auth.user.profile.telegram_notifications_enabled
+    return auth.user?.profile && !auth.user.profile.telegram_notifications_enabled
   })
   
   const openModal = () => {
@@ -66,23 +56,12 @@
   
   const closeBanner = () => {
     isClosed.value = true
-    localStorage.setItem(bannerDismissedKey, 'true')
+    localStorage.setItem('telegram_banner_closed', 'true')
   }
   
   const handleConnected = async () => {
     showModal.value = false
-    
-    // Обновляем профиль, чтобы получить актуальный статус
     await auth.fetchProfile()
-    
-    // После успешного подключения баннер исчезнет автоматически
-    // так как telegram_notifications_enabled станет true
   }
-  
-  // При монтировании проверяем актуальный статус
-  onMounted(async () => {
-    if (auth.user) {
-      await auth.fetchProfile()
-    }
-  })
   </script>
+  
