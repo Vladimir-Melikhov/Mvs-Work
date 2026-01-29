@@ -66,13 +66,11 @@
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
             ></div>
             
-            <!-- 🔥 НОВАЯ ЛОГИКА ВЛОЖЕНИЙ -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
               <div 
                 v-for="(att, idx) in msg.attachments" 
                 :key="idx"
               >
-                <!-- Если изображение И display_mode НЕ 'attachment' → показываем визуально -->
                 <img 
                   v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
                   :src="att.url" 
@@ -81,14 +79,12 @@
                   @click="window.open(att.url, '_blank')"
                 />
                 
-                <!-- Иначе → показываем как файл для скачивания -->
                 <a 
                   v-else
                   :href="att.url" 
                   target="_blank"
                   class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group cursor-pointer"
                 >
-                  <!-- Иконка файла -->
                   <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center shrink-0">
                     <svg v-if="att.content_type?.startsWith('image/')" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -98,7 +94,6 @@
                     </svg>
                   </div>
                   
-                  <!-- Информация о файле -->
                   <div class="flex-1 min-w-0">
                     <div class="font-medium truncate">{{ att.name || att.filename }}</div>
                     <div class="text-xs opacity-60 flex items-center gap-2">
@@ -107,7 +102,6 @@
                     </div>
                   </div>
                   
-                  <!-- Иконка открытия -->
                   <div class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -172,7 +166,6 @@
         </button>
       </div>
       
-      <!-- Превью выбранных файлов -->
       <div v-if="selectedFiles.length > 0" class="mt-2 flex flex-wrap gap-2">
         <div 
           v-for="(file, idx) in selectedFiles" 
@@ -363,7 +356,6 @@
               v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
             ></div>
             
-            <!-- 🔥 НОВАЯ ЛОГИКА ВЛОЖЕНИЙ (мобильная) -->
             <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
               <div 
                 v-for="(att, idx) in msg.attachments" 
@@ -809,7 +801,10 @@ const fetchHistory = async () => {
 
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/`)
+  const token = localStorage.getItem('access_token')
+  
+  socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/?token=${token}`)
+  
   socket.onopen = () => isConnected.value = true
   
   socket.onmessage = async (event) => {
@@ -823,6 +818,7 @@ const connectWebSocket = () => {
       if (idx !== -1) messages.value[idx] = data.data
     }
   }
+  
   socket.onclose = () => isConnected.value = false
 }
 

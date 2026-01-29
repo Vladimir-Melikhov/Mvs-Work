@@ -11,41 +11,60 @@ import requests
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        # 1. Проверка аутентификации
+        user = self.scope.get('user')
+        if not user or not user.is_authenticated:
+            await self.close(code=4001)
+            return
+        
+        # 2. Проверка членства в чате
         self.room_id = self.scope['url_route']['kwargs']['room_id']
+        is_member = await self.check_room_membership(str(user.id), self.room_id)
+        
+        if not is_member:
+            await self.close(code=4003)  # Forbidden
+            return
+        
         self.room_group_name = f'chat_{self.room_id}'
-
+        self.user_id = str(user.id)
+        
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
-
+        
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
 
     async def receive(self, text_data):
         data = json.loads(text_data)
         message_type = data.get('type', 'message')
 
         if message_type == 'message':
+            # Валидация: отправитель должен быть текущим пользователем
             sender_id = data.get('sender_id')
+            if str(sender_id) != self.user_id:
+                return  # Игнорируем попытку отправить от чужого имени
+            
             text = data.get('text', '')
             attachments = data.get('attachments', [])
 
             message = await self.save_message(
                 room_id=self.room_id,
-                sender_id=sender_id,
+                sender_id=self.user_id,
                 text=text,
                 message_type='text',
                 attachment_ids=attachments
             )
 
-            # ✅ Отправка Telegram уведомления
-            await self.send_telegram_notification(message, sender_id)
+            # Отправка Telegram уведомления
+            await self.send_telegram_notification(message, self.user_id)
 
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -68,6 +87,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'message_updated',
             'data': event['message']
         }))
+
+    @database_sync_to_async
+    def check_room_membership(self, user_id, room_id):
+        """Проверить, что пользователь - участник чата"""
+        try:
+            room = Room.objects.get(id=room_id)
+            return str(user_id) in [str(m) for m in room.members]
+        except Room.DoesNotExist:
+            return False
 
     @database_sync_to_async
     def save_message(self, room_id, sender_id, text, message_type='text', deal_data=None, attachment_ids=None):
@@ -132,7 +160,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return message.room.members
     
     async def send_telegram_notification(self, message, sender_id):
-        """✅ Отправка Telegram уведомления с JWT аутентификацией"""
+        """Отправка Telegram уведомления с JWT аутентификацией"""
         try:
             print(f"[TELEGRAM] 🔔 Начало отправки уведомления")
             

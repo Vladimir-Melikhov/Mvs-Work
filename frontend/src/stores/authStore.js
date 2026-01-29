@@ -1,6 +1,20 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
@@ -106,3 +120,67 @@ export const useAuthStore = defineStore('auth', {
     }
   }
 })
+
+// Axios interceptor для автоматического refresh токена
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Добавляем в очередь
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return axios(originalRequest)
+        }).catch(err => {
+          return Promise.reject(err)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const refreshToken = localStorage.getItem('refresh_token')
+
+      if (!refreshToken) {
+        // Нет refresh token - выход
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      try {
+        const response = await axios.post('/api/auth/token/refresh/', {
+          refresh: refreshToken
+        })
+
+        const { access } = response.data
+        localStorage.setItem('access_token', access)
+        axios.defaults.headers.common['Authorization'] = `Bearer ${access}`
+
+        processQueue(null, access)
+        isRefreshing = false
+
+        originalRequest.headers.Authorization = `Bearer ${access}`
+        return axios(originalRequest)
+
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        isRefreshing = false
+
+        // Refresh token тоже невалиден - выход
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/login'
+
+        return Promise.reject(refreshError)
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)

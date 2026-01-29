@@ -12,11 +12,13 @@ from .views import (
     TelegramDisconnectView,
     TelegramGetUserByIdView,
 )
+from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),
