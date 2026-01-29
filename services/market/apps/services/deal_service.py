@@ -2,7 +2,7 @@ import os
 import requests
 from decimal import Decimal
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from .models import Deal, Transaction, Review
 from django.conf import settings
 from datetime import datetime, timedelta
@@ -18,61 +18,50 @@ class DealService:
 
     @staticmethod
     def _get_system_token() -> str:
-        """Генерирует системный JWT-токен для внутренних операций"""
-        from rest_framework_simplejwt.tokens import AccessToken
-        
-        token = AccessToken()
-        token['user_id'] = '00000000-0000-0000-0000-000000000000'
-        token['email'] = 'system@marketplace.internal'
-        token['role'] = 'system'
-        
-        return str(token)
+        """Генерирует системный JWT-токен для внутренних операций через ServiceJWT"""
+        from .jwt_service import ServiceJWT
 
-    @staticmethod
-    def check_active_deal(client_id: str, worker_id: str):
-        """Проверка наличия активного заказа между двумя пользователями с блокировкой"""
-        from django.db import connection
-        
-        # Используем SELECT FOR UPDATE для предотвращения race condition
-        with transaction.atomic():
-            active_deal = Deal.objects.select_for_update().filter(
-                client_id=client_id,
-                worker_id=worker_id,
-                status__in=['pending', 'paid', 'delivered', 'dispute']
-            ).first()
-            
-            return active_deal
+        return ServiceJWT.generate_service_token('market-service', expires_minutes=5)
 
     @staticmethod
     @transaction.atomic
     def create_deal(chat_room_id: str, client_id: str, worker_id: str, 
                     title: str, description: str, price: Decimal, auth_token: str):
-        """Создать новый заказ с защитой от race condition"""
+        """Создать новый заказ с защитой от race condition через get_or_create"""
         
-        # Проверяем с блокировкой
-        active_deal = DealService.check_active_deal(client_id, worker_id)
-        if active_deal:
-            raise ValueError(f"У вас уже есть активный заказ с этим исполнителем. ID заказа: {active_deal.id}")
+        try:
+            # Используем get_or_create с блокировкой на уровне БД
+            deal, created = Deal.objects.select_for_update().get_or_create(
+                client_id=client_id,
+                worker_id=worker_id,
+                status__in=['pending', 'paid', 'delivered', 'dispute'],
+                defaults={
+                    'chat_room_id': chat_room_id,
+                    'title': title,
+                    'description': description,
+                    'price': price,
+                    'status': 'pending'
+                }
+            )
+            
+            if not created:
+                # Если сделка уже существует
+                raise ValueError(f"У вас уже есть активный заказ с этим исполнителем. ID заказа: {deal.id}")
+            
+            # Отправляем сообщения только если сделка создана
+            DealService._send_text_message(
+                chat_room_id=chat_room_id,
+                sender_id=client_id,
+                text=f"📋 ТЕХНИЧЕСКОЕ ЗАДАНИЕ\n\n{description}",
+                auth_token=auth_token
+            )
 
-        deal = Deal.objects.create(
-            chat_room_id=chat_room_id,
-            client_id=client_id,
-            worker_id=worker_id,
-            title=title,
-            description=description,
-            price=price,
-            status='pending'
-        )
-
-        DealService._send_text_message(
-            chat_room_id=chat_room_id,
-            sender_id=client_id,
-            text=f"📋 ТЕХНИЧЕСКОЕ ЗАДАНИЕ\n\n{description}",
-            auth_token=auth_token
-        )
-
-        DealService._send_deal_card(deal, client_id, 'created', auth_token)
-        return deal
+            DealService._send_deal_card(deal, client_id, 'created', auth_token)
+            return deal
+            
+        except IntegrityError:
+            # На случай если constraint сработал
+            raise ValueError("Не удалось создать заказ. У вас уже есть активный заказ с этим исполнителем.")
 
     @staticmethod
     @transaction.atomic
@@ -614,3 +603,4 @@ class DealService:
             'resolved_at': deal.dispute_resolved_at.isoformat() if deal.dispute_resolved_at else None,
             'message': f"Спор разрешен в пользу {'клиента' if deal.dispute_winner == 'client' else 'исполнителя'}"
         }
+    

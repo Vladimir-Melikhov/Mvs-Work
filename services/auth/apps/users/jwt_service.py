@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 from django.conf import settings
 
 class ServiceJWT:
-    """JWT для межсервисного взаимодействия"""
+    """JWT для межсервисного взаимодействия с отдельным секретом"""
     
-    # Генерируем или берем из настроек
-    SECRET_KEY = os.getenv('SERVICE_JWT_SECRET', settings.SECRET_KEY + '-service-jwt')
+    # Отдельный секрет для межсервисных токенов
+    SECRET_KEY = os.getenv('SERVICE_JWT_SECRET', settings.SECRET_KEY + '-service-jwt-secure')
     ALGORITHM = 'HS256'
     
     @classmethod

@@ -7,41 +7,40 @@ from datetime import timedelta
 import os
 from django.core.exceptions import ValidationError
 import bleach
+import re
 
 avatar_storage = FileSystemStorage(location='media/avatars')
 
 
 def validate_skills(value):
-    """Валидация навыков с sanitization"""
+    """Валидация навыков с sanitization и белым списком символов"""
     if not isinstance(value, list):
         raise ValidationError('Skills должны быть списком')
-    
+
     if len(value) > 50:
         raise ValidationError('Максимум 50 навыков')
-    
+
+    ALLOWED_PATTERN = re.compile(r'^[a-zA-Zа-яА-ЯёЁ0-9\s\-+#.,/()]{1,100}$')
+
     cleaned_skills = []
     for skill in value:
         if not isinstance(skill, str):
             raise ValidationError('Каждый навык должен быть строкой')
-        
-        # Sanitization - удаляем HTML теги и опасные символы
+
         clean_skill = bleach.clean(skill, tags=[], strip=True)
         clean_skill = clean_skill.strip()
-        
-        if len(clean_skill) > 100:
-            raise ValidationError('Навык не может быть длиннее 100 символов')
-        
+
         if not clean_skill:
             continue
-        
-        # Проверка на SQL-инъекции
-        dangerous_patterns = ['--', '/*', '*/', 'DROP', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'UNION']
-        if any(pattern.lower() in clean_skill.lower() for pattern in dangerous_patterns):
-            raise ValidationError(f'Навык содержит недопустимые символы: {skill}')
+
+        if len(clean_skill) > 100:
+            raise ValidationError('Навык не может быть длиннее 100 символов')
+
+        if not ALLOWED_PATTERN.match(clean_skill):
+            raise ValidationError(f'Навык содержит недопустимые символы: {skill[:50]}')
         
         cleaned_skills.append(clean_skill)
     
-    # Возвращаем очищенный список
     return cleaned_skills
 
 

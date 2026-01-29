@@ -15,6 +15,7 @@ from .serializers import (
     CreateDealSerializer,
     CompleteDealSerializer
 )
+from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle
 from .services import AIService
 from .deal_service import DealService
 import os
@@ -331,7 +332,7 @@ class DealViewSet(viewsets.ViewSet):
         serializer = DealSerializer(deals, many=True)
         return Response({'status': 'success', 'data': serializer.data})
 
-    @action(detail=False, methods=['post'], url_path='create')
+    @action(detail=False, methods=['post'], url_path='create', throttle_classes=[DealCreationThrottle])
     def create_deal(self, request):
         """Создать новый заказ"""
         serializer = CreateDealSerializer(data=request.data)
@@ -435,7 +436,7 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    @action(detail=True, methods=['post'], url_path='deliver')
+    @action(detail=True, methods=['post'], url_path='deliver', throttle_classes=[FileUploadThrottle])
     def deliver(self, request, pk=None):
         """Сдать работу с файлами"""
         try:
@@ -549,7 +550,7 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    @action(detail=False, methods=['post'], url_path='generate-tz')
+    @action(detail=False, methods=['post'], url_path='generate-tz', throttle_classes=[AIGenerationThrottle])
     def generate_tz(self, request):
         """AI-генерация ТЗ"""
         service_id = request.data.get('service_id')

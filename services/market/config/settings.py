@@ -97,6 +97,11 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'ai_generation': '5/hour',
+        'deal_creation': '10/hour',
+        'file_upload': '50/hour',
+    }
 }
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG
