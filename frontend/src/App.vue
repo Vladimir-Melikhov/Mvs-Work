@@ -1,3 +1,4 @@
+<!-- frontend/src/App.vue -->
 <template>
   <div class="app">
     <TopNav v-if="!isMobile" />
@@ -11,25 +12,29 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue' // Добавили computed
-import { useRoute } from 'vue-router' // Добавили useRoute
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuthStore } from './stores/authStore'
 import TopNav from './components/TopNav.vue'
 import BottomNav from './components/BottomNav.vue'
 import SupportButton from './components/SupportButton.vue'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const isMobile = ref(false)
 
-// Проверка: начинается ли адрес с /chats
 const isChatPage = computed(() => route.path.startsWith('/chats'))
 
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768
 }
 
-onMounted(() => {
+onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  
+  // Восстанавливаем сессию при загрузке приложения
+  await authStore.initAuth()
 })
 
 onUnmounted(() => {

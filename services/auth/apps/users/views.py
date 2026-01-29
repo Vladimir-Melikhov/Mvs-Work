@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import (
     RegisterSerializer, 
     LoginSerializer, 
@@ -27,6 +28,51 @@ import os
 import secrets
 
 
+class CookieTokenObtainPairView(TokenObtainPairView):
+    """Кастомный login view с сохранением refresh token в httpOnly cookie"""
+    
+    def finalize_response(self, request, response, *args, **kwargs):
+        if response.data.get('refresh'):
+            # Сохраняем refresh token в httpOnly cookie
+            response.set_cookie(
+                key='refresh_token',
+                value=response.data['refresh'],
+                httponly=True,
+                secure=False,  # True только на HTTPS в production
+                samesite='Lax',
+                max_age=7*24*60*60,  # 7 дней
+                path='/'
+            )
+            # Удаляем refresh из JSON response
+            del response.data['refresh']
+        
+        return super().finalize_response(request, response, *args, **kwargs)
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    """Кастомный refresh view который читает refresh token из cookie"""
+    
+    def post(self, request, *args, **kwargs):
+        # Пробуем получить refresh token из cookie
+        refresh_token = request.COOKIES.get('refresh_token')
+        
+        if not refresh_token:
+            # Если нет в cookie, пробуем из body (обратная совместимость)
+            refresh_token = request.data.get('refresh')
+        
+        if not refresh_token:
+            return Response({
+                'status': 'error',
+                'error': 'Refresh token not found',
+                'data': None
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Подставляем refresh token в request.data для стандартной обработки
+        request._full_data = {'refresh': refresh_token}
+        
+        return super().post(request, *args, **kwargs)
+
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [AuthenticationThrottle]
@@ -48,14 +94,32 @@ class RegisterView(APIView):
                 role=serializer.validated_data['role']
             )
             
-            return Response({
+            response_data = {
                 'status': 'success',
                 'data': {
                     'user': UserSerializer(user, context={'request': request}).data,
-                    'tokens': tokens
+                    'tokens': {
+                        'access': tokens['access']
+                        # refresh уже не возвращаем в JSON
+                    }
                 },
                 'error': None
-            }, status=status.HTTP_201_CREATED)
+            }
+            
+            response = Response(response_data, status=status.HTTP_201_CREATED)
+            
+            # Сохраняем refresh token в httpOnly cookie
+            response.set_cookie(
+                key='refresh_token',
+                value=tokens['refresh'],
+                httponly=True,
+                secure=False,  # True только на HTTPS
+                samesite='Lax',
+                max_age=7*24*60*60,  # 7 дней
+                path='/'
+            )
+            
+            return response
             
         except Exception as e:
             return Response({
@@ -85,14 +149,32 @@ class LoginView(APIView):
                 password=serializer.validated_data['password']
             )
             
-            return Response({
+            response_data = {
                 'status': 'success',
                 'data': {
                     'user': UserSerializer(user, context={'request': request}).data,
-                    'tokens': tokens
+                    'tokens': {
+                        'access': tokens['access']
+                        # refresh уже не возвращаем в JSON
+                    }
                 },
                 'error': None
-            }, status=status.HTTP_200_OK)
+            }
+            
+            response = Response(response_data, status=status.HTTP_200_OK)
+            
+            # Сохраняем refresh token в httpOnly cookie
+            response.set_cookie(
+                key='refresh_token',
+                value=tokens['refresh'],
+                httponly=True,
+                secure=False,  # True только на HTTPS
+                samesite='Lax',
+                max_age=7*24*60*60,  # 7 дней
+                path='/'
+            )
+            
+            return response
             
         except ValueError as e:
             return Response({

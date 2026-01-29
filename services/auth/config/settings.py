@@ -68,8 +68,8 @@ AUTH_USER_MODEL = 'users.User'
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # 15 минут в памяти
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 7 дней в cookie
     'ROTATE_REFRESH_TOKENS': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -109,6 +109,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+# Важно для cookies в CORS
+CORS_ALLOW_CREDENTIALS = True
+
 # CSRF для API
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
@@ -118,6 +121,11 @@ CSRF_TRUSTED_ORIGINS = [
 # Для API отключаем CSRF (используем JWT)
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
+
+# Настройки cookie для безопасности
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # Настройки медиа-файлов
 MEDIA_URL = '/media/'

@@ -1,3 +1,4 @@
+// frontend/src/stores/authStore.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
@@ -18,8 +19,7 @@ const processQueue = (error, token = null) => {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    accessToken: localStorage.getItem('access_token') || null,
-    refreshToken: localStorage.getItem('refresh_token') || null,
+    accessToken: null,  // Только в памяти, не в localStorage
   }),
 
   getters: {
@@ -34,11 +34,17 @@ export const useAuthStore = defineStore('auth', {
           email,
           password,
           role
+        }, {
+          withCredentials: true  // Важно для cookies
         })
         
         if (response.data.status === 'success') {
-          this.setTokens(response.data.data.tokens)
+          this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
+          
+          // Устанавливаем токен в axios headers
+          axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
+          
           return { success: true }
         }
       } catch (error) {
@@ -54,11 +60,17 @@ export const useAuthStore = defineStore('auth', {
         const response = await axios.post('/api/auth/login/', {
           email,
           password
+        }, {
+          withCredentials: true  // Важно для cookies
         })
         
         if (response.data.status === 'success') {
-          this.setTokens(response.data.data.tokens)
+          this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
+          
+          // Устанавливаем токен в axios headers
+          axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
+          
           return { success: true }
         }
       } catch (error) {
@@ -102,21 +114,46 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    setTokens(tokens) {
-      this.accessToken = tokens.access
-      this.refreshToken = tokens.refresh
-      localStorage.setItem('access_token', tokens.access)
-      localStorage.setItem('refresh_token', tokens.refresh)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.access}`
+    async refreshAccessToken() {
+      try {
+        const response = await axios.post('/api/auth/token/refresh/', {}, {
+          withCredentials: true  // Отправляет cookie с refresh token
+        })
+        
+        if (response.data && response.data.access) {
+          this.accessToken = response.data.access
+          axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
+          return true
+        }
+        
+        return false
+      } catch (error) {
+        console.error('Token refresh failed:', error)
+        this.logout()
+        return false
+      }
+    },
+
+    async initAuth() {
+      // При загрузке страницы пытаемся восстановить сессию через refresh token
+      try {
+        await this.refreshAccessToken()
+        if (this.accessToken) {
+          await this.fetchProfile()
+        }
+      } catch (error) {
+        console.error('Auth initialization failed:', error)
+        this.logout()
+      }
     },
 
     logout() {
       this.user = null
       this.accessToken = null
-      this.refreshToken = null
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
       delete axios.defaults.headers.common['Authorization']
+      
+      // Очищаем cookie (опционально, можно сделать endpoint на бэке)
+      document.cookie = 'refresh_token=; Max-Age=0; path=/;'
     }
   }
 })
@@ -143,41 +180,26 @@ axios.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing = true
 
-      const refreshToken = localStorage.getItem('refresh_token')
-
-      if (!refreshToken) {
-        // Нет refresh token - выход
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        window.location.href = '/login'
-        return Promise.reject(error)
-      }
+      const authStore = useAuthStore()
 
       try {
-        const response = await axios.post('/api/auth/token/refresh/', {
-          refresh: refreshToken
-        })
-
-        const { access } = response.data
-        localStorage.setItem('access_token', access)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${access}`
-
-        processQueue(null, access)
-        isRefreshing = false
-
-        originalRequest.headers.Authorization = `Bearer ${access}`
-        return axios(originalRequest)
-
+        const success = await authStore.refreshAccessToken()
+        
+        if (success) {
+          processQueue(null, authStore.accessToken)
+          originalRequest.headers.Authorization = `Bearer ${authStore.accessToken}`
+          return axios(originalRequest)
+        } else {
+          processQueue(error, null)
+          return Promise.reject(error)
+        }
       } catch (refreshError) {
         processQueue(refreshError, null)
-        isRefreshing = false
-
-        // Refresh token тоже невалиден - выход
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        authStore.logout()
         window.location.href = '/login'
-
         return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
       }
     }
 
