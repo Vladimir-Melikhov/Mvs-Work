@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Room, Message, MessageAttachment
+from .models import Room, Message, MessageAttachment, ReadReceipt
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):
@@ -35,17 +35,42 @@ class MessageSerializer(serializers.ModelSerializer):
 
 class RoomSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
-        fields = ['id', 'members', 'last_message', 'created_at', 'deal_id']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'members', 'last_message', 'created_at', 'deal_id', 'updated_at', 'unread_count']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
         if last_msg:
             return MessageSerializer(last_msg, context=self.context).data
         return None
+    
+    def get_unread_count(self, obj):
+        """Получить количество непрочитанных сообщений для текущего пользователя"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return 0
+        
+        user_id = str(request.user.id)
+        
+        # Получаем последнее прочитанное сообщение
+        try:
+            receipt = ReadReceipt.objects.get(room=obj, user_id=user_id)
+            if receipt.last_read_message:
+                # Считаем сообщения после последнего прочитанного
+                unread = obj.messages.filter(
+                    created_at__gt=receipt.last_read_message.created_at
+                ).exclude(sender_id=user_id).count()
+                return unread
+            else:
+                # Если нет last_read_message, считаем все чужие сообщения
+                return obj.messages.exclude(sender_id=user_id).count()
+        except ReadReceipt.DoesNotExist:
+            # Если нет записи о прочтении, считаем все чужие сообщения
+            return obj.messages.exclude(sender_id=user_id).count()
 
 
 class CreateRoomSerializer(serializers.Serializer):

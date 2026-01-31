@@ -21,14 +21,6 @@
           <div class="w-16 h-16 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex-shrink-0 flex items-center justify-center text-white text-xl font-bold border border-white/20 shadow-md overflow-hidden relative">
             <img v-if="getPartner(chat).avatar" :src="getPartner(chat).avatar" class="w-full h-full object-cover">
             <span v-else>{{ getInitials(getPartner(chat).name) }}</span>
-            
-            <!-- Счетчик непрочитанных сообщений -->
-            <div 
-              v-if="chat.unread_count > 0" 
-              class="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg border-2 border-white"
-            >
-              {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
-            </div>
           </div>
 
           <div class="flex-1 min-w-0">
@@ -39,9 +31,20 @@
               >
                 {{ getPartner(chat).name || 'Loading...' }}
               </h3>
-              <span class="text-xs text-gray-500 font-medium ml-2 shrink-0">
-                {{ formatDate(chat.updated_at) }}
-              </span>
+              
+              <div class="flex items-center gap-2 ml-2 shrink-0">
+                <span class="text-xs text-gray-500 font-medium whitespace-nowrap">
+                  {{ formatDate(chat.updated_at) }}
+                </span>
+                
+                <!-- Badge непрочитанных справа от времени -->
+                <span 
+                  v-if="chat.unread_count > 0" 
+                  class="min-w-[20px] h-5 px-1.5 bg-[#7000ff] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md"
+                >
+                  {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
+                </span>
+              </div>
             </div>
             <div 
               class="text-sm truncate group-hover:text-[#1a1a2e] transition-colors"

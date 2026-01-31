@@ -780,6 +780,15 @@ const scrollToBottom = async () => {
   if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
 }
 
+const markAsRead = async () => {
+  try {
+    await axios.post(`/api/chat/rooms/${roomId}/mark-read/`)
+    console.log('✅ Чат отмечен как прочитанный')
+  } catch (error) {
+    console.error('❌ Ошибка отметки прочитанного:', error)
+  }
+}
+
 const fetchRoomDetails = async () => {
   try {
     const res = await axios.get(`/api/chat/rooms/${roomId}/`)
@@ -813,6 +822,9 @@ const connectWebSocket = () => {
       const msg = data.data
       messages.value.push(msg)
       scrollToBottom()
+      
+      // Автоматически отмечаем как прочитанное при получении нового сообщения
+      await markAsRead()
     } else if (data.type === 'message_updated') {
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
       if (idx !== -1) messages.value[idx] = data.data
@@ -851,11 +863,15 @@ const sendMessage = async () => {
 
 const refreshMessages = () => fetchHistory()
 
-onMounted(() => {
-  fetchRoomDetails()
-  fetchHistory()
+onMounted(async () => {
+  await fetchRoomDetails()
+  await fetchHistory()
   connectWebSocket()
+  
+  // Отмечаем чат как прочитанный при открытии
+  await markAsRead()
 })
+
 onUnmounted(() => { if (socket) socket.close() })
 </script>
 

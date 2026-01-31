@@ -3,12 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from .models import Room, Message, MessageAttachment
+from .models import Room, Message, MessageAttachment, ReadReceipt
 from .serializers import RoomSerializer, MessageSerializer, MessageAttachmentSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.core.files.uploadedfile import UploadedFile
 from django.core.files.base import File
+from django.db.models import Max, Q
 import os
 import uuid
 import magic
@@ -71,9 +72,12 @@ class RoomViewSet(viewsets.ViewSet):
         return True
 
     def list(self, request):
-        """Получить все комнаты пользователя"""
+        """Получить все комнаты пользователя с правильной сортировкой"""
         user_id = str(request.user.id)
-        rooms = Room.objects.filter(members__contains=[user_id]).order_by('-created_at')
+        rooms = Room.objects.filter(
+            members__contains=[user_id]
+        ).order_by('-updated_at')  # Сортировка по времени последнего сообщения
+        
         serializer = RoomSerializer(rooms, many=True, context={'request': request})
         
         return Response({
@@ -150,6 +154,37 @@ class RoomViewSet(viewsets.ViewSet):
                 'data': serializer.data,
                 'error': None
             })
+        except Room.DoesNotExist:
+            return Response({'error': 'Комната не найдена'}, status=404)
+
+    @action(detail=True, methods=['post'], url_path='mark-read')
+    def mark_read(self, request, pk=None):
+        """Отметить все сообщения как прочитанные"""
+        try:
+            room = Room.objects.get(id=pk)
+            user_id = str(request.user.id)
+            
+            if user_id not in room.members:
+                return Response({'error': 'Нет доступа'}, status=403)
+            
+            # Получаем последнее сообщение в комнате
+            last_message = room.messages.last()
+            
+            if last_message:
+                # Обновляем или создаем запись о прочтении
+                ReadReceipt.objects.update_or_create(
+                    room=room,
+                    user_id=user_id,
+                    defaults={
+                        'last_read_message': last_message
+                    }
+                )
+            
+            return Response({
+                'status': 'success',
+                'message': 'Сообщения отмечены как прочитанные'
+            })
+            
         except Room.DoesNotExist:
             return Response({'error': 'Комната не найдена'}, status=404)
 

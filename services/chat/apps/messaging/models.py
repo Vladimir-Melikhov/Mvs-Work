@@ -15,11 +15,15 @@ class Room(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     members = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)  # Добавлено для сортировки
 
     deal_id = models.UUIDField(null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'rooms'
+        indexes = [
+            models.Index(fields=['-updated_at']),  # Индекс для быстрой сортировки
+        ]
 
     def __str__(self):
         return f"Room {self.id}"
@@ -49,9 +53,43 @@ class Message(models.Model):
     class Meta:
         db_table = 'messages'
         ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['room', '-created_at']),  # Индекс для последнего сообщения
+        ]
 
     def __str__(self):
         return f"Message {self.id} in Room {self.room_id}"
+    
+    def save(self, *args, **kwargs):
+        """При сохранении обновляем updated_at комнаты"""
+        super().save(*args, **kwargs)
+        # Обновляем время последнего обновления комнаты
+        Room.objects.filter(id=self.room_id).update(updated_at=self.created_at)
+
+
+class ReadReceipt(models.Model):
+    """Отметки о прочтении сообщений"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='read_receipts')
+    user_id = models.UUIDField(db_index=True)
+    last_read_message = models.ForeignKey(
+        Message, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        help_text="Последнее прочитанное сообщение"
+    )
+    last_read_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'read_receipts'
+        unique_together = [['room', 'user_id']]
+        indexes = [
+            models.Index(fields=['room', 'user_id']),
+        ]
+    
+    def __str__(self):
+        return f"ReadReceipt for user {self.user_id} in room {self.room_id}"
 
 
 class MessageAttachment(models.Model):
