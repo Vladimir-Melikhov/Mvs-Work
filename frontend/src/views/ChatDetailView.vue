@@ -32,7 +32,6 @@
           </h2>
         </div>
 
-        <!-- Баннер справа в той же строке -->
         <TelegramNotificationBanner />
       </div>
 
@@ -809,21 +808,30 @@ const fetchHistory = async () => {
 }
 
 const connectWebSocket = () => {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const token = localStorage.getItem('access_token')
+  // ✅ ИСПРАВЛЕНО: Подключаемся напрямую к chat service, а не через Vite
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8003'
+  const token = auth.accessToken || localStorage.getItem('access_token')
   
-  socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomId}/?token=${token}`)
+  const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${roomId}/?token=${token}`
   
-  socket.onopen = () => isConnected.value = true
+  console.log('🔌 Подключение к WebSocket:', wsUrl)
+  
+  socket = new WebSocket(wsUrl)
+  
+  socket.onopen = () => {
+    console.log('✅ WebSocket подключен')
+    isConnected.value = true
+  }
   
   socket.onmessage = async (event) => {
+    console.log('📨 Получено сообщение:', event.data)
     const data = JSON.parse(event.data)
     if (data.type === 'message') {
       const msg = data.data
       messages.value.push(msg)
       scrollToBottom()
       
-      // Автоматически отмечаем как прочитанное при получении нового сообщения
       await markAsRead()
     } else if (data.type === 'message_updated') {
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
@@ -831,7 +839,22 @@ const connectWebSocket = () => {
     }
   }
   
-  socket.onclose = () => isConnected.value = false
+  socket.onerror = (error) => {
+    console.error('❌ WebSocket ошибка:', error)
+  }
+  
+  socket.onclose = (event) => {
+    console.log('🔌 WebSocket закрыт:', event.code, event.reason)
+    isConnected.value = false
+    
+    // Автоматическое переподключение через 3 секунды
+    setTimeout(() => {
+      if (!isConnected.value) {
+        console.log('🔄 Попытка переподключения...')
+        connectWebSocket()
+      }
+    }, 3000)
+  }
 }
 
 const sendMessage = async () => {
@@ -845,16 +868,21 @@ const sendMessage = async () => {
       uploadedFiles = await uploadRawFiles()
     }
     
-    socket.send(JSON.stringify({ 
+    const messageData = { 
       type: 'message', 
       sender_id: auth.user.id, 
       text: newMessage.value.trim(),
       attachments: uploadedFiles.map(f => f.id)
-    }))
+    }
+    
+    console.log('📤 Отправка сообщения:', messageData)
+    
+    socket.send(JSON.stringify(messageData))
     
     newMessage.value = ''
     selectedFiles.value = []
   } catch (error) {
+    console.error('❌ Ошибка отправки:', error)
     alert('Ошибка отправки: ' + error.message)
   } finally {
     uploading.value = false
@@ -868,11 +896,14 @@ onMounted(async () => {
   await fetchHistory()
   connectWebSocket()
   
-  // Отмечаем чат как прочитанный при открытии
   await markAsRead()
 })
 
-onUnmounted(() => { if (socket) socket.close() })
+onUnmounted(() => { 
+  if (socket) {
+    socket.close()
+  }
+})
 </script>
 
 <style scoped>
