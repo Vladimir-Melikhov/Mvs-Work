@@ -80,7 +80,24 @@ const router = createRouter({
       component: OnboardingView,
       meta: { requiresAuth: true }
     }
-  ]
+  ],
+  scrollBehavior(to, from, savedPosition) {
+    // 1. Если есть savedPosition (браузер Back/Forward) - восстанавливаем
+    if (savedPosition) {
+      return savedPosition
+    }
+    
+    // 2. Если есть hash (#anchor) - скроллим к нему
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      }
+    }
+    
+    // 3. Все остальные переходы - наверх
+    return { top: 0 }
+  }
 })
 
 router.beforeEach(async (to, from, next) => {
