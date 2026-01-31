@@ -30,7 +30,6 @@ class DealService:
         """Создать новый заказ с защитой от race condition через get_or_create"""
         
         try:
-            # Используем get_or_create с блокировкой на уровне БД
             deal, created = Deal.objects.select_for_update().get_or_create(
                 client_id=client_id,
                 worker_id=worker_id,
@@ -45,10 +44,8 @@ class DealService:
             )
             
             if not created:
-                # Если сделка уже существует
                 raise ValueError(f"У вас уже есть активный заказ с этим исполнителем. ID заказа: {deal.id}")
             
-            # Отправляем сообщения только если сделка создана
             DealService._send_text_message(
                 chat_room_id=chat_room_id,
                 sender_id=client_id,
@@ -60,7 +57,6 @@ class DealService:
             return deal
             
         except IntegrityError:
-            # На случай если constraint сработал
             raise ValueError("Не удалось создать заказ. У вас уже есть активный заказ с этим исполнителем.")
 
     @staticmethod
@@ -114,6 +110,13 @@ class DealService:
         deal.status = 'paid'
         deal.paid_at = timezone.now()
         deal.save()
+
+        DealService._send_text_message(
+            chat_room_id=deal.chat_room_id,
+            sender_id=client_id,
+            text=f"💳 ЗАКАЗ ОПЛАЧЕН\n\nСумма: {total}₽\n\nТеперь исполнитель может приступить к работе.",
+            auth_token=auth_token
+        )
 
         DealService._send_deal_card(deal, client_id, 'paid', auth_token)
         return deal
@@ -603,4 +606,3 @@ class DealService:
             'resolved_at': deal.dispute_resolved_at.isoformat() if deal.dispute_resolved_at else None,
             'message': f"Спор разрешен в пользу {'клиента' if deal.dispute_winner == 'client' else 'исполнителя'}"
         }
-    

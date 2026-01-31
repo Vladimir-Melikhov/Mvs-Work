@@ -1,3 +1,4 @@
+// frontend/src/views/ChatDetailView.vue
 <template>
   <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
@@ -37,7 +38,7 @@
 
       <div 
         ref="messagesContainer"
-        class="flex-1 glass rounded-[32px] p-6 overflow-y-auto space-y-4 mb-3 border border-white/40 scroll-smooth"
+        class="flex-1 glass rounded-[32px] p-6 overflow-y-auto mb-3 border border-white/40"
       >
         <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
           <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
@@ -48,76 +49,88 @@
           <p class="text-sm font-medium">Начните диалог</p>
         </div>
 
-        <div 
-          v-for="msg in textMessages" 
-          :key="msg.id" 
-          class="animate-scale-in flex flex-col"
-          :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
-        >
-          <div 
-            class="max-w-[75%] px-5 py-3 text-[15px] leading-relaxed shadow-sm break-words"
-            :class="isMyMessage(msg) 
-              ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
-              : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
-          >
-            <div 
-              class="whitespace-pre-wrap" 
-              v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
-            ></div>
-            
-            <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
-              <div 
-                v-for="(att, idx) in msg.attachments" 
-                :key="idx"
-              >
-                <img 
-                  v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
-                  :src="att.url" 
-                  :alt="att.name || att.filename"
-                  class="max-w-full max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                  @click="window.open(att.url, '_blank')"
-                />
-                
-                <a 
-                  v-else
-                  :href="att.url" 
-                  target="_blank"
-                  class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group cursor-pointer"
-                >
-                  <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center shrink-0">
-                    <svg v-if="att.content_type?.startsWith('image/')" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium truncate">{{ att.name || att.filename }}</div>
-                    <div class="text-xs opacity-60 flex items-center gap-2">
-                      <span>{{ formatFileSize(att.size || att.file_size) }}</span>
-                      <span v-if="att.content_type?.startsWith('image/')" class="text-blue-400">• Изображение</span>
-                    </div>
-                  </div>
-                  
-                  <div class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </div>
-                </a>
+        <template v-else>
+          <div v-for="(group, index) in groupedMessages" :key="index">
+            <!-- Разделитель по дням -->
+            <div class="flex items-center justify-center my-6">
+              <div class="px-4 py-1.5 rounded-full bg-white/60 border border-white/80 shadow-sm">
+                <span class="text-xs font-bold text-gray-600">{{ group.date }}</span>
               </div>
             </div>
-            
+
+            <!-- Сообщения за этот день -->
             <div 
-              class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
-              :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
+              v-for="msg in group.messages" 
+              :key="msg.id" 
+              class="animate-scale-in flex flex-col mb-4"
+              :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
             >
-              {{ formatTime(msg.created_at) }}
+              <div 
+                class="max-w-[75%] px-5 py-3 text-[15px] leading-relaxed shadow-sm break-words"
+                :class="isMyMessage(msg) 
+                  ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
+                  : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
+              >
+                <div 
+                  class="whitespace-pre-wrap" 
+                  v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                ></div>
+                
+                <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
+                  <div 
+                    v-for="(att, idx) in msg.attachments" 
+                    :key="idx"
+                  >
+                    <img 
+                      v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
+                      :src="att.url" 
+                      :alt="att.name || att.filename"
+                      class="max-w-full max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                      @click="window.open(att.url, '_blank')"
+                    />
+                    
+                    <a 
+                      v-else
+                      :href="att.url" 
+                      target="_blank"
+                      class="flex items-center gap-2 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm group cursor-pointer"
+                    >
+                      <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center shrink-0">
+                        <svg v-if="att.content_type?.startsWith('image/')" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium truncate">{{ att.name || att.filename }}</div>
+                        <div class="text-xs opacity-60 flex items-center gap-2">
+                          <span>{{ formatFileSize(att.size || att.file_size) }}</span>
+                          <span v-if="att.content_type?.startsWith('image/')" class="text-blue-400">• Изображение</span>
+                        </div>
+                      </div>
+                      
+                      <div class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+                
+                <div 
+                  class="text-[10px] mt-1.5 font-medium opacity-60 text-right"
+                  :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
+                >
+                  {{ formatTime(msg.created_at) }}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
 
       <div class="glass p-2 rounded-[26px] flex items-center gap-2 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0">
@@ -326,8 +339,8 @@
 
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0 px-2">
       <div 
-        ref="messagesContainer"
-        class="flex-1 glass rounded-[28px] p-3 overflow-y-auto space-y-2 my-2 border border-white/40 scroll-smooth"
+        ref="mobileMessagesContainer"
+        class="flex-1 glass rounded-[28px] p-3 overflow-y-auto my-2 border border-white/40"
       >
         <div v-if="loading" class="text-center py-10 opacity-50 flex justify-center">
           <div class="w-6 h-6 border-2 border-[#7000ff] border-t-transparent rounded-full animate-spin"></div>
@@ -338,71 +351,83 @@
           <p class="text-sm font-medium">Начните диалог</p>
         </div>
 
-        <div 
-          v-for="msg in textMessages" 
-          :key="msg.id" 
-          class="animate-scale-in flex flex-col"
-          :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
-        >
-          <div 
-            class="max-w-[85%] px-3 py-2 text-sm leading-relaxed shadow-sm break-words"
-            :class="isMyMessage(msg) 
-              ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
-              : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
-          >
-            <div 
-              class="whitespace-pre-wrap" 
-              v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
-            ></div>
-            
-            <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
-              <div 
-                v-for="(att, idx) in msg.attachments" 
-                :key="idx"
-              >
-                <img 
-                  v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
-                  :src="att.url" 
-                  :alt="att.name || att.filename"
-                  class="max-w-full max-h-64 rounded-lg cursor-pointer"
-                  @click="window.open(att.url, '_blank')"
-                />
-                
-                <a 
-                  v-else
-                  :href="att.url" 
-                  target="_blank"
-                  class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs group"
-                >
-                  <div class="w-6 h-6 rounded bg-white/20 flex items-center justify-center shrink-0">
-                    <svg v-if="att.content_type?.startsWith('image/')" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium truncate text-xs">{{ att.name || att.filename }}</div>
-                    <div class="text-[10px] opacity-60">{{ formatFileSize(att.size || att.file_size) }}</div>
-                  </div>
-                  
-                  <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
+        <template v-else>
+          <div v-for="(group, index) in groupedMessages" :key="index">
+            <!-- Разделитель по дням (мобильная версия) -->
+            <div class="flex items-center justify-center my-4">
+              <div class="px-3 py-1 rounded-full bg-white/60 border border-white/80 shadow-sm">
+                <span class="text-[10px] font-bold text-gray-600">{{ group.date }}</span>
               </div>
             </div>
-            
+
+            <!-- Сообщения за этот день -->
             <div 
-              class="text-[9px] mt-1 font-medium opacity-60 text-right"
-              :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
+              v-for="msg in group.messages" 
+              :key="msg.id" 
+              class="animate-scale-in flex flex-col mb-2"
+              :class="isMyMessage(msg) ? 'items-end' : 'items-start'"
             >
-              {{ formatTime(msg.created_at) }}
+              <div 
+                class="max-w-[85%] px-3 py-2 text-sm leading-relaxed shadow-sm break-words"
+                :class="isMyMessage(msg) 
+                  ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
+                  : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
+              >
+                <div 
+                  class="whitespace-pre-wrap" 
+                  v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                ></div>
+                
+                <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
+                  <div 
+                    v-for="(att, idx) in msg.attachments" 
+                    :key="idx"
+                  >
+                    <img 
+                      v-if="att.content_type?.startsWith('image/') && att.display_mode !== 'attachment'"
+                      :src="att.url" 
+                      :alt="att.name || att.filename"
+                      class="max-w-full max-h-64 rounded-lg cursor-pointer"
+                      @click="window.open(att.url, '_blank')"
+                    />
+                    
+                    <a 
+                      v-else
+                      :href="att.url" 
+                      target="_blank"
+                      class="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs group"
+                    >
+                      <div class="w-6 h-6 rounded bg-white/20 flex items-center justify-center shrink-0">
+                        <svg v-if="att.content_type?.startsWith('image/')" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium truncate text-xs">{{ att.name || att.filename }}</div>
+                        <div class="text-[10px] opacity-60">{{ formatFileSize(att.size || att.file_size) }}</div>
+                      </div>
+                      
+                      <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                
+                <div 
+                  class="text-[9px] mt-1 font-medium opacity-60 text-right"
+                  :class="isMyMessage(msg) ? 'text-white/60' : 'text-gray-400'"
+                >
+                  {{ formatTime(msg.created_at) }}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
 
       <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0 mb-2">
@@ -516,7 +541,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
@@ -528,6 +553,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const messagesContainer = ref(null)
+const mobileMessagesContainer = ref(null)
 const messages = ref([])
 const newMessage = ref('')
 const loading = ref(true)
@@ -561,6 +587,55 @@ const activeDeals = computed(() => {
     .filter(d => d && d.deal_id)
     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 })
+
+const groupedMessages = computed(() => {
+  const groups = []
+  let currentDate = null
+  let currentGroup = null
+
+  textMessages.value.forEach(msg => {
+    const msgDate = new Date(msg.created_at)
+    const dateKey = formatDateKey(msgDate)
+
+    if (dateKey !== currentDate) {
+      if (currentGroup) {
+        groups.push(currentGroup)
+      }
+      currentDate = dateKey
+      currentGroup = {
+        date: formatDateLabel(msgDate),
+        messages: []
+      }
+    }
+
+    currentGroup.messages.push(msg)
+  })
+
+  if (currentGroup) {
+    groups.push(currentGroup)
+  }
+
+  return groups
+})
+
+const formatDateKey = (date) => {
+  return date.toISOString().split('T')[0]
+}
+
+const formatDateLabel = (date) => {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const isToday = formatDateKey(date) === formatDateKey(today)
+  const isYesterday = formatDateKey(date) === formatDateKey(yesterday)
+
+  if (isToday) return 'Сегодня'
+  if (isYesterday) return 'Вчера'
+
+  const options = { day: 'numeric', month: 'long' }
+  return date.toLocaleDateString('ru-RU', options)
+}
 
 const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -774,9 +849,33 @@ const uploadRawFiles = async () => {
   return []
 }
 
-const scrollToBottom = async () => {
+// ✅ ИСПРАВЛЕНО: Функция автоскролла с увеличенной задержкой
+const scrollToBottom = async (smooth = true) => {
   await nextTick()
-  if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  
+  // Для десктопа
+  if (messagesContainer.value) {
+    setTimeout(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTo({
+          top: messagesContainer.value.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto'
+        })
+      }
+    }, 200)
+  }
+  
+  // Для мобильной версии
+  if (mobileMessagesContainer.value) {
+    setTimeout(() => {
+      if (mobileMessagesContainer.value) {
+        mobileMessagesContainer.value.scrollTo({
+          top: mobileMessagesContainer.value.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto'
+        })
+      }
+    }, 200)
+  }
 }
 
 const markAsRead = async () => {
@@ -803,12 +902,18 @@ const fetchHistory = async () => {
   try {
     const res = await axios.get(`/api/chat/rooms/${roomId}/messages/`)
     messages.value = res.data.data
-    scrollToBottom()
-  } catch (e) { console.error(e) } finally { loading.value = false }
+    
+    // ✅ Ждем полного рендеринга перед скроллом
+    await nextTick()
+    setTimeout(() => scrollToBottom(false), 250)
+  } catch (e) { 
+    console.error(e) 
+  } finally { 
+    loading.value = false 
+  }
 }
 
 const connectWebSocket = () => {
-  // ✅ ИСПРАВЛЕНО: Подключаемся напрямую к chat service, а не через Vite
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8003'
   const token = auth.accessToken || localStorage.getItem('access_token')
@@ -830,7 +935,10 @@ const connectWebSocket = () => {
     if (data.type === 'message') {
       const msg = data.data
       messages.value.push(msg)
-      scrollToBottom()
+      
+      // ✅ Ждем обновления DOM, затем скроллим
+      await nextTick()
+      scrollToBottom(true)
       
       await markAsRead()
     } else if (data.type === 'message_updated') {
@@ -847,7 +955,6 @@ const connectWebSocket = () => {
     console.log('🔌 WebSocket закрыт:', event.code, event.reason)
     isConnected.value = false
     
-    // Автоматическое переподключение через 3 секунды
     setTimeout(() => {
       if (!isConnected.value) {
         console.log('🔄 Попытка переподключения...')
@@ -881,6 +988,10 @@ const sendMessage = async () => {
     
     newMessage.value = ''
     selectedFiles.value = []
+    
+    // ✅ Скролл с задержкой после отправки
+    await nextTick()
+    setTimeout(() => scrollToBottom(true), 200)
   } catch (error) {
     console.error('❌ Ошибка отправки:', error)
     alert('Ошибка отправки: ' + error.message)
@@ -891,12 +1002,22 @@ const sendMessage = async () => {
 
 const refreshMessages = () => fetchHistory()
 
+// ✅ Следим за изменением сообщений и скроллим
+watch(() => messages.value.length, async () => {
+  if (messages.value.length > 0) {
+    await nextTick()
+    scrollToBottom(true)
+  }
+})
+
 onMounted(async () => {
   await fetchRoomDetails()
   await fetchHistory()
   connectWebSocket()
-  
   await markAsRead()
+  
+  // Дополнительный скролл после полной загрузки
+  setTimeout(() => scrollToBottom(false), 300)
 })
 
 onUnmounted(() => { 
