@@ -51,11 +51,11 @@
     </div>
 
     <div v-else-if="paginatedServices.length > 0">
-      <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 animate-fade-in px-3 md:px-6">
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 animate-fade-in px-3 md:px-6">
         <div 
           v-for="service in paginatedServices" 
           :key="service.id" 
-          class="glass rounded-[24px] md:rounded-[32px] overflow-hidden hover:bg-white/20 transition-all cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1"
+          class="glass rounded-[20px] md:rounded-[32px] overflow-hidden hover:bg-white/20 transition-all cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1"
           @click="$router.push(`/services/${service.id}`)"
         >
           <div v-if="service.images && service.images.length > 0" class="relative aspect-video overflow-hidden">
@@ -64,7 +64,7 @@
               class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               alt="Service preview"
             >
-            <div v-if="service.images.length > 1" class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-lg bg-black/40 backdrop-blur-md text-white text-[8px] md:text-[10px] font-bold border border-white/20">
+            <div v-if="service.images.length > 1" class="absolute bottom-1.5 md:bottom-2 right-1.5 md:right-2 px-1.5 py-0.5 rounded-lg bg-black/40 backdrop-blur-md text-white text-[8px] md:text-[10px] font-bold border border-white/20">
               +{{ service.images.length - 1 }}
             </div>
           </div>
@@ -73,35 +73,37 @@
           </div>
 
           <div class="p-3 md:p-6 flex flex-col flex-1">
-            <div class="flex items-center gap-2 mb-2 md:mb-4">
-              <UserAvatar :avatar-url="service.owner_avatar" :name="service.owner_name" size="xs" class="md:hidden" />
-              <UserAvatar :avatar-url="service.owner_avatar" :name="service.owner_name" size="md" class="hidden md:block" />
-              
-              <div class="flex-1 min-w-0">
-                 <div class="text-[10px] md:text-sm font-bold text-[#1a1a2e] truncate">{{ service.owner_name || 'Мастер' }}</div>
-                 <div class="text-[8px] md:text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">{{ service.category || 'Услуга' }}</div>
+            <div class="flex items-center justify-between gap-2 mb-2 md:mb-4">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <UserAvatar :avatar-url="service.owner_avatar" :name="service.owner_name" size="xs" class="shrink-0" />
+                
+                <div class="flex-1 min-w-0">
+                   <div class="text-xs md:text-sm font-bold text-[#1a1a2e] line-clamp-1 leading-tight">{{ service.owner_name || 'Мастер' }}</div>
+                   <div class="text-[8px] md:text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">{{ service.category || 'Услуга' }}</div>
+                </div>
               </div>
-              <div class="text-[#7000ff] font-bold text-xs md:text-lg shrink-0">{{ service.price }}₽</div>
+              
+              <div class="text-[#7000ff] font-bold text-xs md:text-lg shrink-0 whitespace-nowrap">{{ Math.floor(service.price) }}₽</div>
             </div>
 
-            <h3 class="text-xs md:text-xl font-bold text-[#1a1a2e] mb-1.5 md:mb-2 leading-tight group-hover:text-[#7000ff] transition-colors line-clamp-2 min-h-[2.5em] md:min-h-[auto]">
+            <h3 class="text-sm md:text-xl font-bold text-[#1a1a2e] mb-1.5 md:mb-2 leading-tight group-hover:text-[#7000ff] transition-colors line-clamp-2 break-words">
               {{ service.title }}
             </h3>
 
-            <p class="text-gray-600 text-[10px] md:text-sm leading-relaxed mb-3 md:mb-4 line-clamp-1 md:line-clamp-2 flex-1 break-words opacity-80 md:opacity-100">
+            <p class="text-gray-600 text-[10px] md:text-sm leading-relaxed mb-3 md:mb-4 line-clamp-2 flex-1 break-words">
               {{ service.description }}
             </p>
 
-            <div class="flex items-center justify-between mt-auto pt-2 md:pt-4 border-t border-white/10">
-               <div class="flex flex-wrap gap-1">
-                  <span v-for="tag in service.tags?.slice(0, (isMobile ? 1 : 2))" :key="tag" class="px-2 py-0.5 rounded-md bg-white/20 text-[8px] md:text-xs font-bold text-gray-500 border border-white/20">
+            <div class="flex items-center justify-between mt-auto pt-2 md:pt-4 border-t border-white/10 gap-2">
+               <div class="flex flex-wrap gap-1 flex-1 min-w-0">
+                  <span v-for="tag in service.tags?.slice(0, 1)" :key="tag" class="px-2 py-0.5 rounded-md bg-white/20 text-[8px] md:text-xs font-bold text-gray-500 border border-white/20 truncate">
                     #{{ tag }}
                   </span>
                </div>
                
-               <div v-if="service.owner_rating > 0" class="flex items-center gap-1 bg-[#7000ff]/5 px-1.5 py-0.5 md:px-3 md:py-1.5 rounded-lg border border-[#7000ff]/10">
+               <div v-if="service.owner_rating > 0" class="flex items-center gap-0.5 bg-[#7000ff]/5 px-1.5 py-0.5 md:px-3 md:py-1.5 rounded-lg border border-[#7000ff]/10 shrink-0">
                  <span class="text-[#7000ff] text-[8px] md:text-xs font-black">★</span>
-                 <span class="text-[#7000ff] text-[9px] md:text-[13px] font-black tracking-tight">
+                 <span class="text-[#7000ff] text-[8px] md:text-xs font-black tracking-tight">
                    {{ Number(service.owner_rating).toFixed(1) }}
                  </span>
                </div>
@@ -111,7 +113,7 @@
       </div>
 
       <div v-if="totalPages > 1" class="flex justify-center items-center gap-2 mt-8 md:mt-12 mb-8">
-        <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="w-8 h-8 md:w-10 md:h-10 rounded-full glass flex items-center justify-center disabled:opacity-30">←</button>
+        <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="w-8 h-8 md:w-10 md:h-10 rounded-full glass flex items-center justify-center disabled:opacity-30 text-sm md:text-base">←</button>
         <div class="flex gap-1 md:gap-2">
           <button 
             v-for="page in totalPages" :key="page" @click="changePage(page)"
@@ -121,7 +123,7 @@
             {{ page }}
           </button>
         </div>
-        <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="w-8 h-8 md:w-10 md:h-10 rounded-full glass flex items-center justify-center disabled:opacity-30">→</button>
+        <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="w-8 h-8 md:w-10 md:h-10 rounded-full glass flex items-center justify-center disabled:opacity-30 text-sm md:text-base">→</button>
       </div>
     </div>
     
@@ -143,10 +145,7 @@ const searchQuery = ref('')
 const loading = ref(false)
 const selectedCategories = ref([])
 const currentPage = ref(1)
-const itemsPerPage = 8 // Оптимально для сетки 2x2
-
-// Определение мобильного устройства для логики тегов
-const isMobile = computed(() => typeof window !== 'undefined' && window.innerWidth < 768)
+const itemsPerPage = 8
 
 const categories = [
   { label: 'Дизайн', value: 'design' },

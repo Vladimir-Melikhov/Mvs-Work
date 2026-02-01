@@ -1,3 +1,4 @@
+# services/market/apps/services/serializers.py
 from rest_framework import serializers
 from decimal import Decimal
 from .models import Service, ServiceImage, Deal, DealDeliveryAttachment, Transaction, Review
@@ -24,13 +25,14 @@ class ServiceImageSerializer(serializers.ModelSerializer):
 
 class ServiceSerializer(serializers.ModelSerializer):
     owner_avatar = serializers.SerializerMethodField()
+    owner_rating = serializers.SerializerMethodField()
     images = ServiceImageSerializer(many=True, read_only=True)
     
     class Meta:
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 
-            'owner_id', 'owner_name', 'owner_avatar', 
+            'owner_id', 'owner_name', 'owner_avatar', 'owner_rating',
             'ai_template', 'category', 'tags', 
             'created_at', 'updated_at', 'images', 'is_active',
         ]
@@ -49,6 +51,19 @@ class ServiceSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(f'/media/{avatar_path}')
         
         return obj.owner_avatar
+    
+    def get_owner_rating(self, obj):
+        """Получить средний рейтинг владельца услуги"""
+        from django.db.models import Avg
+        
+        avg_rating = Review.objects.filter(
+            reviewee_id=obj.owner_id
+        ).aggregate(avg=Avg('rating'))['avg']
+        
+        if avg_rating is None:
+            return 0
+        
+        return round(float(avg_rating), 1)
 
 
 class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):

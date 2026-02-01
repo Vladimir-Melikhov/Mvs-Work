@@ -50,14 +50,12 @@
 
         <template v-else>
           <div v-for="(group, index) in groupedMessages" :key="index">
-            <!-- Разделитель по дням -->
             <div class="flex items-center justify-center my-6">
               <div class="px-4 py-1.5 rounded-full bg-white/60 border border-white/80 shadow-sm">
                 <span class="text-xs font-bold text-gray-600">{{ group.date }}</span>
               </div>
             </div>
 
-            <!-- Сообщения за этот день -->
             <div 
               v-for="msg in group.messages" 
               :key="msg.id" 
@@ -189,7 +187,8 @@
       </div>
     </div>
 
-    <div class="w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
+    <!-- Sidebar с адаптивной шириной -->
+    <div class="w-80 lg:w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
       <div class="mb-4">
         <a 
           :href="supportLink" 
@@ -307,17 +306,17 @@
       </button>
       
       <button 
-        @click="mobileShowSupport = !mobileShowSupport"
+        @click="mobileShowHelp = !mobileShowHelp"
         class="w-9 h-9 flex items-center justify-center rounded-full transition-all font-bold"
-        :class="mobileShowSupport ? 'bg-[#7000ff] text-white' : 'bg-white/40 text-[#1a1a2e]'"
+        :class="mobileShowHelp ? 'bg-[#7000ff] text-white' : 'bg-white/40 text-[#1a1a2e]'"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </button>
     </div>
 
-    <div v-if="mobileShowSupport" class="p-3 shrink-0">
+    <div v-if="mobileShowHelp" class="p-3 shrink-0 space-y-2">
       <a 
         :href="supportLink" 
         target="_blank"
@@ -334,6 +333,8 @@
           <div class="text-xs text-gray-500">Нужна помощь? Напишите нам</div>
         </div>
       </a>
+      
+      <TelegramNotificationBanner />
     </div>
 
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0 px-2">
@@ -352,14 +353,12 @@
 
         <template v-else>
           <div v-for="(group, index) in groupedMessages" :key="index">
-            <!-- Разделитель по дням (мобильная версия) -->
             <div class="flex items-center justify-center my-4">
               <div class="px-3 py-1 rounded-full bg-white/60 border border-white/80 shadow-sm">
                 <span class="text-[10px] font-bold text-gray-600">{{ group.date }}</span>
               </div>
             </div>
 
-            <!-- Сообщения за этот день -->
             <div 
               v-for="msg in group.messages" 
               :key="msg.id" 
@@ -559,7 +558,7 @@ const loading = ref(true)
 const isConnected = ref(false)
 const partner = ref(null)
 const mobileShowDeal = ref(false)
-const mobileShowSupport = ref(false)
+const mobileShowHelp = ref(false)
 const expandedDealIndex = ref(0)
 const selectedFiles = ref([])
 const uploading = ref(false)
@@ -651,10 +650,9 @@ const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   if (!isSystem) return text
   
-  // ✅ ОБНОВЛЕНО: Добавлена иконка рубля для денежных операций
   const emojiMap = {
-    '💰': { type: 'ruble', color: 'purple' },     // ✅ Изменено с money на ruble
-    '💳': { type: 'ruble', color: 'purple' },     // ✅ Изменено с money на ruble
+    '💰': { type: 'ruble', color: 'purple' },
+    '💳': { type: 'ruble', color: 'purple' },
     '✅': { type: 'check', color: 'success' },
     '📦': { type: 'work', color: 'info' },
     '🔄': { type: 'clock', color: 'warning' },

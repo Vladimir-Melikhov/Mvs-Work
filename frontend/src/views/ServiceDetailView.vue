@@ -1,13 +1,13 @@
 <template>
-  <div class="animate-fade-in pb-20 pt-6">
-    <button @click="$router.back()" class="mb-6 flex items-center gap-2 text-gray-500 hover:text-[#7000ff] transition-colors font-medium ml-4">
+  <div class="animate-fade-in pb-20 pt-4 md:pt-6">
+    <button @click="$router.back()" class="mb-4 md:mb-6 flex items-center gap-2 text-gray-500 hover:text-[#7000ff] transition-colors font-medium ml-2 md:ml-4 text-sm md:text-base">
       ← Назад
     </button>
 
-    <div v-if="service" class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4">
+    <div v-if="service" class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8 max-w-7xl mx-auto px-2 md:px-4">
       
       <div class="lg:col-span-2"> 
-        <div class="glass overflow-hidden rounded-[40px] border border-white/20">
+        <div class="glass overflow-hidden rounded-[24px] md:rounded-[40px] border border-white/20">
           
           <div v-if="service.images && service.images.length > 0" class="glass-slider overflow-hidden relative aspect-video group">
             <div 
@@ -21,89 +21,91 @@
               </div>
             </div>
 
-            <div v-if="service.images.length > 1" class="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button @click.stop="prevSlide" class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/40 transition-all">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div v-if="service.images.length > 1" class="absolute inset-0 flex items-center justify-between p-2 md:p-4 opacity-0 md:group-hover:opacity-100 transition-opacity pointer-events-none md:pointer-events-auto">
+              <button @click.stop="prevSlide" class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/40 transition-all pointer-events-auto">
+                <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button @click.stop="nextSlide" class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/40 transition-all">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <button @click.stop="nextSlide" class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/40 transition-all pointer-events-auto">
+                <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
 
-            <div v-if="service.images.length > 1" class="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+            <div v-if="service.images.length > 1" class="absolute bottom-3 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 md:gap-2">
               <div 
                 v-for="(_, index) in service.images" :key="index"
-                class="h-1.5 rounded-full transition-all duration-300 shadow-sm"
-                :class="currentSlide === index ? 'w-8 bg-white' : 'w-2 bg-white/40'"
+                class="h-1 md:h-1.5 rounded-full transition-all duration-300 shadow-sm"
+                :class="currentSlide === index ? 'w-6 md:w-8 bg-white' : 'w-1.5 md:w-2 bg-white/40'"
               ></div>
             </div>
           </div>
 
-          <div class="p-8 md:p-12">
-            <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
-               <h1 class="text-3xl md:text-4xl font-black text-[#1a1a2e] leading-tight tracking-tight">
-                 {{ service.title }}
-               </h1>
-               <span class="bg-[#7000ff]/10 text-[#7000ff] px-5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest self-start whitespace-nowrap">
-                 {{ service.category || 'Development' }}
-               </span>
+          <div class="p-4 md:p-8 lg:p-12">
+            <div class="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8">
+               <div class="flex items-start justify-between gap-3">
+                 <h1 class="text-xl md:text-3xl lg:text-4xl font-black text-[#1a1a2e] leading-tight tracking-tight flex-1">
+                   {{ service.title }}
+                 </h1>
+                 <span class="bg-[#7000ff]/10 text-[#7000ff] px-3 py-1 md:px-5 md:py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest whitespace-nowrap shrink-0">
+                   {{ service.category || 'Development' }}
+                 </span>
+               </div>
             </div>
             
-            <div class="prose max-w-none text-gray-900 leading-[1.8] whitespace-pre-line mb-10 text-lg">
+            <div class="text-gray-900 leading-relaxed md:leading-[1.8] whitespace-pre-line mb-6 md:mb-10 text-sm md:text-lg break-words">
               {{ service.description }}
             </div>
 
-            <div class="flex flex-wrap gap-2 pt-8 border-t border-gray-100">
-              <span v-for="tag in service.tags" :key="tag" class="px-4 py-2 rounded-xl bg-gray-100/50 text-gray-500 text-sm font-bold border border-white/20 shadow-sm">
+            <div class="flex flex-wrap gap-1.5 md:gap-2 pt-6 md:pt-8 border-t border-gray-100">
+              <span v-for="tag in service.tags" :key="tag" class="px-2.5 py-1 md:px-4 md:py-2 rounded-lg md:rounded-xl bg-gray-100/50 text-gray-500 text-xs md:text-sm font-bold border border-white/20 shadow-sm break-words">
                 #{{ tag }}
               </span>
             </div>
           </div>
         </div>
 
-        <div class="mt-8 animate-fade-in">
+        <div class="mt-6 md:mt-8 animate-fade-in">
           <ReviewsSection :worker-id="String(service.owner_id)" @reviews-loaded="onReviewsLoaded" />
         </div>
       </div>
 
-      <div class="space-y-6">
-        <div class="ios-glass-card p-8 sticky top-24">
-          <div class="text-3xl font-black text-[#7000ff] mb-2 drop-shadow-sm">{{ service.price }} ₽</div>
-          <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-8">Начальная цена</p>
+      <div class="space-y-4 md:space-y-6">
+        <div class="ios-glass-card p-6 md:p-8 lg:sticky lg:top-24">
+          <div class="text-2xl md:text-3xl font-black text-[#7000ff] mb-1 md:mb-2 drop-shadow-sm">{{ Math.floor(service.price) }} ₽</div>
+          <p class="text-gray-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-6 md:mb-8">Начальная цена</p>
           
-          <div v-if="isOwner" class="space-y-4">
-             <div class="ios-inner-inset p-4 flex items-center gap-3 mb-4">
-               <div class="w-8 h-8 rounded-full bg-[#1a1a2e] flex items-center justify-center text-white">
-                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          <div v-if="isOwner" class="space-y-3 md:space-y-4">
+             <div class="ios-inner-inset p-3 md:p-4 flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
+               <div class="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#1a1a2e] flex items-center justify-center text-white shrink-0">
+                 <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                </div>
-               <span class="text-[10px] font-black text-[#1a1a2e] uppercase tracking-wider">Это ваше объявление</span>
+               <span class="text-[9px] md:text-[10px] font-black text-[#1a1a2e] uppercase tracking-wider">Это ваше объявление</span>
              </div>
              
-             <button @click="$router.push(`/my-services/edit/${service.id}`)" class="ios-button-secondary py-4 w-full">
+             <button @click="$router.push(`/my-services/edit/${service.id}`)" class="ios-button-secondary py-3 md:py-4 w-full text-sm md:text-base">
                Редактировать
              </button>
 
-             <button @click="deleteService" class="ios-button-danger py-4 w-full">
+             <button @click="deleteService" class="ios-button-danger py-3 md:py-4 w-full text-sm md:text-base">
                Удалить
              </button>
           </div>
 
           <div v-else>
-            <button @click="showWizard = true" class="ios-button py-4 w-full">
+            <button @click="showWizard = true" class="ios-button py-3.5 md:py-4 w-full text-sm md:text-base">
               Начать сделку с AI
             </button>
             
-            <div class="mt-10 pt-8 border-t border-black/5">
-              <div class="flex items-center gap-4 cursor-pointer group hover:bg-black/5 -m-2 p-3 rounded-[24px] transition-all" @click="goToOwnerProfile">
-                <UserAvatar :avatar-url="service.owner_avatar" :name="service.owner_name || 'Пользователь'" size="lg" class="border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-[#7000ff] transition-all" />
+            <div class="mt-8 md:mt-10 pt-6 md:pt-8 border-t border-black/5">
+              <div class="flex items-center gap-3 md:gap-4 cursor-pointer group hover:bg-black/5 -m-2 p-2 md:p-3 rounded-[20px] md:rounded-[24px] transition-all" @click="goToOwnerProfile">
+                <UserAvatar :avatar-url="service.owner_avatar" :name="service.owner_name || 'Пользователь'" size="md" class="border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-[#7000ff] transition-all md:w-12 md:h-12" />
                 <div class="flex-1 min-w-0">
-                  <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors truncate tracking-tight">{{ service.owner_name || 'Пользователь' }}</div>
-                  <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                  <div class="font-bold text-sm md:text-base text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors truncate tracking-tight">{{ service.owner_name || 'Пользователь' }}</div>
+                  <div class="text-[9px] md:text-[10px] text-gray-500 font-bold uppercase tracking-widest flex items-center gap-1.5 md:gap-2">
                     <span>Профиль автора</span>
                     <span v-if="workerRating > 0" class="text-[#7000ff] font-black">★ {{ workerRating.toFixed(1) }}</span>
                   </div>
                 </div>
-                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2.5" /></svg>
+                <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2.5" /></svg>
               </div>
             </div>
           </div>
@@ -179,7 +181,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ГЛАВНЫЙ ЭФФЕКТ: IOS THICK GLASS */
 .ios-glass-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(40px) saturate(180%);
@@ -194,6 +195,12 @@ onMounted(async () => {
     inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
+@media (max-width: 768px) {
+  .ios-glass-card {
+    border-radius: 28px;
+  }
+}
+
 .ios-inner-inset {
   background: rgba(0, 0, 0, 0.05); 
   border-radius: 20px;
@@ -205,7 +212,6 @@ onMounted(async () => {
 .ios-button {
   border-radius: 24px;
   font-weight: 800;
-  font-size: 17px;
   color: white;
   background: #7000ff; 
   border-top: 1px solid rgba(255, 255, 255, 0.4);
@@ -224,7 +230,7 @@ onMounted(async () => {
 }
 
 .ios-button-secondary {
-  border-radius: 24px;
+  border-radius: 20px;
   font-weight: 700;
   color: #1a1a2e;
   background: rgba(255, 255, 255, 0.5);
@@ -238,7 +244,7 @@ onMounted(async () => {
 }
 
 .ios-button-danger {
-  border-radius: 24px;
+  border-radius: 20px;
   font-weight: 700;
   color: #ff3b30;
   background: rgba(255, 59, 48, 0.1);
@@ -257,6 +263,7 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07);
 }
+
 .glass-slider {
   background: rgba(0, 0, 0, 0.05);
 }

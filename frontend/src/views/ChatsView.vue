@@ -1,24 +1,24 @@
 <template>
-  <div class="min-h-screen pt-4 pb-20 animate-fade-in">
+  <div class="min-h-screen pt-4 pb-20 animate-fade-in px-2 md:px-0">
     
-    <div class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-[#1a1a2e] tracking-tight">Сообщения</h1>
+    <div class="text-center mb-6 md:mb-8">
+      <h1 class="text-2xl md:text-4xl font-bold text-[#1a1a2e] tracking-tight">Сообщения</h1>
     </div>
 
-    <div class="max-w-3xl mx-auto px-4">
+    <div class="max-w-3xl mx-auto">
       
       <div v-if="loading" class="text-center py-12">
         <div class="inline-block w-8 h-8 border-4 border-[#7000ff]/30 border-t-[#7000ff] rounded-full animate-spin"></div>
       </div>
 
-      <div v-else-if="sortedChats.length > 0" class="space-y-4">
+      <div v-else-if="sortedChats.length > 0" class="space-y-3 md:space-y-4">
         <div 
           v-for="chat in sortedChats" 
           :key="chat.id" 
-          class="glass p-4 rounded-[32px] flex items-center gap-4 cursor-pointer group hover:bg-white/20 transition-all active:scale-[0.98] relative"
+          class="glass p-3 md:p-4 rounded-[24px] md:rounded-[32px] flex items-center gap-3 md:gap-4 cursor-pointer group hover:bg-white/20 transition-all active:scale-[0.98] relative"
           @click="openChat(chat.id)"
         >
-          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex-shrink-0 flex items-center justify-center text-white text-xl font-bold border border-white/20 shadow-md overflow-hidden relative">
+          <div class="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#2a2a4e] flex-shrink-0 flex items-center justify-center text-white text-lg md:text-xl font-bold border border-white/20 shadow-md overflow-hidden relative">
             <img v-if="getPartner(chat).avatar" :src="getPartner(chat).avatar" class="w-full h-full object-cover">
             <span v-else>{{ getInitials(getPartner(chat).name) }}</span>
           </div>
@@ -26,28 +26,27 @@
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-baseline mb-1">
               <h3 
-                class="text-lg font-bold truncate"
+                class="text-base md:text-lg font-bold truncate"
                 :class="chat.unread_count > 0 ? 'text-[#7000ff]' : 'text-[#1a1a2e]'"
               >
                 {{ getPartner(chat).name || 'Loading...' }}
               </h3>
               
               <div class="flex items-center gap-2 ml-2 shrink-0">
-                <span class="text-xs text-gray-500 font-medium whitespace-nowrap">
+                <span class="text-[10px] md:text-xs text-gray-500 font-medium whitespace-nowrap">
                   {{ formatDate(chat.updated_at) }}
                 </span>
                 
-                <!-- Badge непрочитанных справа от времени -->
                 <span 
                   v-if="chat.unread_count > 0" 
-                  class="min-w-[20px] h-5 px-1.5 bg-[#7000ff] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md"
+                  class="min-w-[18px] md:min-w-[20px] h-4 md:h-5 px-1 md:px-1.5 bg-[#7000ff] text-white text-[9px] md:text-[10px] font-bold rounded-full flex items-center justify-center shadow-md"
                 >
                   {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
                 </span>
               </div>
             </div>
             <div 
-              class="text-sm truncate group-hover:text-[#1a1a2e] transition-colors"
+              class="text-xs md:text-sm truncate group-hover:text-[#1a1a2e] transition-colors"
               :class="chat.unread_count > 0 ? 'text-[#1a1a2e] font-semibold' : 'text-gray-600'"
             >
               <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">Вы: </span>
@@ -57,14 +56,14 @@
         </div>
       </div>
 
-      <div v-else class="glass p-12 rounded-[40px] text-center mt-8 border border-white/20">
-        <div class="text-6xl mb-4 opacity-50">💬</div>
-        <h3 class="text-xl font-bold text-[#1a1a2e] mb-2">Сообщений нет</h3>
-        <p class="text-gray-500 mb-8 max-w-xs mx-auto"></p>
+      <div v-else class="glass p-8 md:p-12 rounded-[32px] md:rounded-[40px] text-center mt-8 border border-white/20">
+        <div class="text-5xl md:text-6xl mb-4 opacity-50">💬</div>
+        <h3 class="text-lg md:text-xl font-bold text-[#1a1a2e] mb-2">Сообщений нет</h3>
+        <p class="text-sm md:text-base text-gray-500 mb-6 md:mb-8 max-w-xs mx-auto"></p>
         
         <router-link 
           to="/search" 
-          class="bg-[#1a1a2e] text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-[#7000ff] transition-all inline-block"
+          class="bg-[#1a1a2e] text-white px-6 md:px-8 py-2 md:py-3 rounded-full font-bold shadow-lg hover:bg-[#7000ff] transition-all inline-block text-sm md:text-base"
         >
           Найти исполнителя
         </router-link>
@@ -87,12 +86,11 @@ const chats = ref([])
 const loading = ref(false)
 const usersMap = ref({})
 
-// ✅ Сортировка чатов по времени последнего сообщения (новые сверху)
 const sortedChats = computed(() => {
   return [...chats.value].sort((a, b) => {
     const dateA = new Date(a.updated_at || 0)
     const dateB = new Date(b.updated_at || 0)
-    return dateB - dateA // Новые сверху
+    return dateB - dateA
   })
 })
 
@@ -165,10 +163,10 @@ const formatDate = (dateStr) => {
   const diffDays = Math.floor(diffMs / 86400000)
   
   if (diffMins < 1) return 'Только что'
-  if (diffMins < 60) return `${diffMins} мин назад`
-  if (diffHours < 24) return `${diffHours} ч назад`
+  if (diffMins < 60) return `${diffMins} мин`
+  if (diffHours < 24) return `${diffHours} ч`
   if (diffDays === 1) return 'Вчера'
-  if (diffDays < 7) return `${diffDays} дн назад`
+  if (diffDays < 7) return `${diffDays} дн`
   
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }

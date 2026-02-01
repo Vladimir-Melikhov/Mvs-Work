@@ -1,17 +1,18 @@
+<!-- frontend/src/views/CreateServiceView.vue -->
 <template>
-  <div class="min-h-screen pt-8 md:pt-12 pb-20 px-4 flex justify-center animate-fade-in">
-    <div class="w-full max-w-2xl glass p-6 md:p-10 rounded-[40px] relative">
+  <div class="min-h-screen pt-4 md:pt-12 pb-20 px-3 md:px-4 flex justify-center animate-fade-in">
+    <div class="w-full max-w-2xl glass p-4 md:p-10 rounded-[32px] md:rounded-[40px] relative">
       
-      <div class="text-center mb-8 md:mb-10">
-        <h1 class="text-2xl md:text-3xl font-bold text-[#1a1a2e] mb-2">
+      <div class="text-center mb-6 md:mb-10">
+        <h1 class="text-xl md:text-3xl font-bold text-[#1a1a2e] mb-2">
           {{ isEditing ? 'Редактирование услуги' : 'Новая услуга' }}
         </h1>
-        <p class="text-gray-500 text-sm">
+        <p class="text-gray-500 text-xs md:text-sm">
           {{ isEditing ? 'Обновите информацию о вашем предложении' : 'Создайте объявление и начните зарабатывать' }}
         </p>
       </div>
 
-      <div class="space-y-5 md:space-y-6">
+      <div class="space-y-4 md:space-y-6">
         
         <div>
           <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
@@ -20,7 +21,7 @@
           <input 
             v-model="form.title" 
             placeholder="Например: Разработка сайта на Vue.js" 
-            class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all text-base md:text-lg font-medium text-[#1a1a2e] shadow-inner placeholder:text-gray-400"
+            class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all text-sm md:text-lg font-medium text-[#1a1a2e] shadow-inner placeholder:text-gray-400"
             maxlength="100"
           >
           <div class="text-xs text-gray-400 mt-1 ml-2">{{ form.title.length }}/100</div>
@@ -33,7 +34,7 @@
             </label>
             <select 
               v-model="form.category" 
-              class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all font-medium text-[#1a1a2e] shadow-inner cursor-pointer appearance-none"
+              class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all font-medium text-[#1a1a2e] shadow-inner cursor-pointer appearance-none text-sm md:text-base"
             >
               <option value="development">Разработка</option>
               <option value="design">Дизайн</option>
@@ -45,13 +46,13 @@
 
           <div>
             <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
-              Минимальная цена за услугу(Руб) <span class="text-[#7000ff]">*</span>
+              Мин. цена (₽) <span class="text-[#7000ff]">*</span>
             </label>
             <input 
               v-model="form.price" 
               type="number" 
               min="1"
-              class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 font-bold text-[#7000ff] shadow-inner"
+              class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 font-bold text-[#7000ff] shadow-inner text-sm md:text-base"
               placeholder="100"
             >
           </div>
@@ -64,22 +65,21 @@
           <textarea 
             v-model="form.description" 
             rows="5" 
-            class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 resize-none text-gray-600 shadow-inner placeholder:text-gray-400 text-sm md:text-base"
+            class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 resize-none text-gray-600 shadow-inner placeholder:text-gray-400 text-xs md:text-base"
             placeholder="Опишите что вы предлагаете, какие технологии используете, что входит в услугу..."
           ></textarea>
         </div>
 
-        <!-- Загрузка изображений -->
         <div>
           <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">
-            Изображения услуги (до 5 шт,  первое изображение - обложка)
+            Изображения услуги (до 5 шт, первое - обложка)
           </label>
           
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-3">
             <div 
               v-for="i in 5" 
               :key="i"
-              class="relative aspect-square rounded-2xl border-2 border-dashed border-white/30 overflow-hidden group hover:border-[#7000ff]/50 transition-all"
+              class="relative aspect-square rounded-xl md:rounded-2xl border-2 border-dashed border-white/30 overflow-hidden group hover:border-[#7000ff]/50 transition-all"
             >
               <img 
                 v-if="imagePreviews[i-1]" 
@@ -94,7 +94,7 @@
                 <div class="text-center">
                   <svg 
                     v-if="!imagePreviews[i-1]"
-                    class="w-8 h-8 mx-auto text-gray-400 group-hover:text-[#7000ff] transition-colors" 
+                    class="w-6 md:w-8 h-6 md:h-8 mx-auto text-gray-400 group-hover:text-[#7000ff] transition-colors" 
                     fill="none" 
                     stroke="currentColor" 
                     viewBox="0 0 24 24"
@@ -105,7 +105,7 @@
                     v-else
                     class="text-white opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 md:w-6 h-5 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
@@ -121,28 +121,28 @@
               <button 
                 v-if="imagePreviews[i-1]"
                 @click="removeImage(i-1)"
-                class="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                class="absolute top-1 right-1 w-5 h-5 md:w-6 md:h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs md:text-base"
               >
                 ×
               </button>
             </div>
           </div>
           
-          <p class="text-xs text-gray-400 mt-2 ml-2">JPG, PNG, GIF, WEBP • До 5MB каждое</p>
+          <p class="text-[10px] md:text-xs text-gray-400 mt-2 ml-2">JPG, PNG, GIF, WEBP • До 5MB каждое</p>
         </div>
 
-        <div class="bg-[#7000ff]/5 border border-[#7000ff]/10 rounded-2xl p-4 md:p-6">
+        <div class="bg-[#7000ff]/5 border border-[#7000ff]/10 rounded-xl md:rounded-2xl p-3 md:p-6">
           <label class="block text-xs font-bold text-[#7000ff] uppercase tracking-wider mb-2 ml-1">
             Требования к заказчику (Бриф)
           </label>
-          <p class="text-xs text-gray-500 mb-4 ml-1 leading-relaxed break-words">
+          <p class="text-[10px] md:text-xs text-gray-500 mb-3 md:mb-4 ml-1 leading-relaxed break-words">
               Перечислите, что клиент <b>обязан</b> предоставить при заказе (цвета, референсы, доступы). 
               Это будет показано клиенту перед оплатой, чтобы нейросеть составила точное ТЗ.
           </p>
           <textarea 
             v-model="form.ai_template" 
             rows="3"
-            class="w-full p-3 md:p-4 bg-white/50 rounded-xl border border-[#7000ff]/10 outline-none focus:bg-white/80 focus:border-[#7000ff]/30 resize-none text-[#1a1a2e] shadow-sm placeholder:text-gray-400 text-sm transition-all"
+            class="w-full p-3 md:p-4 bg-white/50 rounded-xl border border-[#7000ff]/10 outline-none focus:bg-white/80 focus:border-[#7000ff]/30 resize-none text-[#1a1a2e] shadow-sm placeholder:text-gray-400 text-xs md:text-sm transition-all"
             placeholder="Пример: 1. Укажите цветовую гамму. 2. Пришлите ссылки на сайты, которые вам нравятся. 3. Есть ли у вас готовый логотип?"
           ></textarea>
         </div>
@@ -155,35 +155,34 @@
             <span 
               v-for="(tag, idx) in form.tags" 
               :key="idx" 
-              class="bg-[#1a1a2e] text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#7000ff] transition-colors break-words"
+              class="bg-[#1a1a2e] text-white px-2 md:px-3 py-1 md:py-1.5 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold flex items-center gap-1 md:gap-2 hover:bg-[#7000ff] transition-colors break-words"
             >
               {{ tag }} 
-              <button @click="removeTag(idx)" class="hover:text-red-300 text-lg leading-none">×</button>
+              <button @click="removeTag(idx)" class="hover:text-red-300 text-sm md:text-lg leading-none">×</button>
             </span>
             
             <input 
               v-model="newTag" 
               @keydown.enter.prevent="addTag" 
               placeholder="Введите тег и нажмите Enter..." 
-              class="bg-transparent outline-none text-sm py-1 px-2 flex-1 min-w-[150px] text-[#1a1a2e] placeholder:text-gray-400"
+              class="bg-transparent outline-none text-xs md:text-sm py-1 px-2 flex-1 min-w-[120px] text-[#1a1a2e] placeholder:text-gray-400"
             >
           </div>
         </div>
 
-        <!-- ✅ ОБНОВЛЕНО: Чекбокс с проверкой подписки -->
-        <div v-if="auth.user?.role === 'worker'" class="bg-white/10 rounded-2xl p-4 border border-white/20">
-          <label class="flex items-start gap-3 cursor-pointer group">
+        <div v-if="auth.user?.role === 'worker'" class="bg-white/10 rounded-xl md:rounded-2xl p-3 md:p-4 border border-white/20">
+          <label class="flex items-start gap-2 md:gap-3 cursor-pointer group">
             <input 
               type="checkbox" 
               v-model="form.is_active"
               :disabled="!hasActiveSubscription"
-              class="mt-1 w-5 h-5 rounded border-2 border-gray-300 text-[#7000ff] focus:ring-[#7000ff] disabled:opacity-50 disabled:cursor-not-allowed"
+              class="mt-0.5 md:mt-1 w-4 h-4 md:w-5 md:h-5 rounded border-2 border-gray-300 text-[#7000ff] focus:ring-[#7000ff] disabled:opacity-50 disabled:cursor-not-allowed"
             >
             <div class="flex-1">
-              <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors">
+              <div class="font-bold text-[#1a1a2e] group-hover:text-[#7000ff] transition-colors text-xs md:text-base">
                 {{ isEditing ? 'Активное объявление' : 'Опубликовать сразу' }}
               </div>
-              <div class="text-sm text-gray-600 mt-1">
+              <div class="text-[10px] md:text-sm text-gray-600 mt-1">
                 {{ hasActiveSubscription 
                   ? 'Объявление будет доступно в общей ленте' 
                   : 'Для публикации требуется активная подписка' 
@@ -193,7 +192,7 @@
                 v-if="!hasActiveSubscription"
                 type="button"
                 @click.stop="showSubscriptionModal = true"
-                class="text-xs font-bold text-[#7000ff] hover:underline mt-2"
+                class="text-[10px] md:text-xs font-bold text-[#7000ff] hover:underline mt-2"
               >
                 Активировать подписку →
               </button>
@@ -201,14 +200,14 @@
           </label>
         </div>
 
-        <div v-if="error" class="bg-red-50 border border-red-200 rounded-2xl p-4 animate-fade-in">
-          <p class="text-red-600 text-sm font-bold break-words">❌ {{ error }}</p>
+        <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl md:rounded-2xl p-3 md:p-4 animate-fade-in">
+          <p class="text-red-600 text-xs md:text-sm font-bold break-words">❌ {{ error }}</p>
         </div>
 
         <button 
           @click="submitForm" 
           :disabled="loading || !isFormValid"
-          class="w-full py-3 md:py-4 rounded-2xl font-bold shadow-lg transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+          class="w-full py-3 md:py-4 rounded-xl md:rounded-2xl font-bold shadow-lg transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-base"
           :class="isFormValid && !loading ? 'bg-[#1a1a2e] text-white hover:scale-[1.01]' : 'bg-gray-300 text-gray-500'"
         >
           <span v-if="loading">⏳ {{ isEditing ? 'Сохранение...' : 'Публикация...' }}</span>
@@ -219,7 +218,6 @@
       </div>
     </div>
 
-    <!-- ✅ Модальное окно подписки -->
     <SubscriptionModal 
       v-if="showSubscriptionModal" 
       @close="showSubscriptionModal = false"
@@ -259,7 +257,6 @@ const error = ref('')
 const isEditing = ref(false)
 const showSubscriptionModal = ref(false)
 
-// ✅ Проверка активной подписки
 const hasActiveSubscription = computed(() => {
   if (auth.user?.role !== 'worker') return true
   return auth.user?.subscription?.is_active || false
@@ -385,7 +382,6 @@ const submitForm = async () => {
     formData.append('ai_template', form.value.ai_template || '')
     formData.append('tags', JSON.stringify(form.value.tags))
     
-    // ✅ ВАЖНО: Передаем is_active
     formData.append('is_active', form.value.is_active ? 'true' : 'false')
     
     if (!isEditing.value) {

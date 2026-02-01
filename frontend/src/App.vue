@@ -33,7 +33,6 @@ onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   
-  // Восстанавливаем сессию при загрузке приложения
   await authStore.initAuth()
 })
 
@@ -46,13 +45,14 @@ onUnmounted(() => {
 .main-content {
   max-width: 1200px;
   margin: 140px auto 20px; 
-  padding: 0 20px;
+  padding: 0 8px;
 }
 
 @media (max-width: 768px) {
   .main-content {
-    margin-top: 40px; 
-    margin-bottom: 120px;
+    margin-top: 20px; 
+    margin-bottom: 100px;
+    padding: 0 8px;
   }
 }
 </style>
