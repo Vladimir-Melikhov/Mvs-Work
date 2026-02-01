@@ -1,4 +1,3 @@
-// frontend/src/views/ChatDetailView.vue
 <template>
   <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
@@ -73,7 +72,7 @@
               >
                 <div 
                   class="whitespace-pre-wrap" 
-                  v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                  v-html="formatMessageText(msg.text, ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
                 ></div>
                 
                 <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
@@ -375,7 +374,7 @@
               >
                 <div 
                   class="whitespace-pre-wrap" 
-                  v-html="formatMessageText(msg.text, ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                  v-html="formatMessageText(msg.text, ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
                 ></div>
                 
                 <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
@@ -651,8 +650,11 @@ const formatFileSize = (bytes) => {
 const formatMessageText = (text, isSystem = false) => {
   if (!text) return ''
   if (!isSystem) return text
+  
+  // ✅ ОБНОВЛЕНО: Добавлена иконка рубля для денежных операций
   const emojiMap = {
-    '💰': { type: 'money', color: 'success' },
+    '💰': { type: 'ruble', color: 'purple' },     // ✅ Изменено с money на ruble
+    '💳': { type: 'ruble', color: 'purple' },     // ✅ Изменено с money на ruble
     '✅': { type: 'check', color: 'success' },
     '📦': { type: 'work', color: 'info' },
     '🔄': { type: 'clock', color: 'warning' },
@@ -662,9 +664,9 @@ const formatMessageText = (text, isSystem = false) => {
     '⏳': { type: 'clock', color: 'default' },
     '⚡': { type: 'lightning', color: 'purple' },
     '📋': { type: 'document', color: 'info' },
-    '🛡️': { type: 'info', color: 'info' },
-    '💳': { type: 'money', color: 'purple' }
+    '🛡️': { type: 'info', color: 'info' }
   }
+  
   let formatted = text
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
@@ -685,6 +687,7 @@ const getColorClass = (color) => {
 const getIconPath = (type) => {
   const paths = {
     money: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v12M8 9h8M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    ruble: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9 7h4.5c1.38 0 2.5 1.12 2.5 2.5S14.88 12 13.5 12H9M9 7v12M7 14h5M9 12h4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     check: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     work: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     cancel: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
@@ -849,11 +852,9 @@ const uploadRawFiles = async () => {
   return []
 }
 
-// ✅ ИСПРАВЛЕНО: Функция автоскролла с увеличенной задержкой
 const scrollToBottom = async (smooth = true) => {
   await nextTick()
   
-  // Для десктопа
   if (messagesContainer.value) {
     setTimeout(() => {
       if (messagesContainer.value) {
@@ -865,7 +866,6 @@ const scrollToBottom = async (smooth = true) => {
     }, 200)
   }
   
-  // Для мобильной версии
   if (mobileMessagesContainer.value) {
     setTimeout(() => {
       if (mobileMessagesContainer.value) {
@@ -903,7 +903,6 @@ const fetchHistory = async () => {
     const res = await axios.get(`/api/chat/rooms/${roomId}/messages/`)
     messages.value = res.data.data
     
-    // ✅ Ждем полного рендеринга перед скроллом
     await nextTick()
     setTimeout(() => scrollToBottom(false), 250)
   } catch (e) { 
@@ -936,7 +935,6 @@ const connectWebSocket = () => {
       const msg = data.data
       messages.value.push(msg)
       
-      // ✅ Ждем обновления DOM, затем скроллим
       await nextTick()
       scrollToBottom(true)
       
@@ -989,7 +987,6 @@ const sendMessage = async () => {
     newMessage.value = ''
     selectedFiles.value = []
     
-    // ✅ Скролл с задержкой после отправки
     await nextTick()
     setTimeout(() => scrollToBottom(true), 200)
   } catch (error) {
@@ -1002,7 +999,6 @@ const sendMessage = async () => {
 
 const refreshMessages = () => fetchHistory()
 
-// ✅ Следим за изменением сообщений и скроллим
 watch(() => messages.value.length, async () => {
   if (messages.value.length > 0) {
     await nextTick()
@@ -1016,7 +1012,6 @@ onMounted(async () => {
   connectWebSocket()
   await markAsRead()
   
-  // Дополнительный скролл после полной загрузки
   setTimeout(() => scrollToBottom(false), 300)
 })
 
