@@ -51,7 +51,8 @@
               :class="chat.unread_count > 0 ? 'text-[#1a1a2e] font-semibold' : 'text-gray-600'"
             >
               <span v-if="chat.last_message && String(chat.last_message.sender_id) === String(auth.user.id)" class="text-[#7000ff]">Вы: </span>
-              <span v-html="formatLastMessage(chat.last_message)"></span>
+              <!-- ✅ БЕЗОПАСНОЕ отображение с санитизацией -->
+              <span v-html="sanitizeMessageText(formatLastMessage(chat.last_message), isSystemMessage(chat.last_message))"></span>
             </div>
           </div>
         </div>
@@ -79,7 +80,7 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
-import { stripMarkdown } from '../utils/textUtils'
+import { stripMarkdown, sanitizeHtml } from '../utils/textUtils'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -172,28 +173,27 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }
 
-const formatLastMessage = (message) => {
-  if (!message || !message.text) {
-    if (message && message.attachments && message.attachments.length > 0) {
-      return '<span class="text-gray-500 italic">📎 Вложение</span>'
-    }
-    return 'No messages yet'
-  }
-  
-  if (message.attachments && message.attachments.length > 0) {
-    return '<span class="text-gray-500 italic">📎 Вложение</span>'
-  }
-  
-  let text = stripMarkdown(message.text)
+// ✅ Проверка, является ли сообщение системным
+const isSystemMessage = (message) => {
+  if (!message || !message.text) return false
+  const systemMarkers = ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌']
+  return systemMarkers.some(marker => message.text.trim().startsWith(marker))
+}
 
-  // Проверка на системное сообщение
-  const systemMarkers = ['📋', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌']
-  const isSystem = systemMarkers.some(marker => text.trim().startsWith(marker))
+// ✅ БЕЗОПАСНОЕ форматирование с санитизацией
+const sanitizeMessageText = (text, isSystem = false) => {
+  if (!text) return ''
   
-  if (!isSystem) return text
+  // Для обычных сообщений - только экранирование
+  if (!isSystem) {
+    return sanitizeHtml(text, false)
+  }
   
-  // ✅ ИСПРАВЛЕНО: Используем тот же маппинг что и в ChatDetailView
+  // Для системных - разрешаем SVG с заменой эмодзи
+  let formatted = text
+  
   const emojiMap = {
+    '💰': { type: 'ruble', color: 'purple' },
     '💳': { type: 'ruble', color: 'purple' },
     '✅': { type: 'check', color: 'success' },
     '📦': { type: 'work', color: 'info' },
@@ -207,7 +207,6 @@ const formatLastMessage = (message) => {
     '🛡️': { type: 'info', color: 'info' }
   }
   
-  // Заменяем все эмодзи на SVG иконки
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-0.5">
       <svg class="w-3.5 h-3.5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -215,8 +214,27 @@ const formatLastMessage = (message) => {
       </svg>
     </span>`
     
-    text = text.replaceAll(emoji, iconSvg)
+    formatted = formatted.replaceAll(emoji, iconSvg)
   })
+  
+  // Санитизация с разрешением SVG для системных сообщений
+  return sanitizeHtml(formatted, true)
+}
+
+const formatLastMessage = (message) => {
+  if (!message || !message.text) {
+    if (message && message.attachments && message.attachments.length > 0) {
+      return '<span class="text-gray-500 italic">📎 Вложение</span>'
+    }
+    return 'No messages yet'
+  }
+  
+  if (message.attachments && message.attachments.length > 0) {
+    return '<span class="text-gray-500 italic">📎 Вложение</span>'
+  }
+  
+  // Убираем markdown
+  let text = stripMarkdown(message.text)
   
   return text
 }
