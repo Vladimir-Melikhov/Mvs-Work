@@ -19,7 +19,7 @@ const processQueue = (error, token = null) => {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    accessToken: null,  // Только в памяти, не в localStorage
+    accessToken: null,  // ✅ Только в памяти
   }),
 
   getters: {
@@ -35,14 +35,13 @@ export const useAuthStore = defineStore('auth', {
           password,
           role
         }, {
-          withCredentials: true  // Важно для cookies
+          withCredentials: true
         })
         
         if (response.data.status === 'success') {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
           
-          // Устанавливаем токен в axios headers
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
           return { success: true }
@@ -61,14 +60,13 @@ export const useAuthStore = defineStore('auth', {
           email,
           password
         }, {
-          withCredentials: true  // Важно для cookies
+          withCredentials: true
         })
         
         if (response.data.status === 'success') {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
           
-          // Устанавливаем токен в axios headers
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
           return { success: true }
@@ -117,7 +115,7 @@ export const useAuthStore = defineStore('auth', {
     async refreshAccessToken() {
       try {
         const response = await axios.post('/api/auth/token/refresh/', {}, {
-          withCredentials: true  // Отправляет cookie с refresh token
+          withCredentials: true
         })
         
         if (response.data && response.data.access) {
@@ -135,7 +133,6 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async initAuth() {
-      // При загрузке страницы пытаемся восстановить сессию через refresh token
       try {
         await this.refreshAccessToken()
         if (this.accessToken) {
@@ -152,7 +149,6 @@ export const useAuthStore = defineStore('auth', {
       this.accessToken = null
       delete axios.defaults.headers.common['Authorization']
       
-      // Очищаем cookie (опционально, можно сделать endpoint на бэке)
       document.cookie = 'refresh_token=; Max-Age=0; path=/;'
     }
   }
@@ -166,7 +162,6 @@ axios.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Добавляем в очередь
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         }).then(token => {

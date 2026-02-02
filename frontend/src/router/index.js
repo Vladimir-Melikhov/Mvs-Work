@@ -82,12 +82,10 @@ const router = createRouter({
     }
   ],
   scrollBehavior(to, from, savedPosition) {
-    // 1. Если есть savedPosition (браузер Back/Forward) - восстанавливаем
     if (savedPosition) {
       return savedPosition
     }
     
-    // 2. Если есть hash (#anchor) - скроллим к нему
     if (to.hash) {
       return {
         el: to.hash,
@@ -95,20 +93,21 @@ const router = createRouter({
       }
     }
     
-    // 3. Все остальные переходы - наверх
     return { top: 0 }
   }
 })
 
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
-  const token = localStorage.getItem('access_token')
+  
+  // ✅ Убрали localStorage, используем только accessToken из store
+  const hasToken = !!auth.accessToken
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !hasToken) {
     return next('/login')
   }
 
-  if (token && !auth.user) {
+  if (hasToken && !auth.user) {
     try {
       await auth.fetchProfile()
     } catch (e) {

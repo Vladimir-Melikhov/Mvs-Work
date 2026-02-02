@@ -133,7 +133,6 @@ class Profile(models.Model):
         """Валидация и sanitization при сохранении"""
         super().clean()
         
-        # Sanitize text fields
         if self.bio:
             self.bio = bleach.clean(self.bio, tags=[], strip=True)
         
@@ -146,7 +145,6 @@ class Profile(models.Model):
         if self.headline:
             self.headline = bleach.clean(self.headline, tags=[], strip=True)
         
-        # Валидация и очистка навыков
         if self.skills:
             self.skills = validate_skills(self.skills)
     
@@ -265,6 +263,27 @@ class TelegramLinkToken(models.Model):
     
     def is_valid(self):
         return not self.used and not self.is_expired()
+
+
+# ✅ НОВАЯ МОДЕЛЬ: Отслеживание попыток входа
+class LoginAttempt(models.Model):
+    """Отслеживание попыток входа для защиты от брутфорса"""
+    
+    email = models.EmailField(db_index=True)
+    ip_address = models.GenericIPAddressField()
+    attempt_time = models.DateTimeField(auto_now_add=True)
+    successful = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'login_attempts'
+        ordering = ['-attempt_time']
+        indexes = [
+            models.Index(fields=['email', '-attempt_time']),
+            models.Index(fields=['ip_address', '-attempt_time']),
+        ]
+    
+    def __str__(self):
+        return f"{self.email} from {self.ip_address} at {self.attempt_time}"
 
 
 class Service:

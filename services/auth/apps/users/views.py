@@ -13,7 +13,7 @@ from .serializers import (
     SubscriptionSerializer
 )
 from .services import AuthService
-from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile
+from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile, LoginAttempt
 from .throttling import (
     AuthenticationThrottle, 
     SubscriptionThrottle, 
@@ -22,10 +22,47 @@ from .throttling import (
 )
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from datetime import timedelta
 import requests
 import os
 import secrets
+
+
+def get_client_ip(request):
+    """Получить IP адрес клиента"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
+def check_login_attempts(email, ip_address):
+    """Проверить количество попыток входа"""
+    timeout = settings.LOGIN_ATTEMPT_TIMEOUT
+    limit = settings.LOGIN_ATTEMPT_LIMIT
+    
+    cutoff_time = timezone.now() - timedelta(seconds=timeout)
+    
+    # Считаем неудачные попытки за последние N минут
+    recent_attempts = LoginAttempt.objects.filter(
+        email=email,
+        attempt_time__gte=cutoff_time,
+        successful=False
+    ).count()
+    
+    return recent_attempts < limit
+
+
+def log_login_attempt(email, ip_address, successful):
+    """Записать попытку входа"""
+    LoginAttempt.objects.create(
+        email=email,
+        ip_address=ip_address,
+        successful=successful
+    )
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
@@ -33,17 +70,15 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('refresh'):
-            # Сохраняем refresh token в httpOnly cookie
             response.set_cookie(
                 key='refresh_token',
                 value=response.data['refresh'],
                 httponly=True,
-                secure=False,  # True только на HTTPS в production
+                secure=not settings.DEBUG,
                 samesite='Lax',
-                max_age=7*24*60*60,  # 7 дней
+                max_age=7*24*60*60,
                 path='/'
             )
-            # Удаляем refresh из JSON response
             del response.data['refresh']
         
         return super().finalize_response(request, response, *args, **kwargs)
@@ -53,11 +88,9 @@ class CookieTokenRefreshView(TokenRefreshView):
     """Кастомный refresh view который читает refresh token из cookie"""
     
     def post(self, request, *args, **kwargs):
-        # Пробуем получить refresh token из cookie
         refresh_token = request.COOKIES.get('refresh_token')
         
         if not refresh_token:
-            # Если нет в cookie, пробуем из body (обратная совместимость)
             refresh_token = request.data.get('refresh')
         
         if not refresh_token:
@@ -67,7 +100,6 @@ class CookieTokenRefreshView(TokenRefreshView):
                 'data': None
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Подставляем refresh token в request.data для стандартной обработки
         request._full_data = {'refresh': refresh_token}
         
         return super().post(request, *args, **kwargs)
@@ -100,7 +132,6 @@ class RegisterView(APIView):
                     'user': UserSerializer(user, context={'request': request}).data,
                     'tokens': {
                         'access': tokens['access']
-                        # refresh уже не возвращаем в JSON
                     }
                 },
                 'error': None
@@ -108,14 +139,13 @@ class RegisterView(APIView):
             
             response = Response(response_data, status=status.HTTP_201_CREATED)
             
-            # Сохраняем refresh token в httpOnly cookie
             response.set_cookie(
                 key='refresh_token',
                 value=tokens['refresh'],
                 httponly=True,
-                secure=False,  # True только на HTTPS
+                secure=not settings.DEBUG,
                 samesite='Lax',
-                max_age=7*24*60*60,  # 7 дней
+                max_age=7*24*60*60,
                 path='/'
             )
             
@@ -143,11 +173,25 @@ class LoginView(APIView):
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        email = serializer.validated_data['email']
+        ip_address = get_client_ip(request)
+        
+        # ✅ Проверка количества попыток
+        if not check_login_attempts(email, ip_address):
+            return Response({
+                'status': 'error',
+                'error': 'Слишком много попыток входа. Попробуйте через 5 минут.',
+                'data': None
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
         try:
             user, tokens = AuthService.login_user(
-                email=serializer.validated_data['email'],
+                email=email,
                 password=serializer.validated_data['password']
             )
+            
+            # ✅ Успешный вход
+            log_login_attempt(email, ip_address, successful=True)
             
             response_data = {
                 'status': 'success',
@@ -155,7 +199,6 @@ class LoginView(APIView):
                     'user': UserSerializer(user, context={'request': request}).data,
                     'tokens': {
                         'access': tokens['access']
-                        # refresh уже не возвращаем в JSON
                     }
                 },
                 'error': None
@@ -163,20 +206,22 @@ class LoginView(APIView):
             
             response = Response(response_data, status=status.HTTP_200_OK)
             
-            # Сохраняем refresh token в httpOnly cookie
             response.set_cookie(
                 key='refresh_token',
                 value=tokens['refresh'],
                 httponly=True,
-                secure=False,  # True только на HTTPS
+                secure=not settings.DEBUG,
                 samesite='Lax',
-                max_age=7*24*60*60,  # 7 дней
+                max_age=7*24*60*60,
                 path='/'
             )
             
             return response
             
         except ValueError as e:
+            # ✅ Неудачная попытка
+            log_login_attempt(email, ip_address, successful=False)
+            
             return Response({
                 'status': 'error',
                 'error': str(e),
@@ -198,7 +243,6 @@ class ProfileView(APIView):
     @transaction.atomic
     def patch(self, request):
         """Обновление профиля с поддержкой загрузки аватарки"""
-        # Применяем throttling только для обновлений
         throttle = ProfileUpdateThrottle()
         if not throttle.allow_request(request, self):
             return Response({
@@ -220,7 +264,6 @@ class ProfileView(APIView):
             if serializer.is_valid():
                 serializer.save()
                 
-                # Синхронизация аватара с market service
                 if 'avatar' in request.data or serializer.validated_data.get('avatar'):
                     avatar_url = request.build_absolute_uri(profile.avatar.url) if profile.avatar else ''
                     
@@ -434,23 +477,19 @@ class TelegramGenerateLinkView(APIView):
     
     def post(self, request):
         try:
-            # Удаляем все старые неиспользованные токены
             TelegramLinkToken.objects.filter(
                 user=request.user,
                 used=False
             ).delete()
             
-            # Генерируем новый токен
             token = secrets.token_urlsafe(32)
             
-            # Создаем запись с временем жизни 10 минут
             link_token = TelegramLinkToken.objects.create(
                 user=request.user,
                 token=token,
                 expires_at=timezone.now() + timedelta(minutes=10)
             )
             
-            # Формируем ссылку на бота
             bot_username = os.getenv('TELEGRAM_BOT_USERNAME', 'your_bot')
             deep_link = f"https://t.me/{bot_username}?start={token}"
             
@@ -502,13 +541,11 @@ class TelegramVerifyTokenView(APIView):
                     'error': 'Токен истек или уже использован'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Привязываем Telegram
             profile = link_token.user.profile
             profile.telegram_chat_id = telegram_chat_id
             profile.telegram_notifications_enabled = True
             profile.save()
             
-            # Помечаем токен использованным
             link_token.used = True
             link_token.save()
             

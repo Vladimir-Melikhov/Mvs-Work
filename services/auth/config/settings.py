@@ -68,8 +68,8 @@ AUTH_USER_MODEL = 'users.User'
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # 15 минут в памяти
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 7 дней в cookie
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -109,20 +109,19 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
-# Важно для cookies в CORS
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF для API
+# ✅ CSRF Protection
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
 ]
 
-# Для API отключаем CSRF (используем JWT)
-CSRF_COOKIE_HTTPONLY = False
-CSRF_USE_SESSIONS = False
+# ✅ Cookie Security
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Lax'
 
-# Настройки cookie для безопасности
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -131,11 +130,9 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Настройки загрузки файлов
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 
-# Разрешенные форматы изображений
 ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 
 # Security Settings
@@ -151,7 +148,10 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-# Internationalization
+# ✅ Rate Limiting for Login
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_ATTEMPT_TIMEOUT = 300  # 5 минут
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True

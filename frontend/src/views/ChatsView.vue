@@ -185,13 +185,15 @@ const formatLastMessage = (message) => {
   
   let text = stripMarkdown(message.text)
 
-  const systemMarkers = ['📋', '💰', '📦', '🔄', '⚠️', '🛡️', '💳', '🎉', '❌']
+  // Проверка на системное сообщение
+  const systemMarkers = ['📋', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌']
   const isSystem = systemMarkers.some(marker => text.trim().startsWith(marker))
   
   if (!isSystem) return text
   
+  // ✅ ИСПРАВЛЕНО: Добавлен эмодзи 💳 для рубля
   const emojiMap = {
-    '💰': { type: 'money', color: 'success' },
+    '💳': { type: 'ruble', color: 'purple' },     // ✅ Основной эмодзи оплаты
     '✅': { type: 'check', color: 'success' },
     '📦': { type: 'work', color: 'info' },
     '🔄': { type: 'clock', color: 'warning' },
@@ -201,10 +203,10 @@ const formatLastMessage = (message) => {
     '⏳': { type: 'clock', color: 'default' },
     '⚡': { type: 'lightning', color: 'purple' },
     '📋': { type: 'document', color: 'info' },
-    '🛡️': { type: 'info', color: 'info' },
-    '💳': { type: 'money', color: 'purple' }
+    '🛡️': { type: 'info', color: 'info' }
   }
   
+  // Заменяем все эмодзи на SVG иконки
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-0.5">
       <svg class="w-3.5 h-3.5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -232,7 +234,8 @@ const getColorClass = (color) => {
 
 const getIconPath = (type) => {
   const paths = {
-    money: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v12M8 9h8M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    // ✅ Иконка рубля с кругом
+    ruble: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9 7h4.5c1.38 0 2.5 1.12 2.5 2.5S14.88 12 13.5 12H9M9 7v12M7 14h5M9 12h4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     check: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     work: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     cancel: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
