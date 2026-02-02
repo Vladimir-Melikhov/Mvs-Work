@@ -15,7 +15,7 @@ from .serializers import (
     CreateDealSerializer,
     CompleteDealSerializer
 )
-from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle
+from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .services import AIService
 from .deal_service import DealService
 import os
@@ -414,7 +414,7 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    @action(detail=True, methods=['post'], url_path='pay')
+    @action(detail=True, methods=['post'], url_path='pay', throttle_classes=[DealPaymentThrottle])
     def pay(self, request, pk=None):
         """Оплатить заказ"""
         try:

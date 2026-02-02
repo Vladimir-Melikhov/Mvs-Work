@@ -1,3 +1,4 @@
+# services/market/config/settings.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -101,6 +102,8 @@ REST_FRAMEWORK = {
         'ai_generation': '5/hour',
         'deal_creation': '10/hour',
         'file_upload': '50/hour',
+        'deal_payment': '10/hour',
+        'room_creation': '20/hour',
     }
 }
 

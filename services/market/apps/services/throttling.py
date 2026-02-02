@@ -1,4 +1,5 @@
-from rest_framework.throttling import UserRateThrottle
+# services/market/apps/services/throttling.py
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 
 class AIGenerationThrottle(UserRateThrottle):
@@ -14,3 +15,13 @@ class DealCreationThrottle(UserRateThrottle):
 class FileUploadThrottle(UserRateThrottle):
     """Ограничение для загрузки файлов"""
     scope = 'file_upload'
+
+
+class DealPaymentThrottle(UserRateThrottle):
+    """✅ Ограничение для оплаты сделок"""
+    scope = 'deal_payment'
+
+
+class RoomCreationThrottle(UserRateThrottle):
+    """✅ Ограничение для создания комнат"""
+    scope = 'room_creation'

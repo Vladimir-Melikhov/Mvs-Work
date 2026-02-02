@@ -1,3 +1,4 @@
+# services/chat/config/settings.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -90,6 +91,10 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'room_creation': '20/hour',
+        'file_upload': '50/hour',
+    }
 }
 
 # Настройки медиа-файлов

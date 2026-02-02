@@ -13,7 +13,15 @@ from django.db.models import Max, Q
 import os
 import uuid
 import magic
+from rest_framework.throttling import UserRateThrottle
 
+
+class RoomCreationThrottle(UserRateThrottle):
+    scope = 'room_creation'
+
+
+class FileUploadThrottle(UserRateThrottle):
+    scope = 'file_upload'
 
 class RoomViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -104,7 +112,7 @@ class RoomViewSet(viewsets.ViewSet):
         except Room.DoesNotExist:
             return Response({'error': 'Комната не найдена'}, status=404)
 
-    @action(detail=False, methods=['post'], url_path='create_room')
+    @action(detail=False, methods=['post'], url_path='create_room', throttle_classes=[RoomCreationThrottle])
     def create_room(self, request):
         """Создать комнату между двумя пользователями"""
         user1_id = str(request.user.id)
@@ -267,7 +275,7 @@ class RoomViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    @action(detail=False, methods=['post'], url_path='upload')
+    @action(detail=False, methods=['post'], url_path='upload', throttle_classes=[FileUploadThrottle])
     def upload_files(self, request):
         """Для изображений со сжатием (display_mode = 'inline')"""
         try:
@@ -317,7 +325,7 @@ class RoomViewSet(viewsets.ViewSet):
             traceback.print_exc()
             return Response({'error': str(e)}, status=400)
 
-    @action(detail=False, methods=['post'], url_path='upload-raw-files')
+    @action(detail=False, methods=['post'], url_path='upload-raw-files', throttle_classes=[FileUploadThrottle])
     def upload_raw_files(self, request):
         """Для СЫРЫХ файлов БЕЗ обработки (display_mode = 'attachment')"""
         try:

@@ -1,3 +1,4 @@
+<!-- frontend/src/views/ChatDetailView.vue -->
 <template>
   <div class="hidden md:flex h-[calc(100vh-150px)] gap-4 max-w-7xl mx-auto pt-4 pb-2 px-4">
     
@@ -68,9 +69,10 @@
                   ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
                   : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
               >
+                <!-- ✅ БЕЗОПАСНОЕ отображение с санитизацией -->
                 <div 
                   class="whitespace-pre-wrap" 
-                  v-html="formatMessageText(msg.text, ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                  v-html="sanitizeMessageText(msg.text, isSystemMessage(msg))"
                 ></div>
                 
                 <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-2">
@@ -371,9 +373,10 @@
                   ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
                   : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
               >
+                <!-- ✅ БЕЗОПАСНОЕ отображение с санитизацией -->
                 <div 
                   class="whitespace-pre-wrap" 
-                  v-html="formatMessageText(msg.text, ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌'].some(m => msg.text.startsWith(m)))"
+                  v-html="sanitizeMessageText(msg.text, isSystemMessage(msg))"
                 ></div>
                 
                 <div v-if="msg.attachments && msg.attachments.length > 0" class="mt-2 space-y-1">
@@ -546,6 +549,7 @@ import axios from 'axios'
 import DealMessage from '../components/DealMessage.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import TelegramNotificationBanner from '../components/TelegramNotificationBanner.vue'
+import { sanitizeHtml } from '../utils/textUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -646,9 +650,24 @@ const formatFileSize = (bytes) => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-const formatMessageText = (text, isSystem = false) => {
+// ✅ Проверка, является ли сообщение системным
+const isSystemMessage = (msg) => {
+  if (!msg || !msg.text) return false
+  const systemMarkers = ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌']
+  return systemMarkers.some(marker => msg.text.trim().startsWith(marker))
+}
+
+// ✅ БЕЗОПАСНОЕ форматирование с санитизацией
+const sanitizeMessageText = (text, isSystem = false) => {
   if (!text) return ''
-  if (!isSystem) return text
+  
+  // Для обычных сообщений - только экранирование
+  if (!isSystem) {
+    return sanitizeHtml(text, false)
+  }
+  
+  // Для системных - разрешаем SVG с заменой эмодзи
+  let formatted = text
   
   const emojiMap = {
     '💰': { type: 'ruble', color: 'purple' },
@@ -665,7 +684,6 @@ const formatMessageText = (text, isSystem = false) => {
     '🛡️': { type: 'info', color: 'info' }
   }
   
-  let formatted = text
   Object.entries(emojiMap).forEach(([emoji, config]) => {
     const iconSvg = `<span class="inline-flex items-center align-middle mx-1">
       <svg class="w-5 h-5 ${getColorClass(config.color)}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -674,7 +692,9 @@ const formatMessageText = (text, isSystem = false) => {
     </span>`
     formatted = formatted.replaceAll(emoji, iconSvg)
   })
-  return formatted
+  
+  // Санитизация с разрешением SVG
+  return sanitizeHtml(formatted, true)
 }
 
 const getColorClass = (color) => {
