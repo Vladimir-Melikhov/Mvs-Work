@@ -1,3 +1,4 @@
+// frontend/src/views/RegisterView.vue
 <template>
   <div class="min-h-[85vh] flex items-center justify-center p-6 pt-16">
     <div class="ios-glass-card w-full max-w-[420px] p-8 flex flex-col items-center animate-fade-in">
@@ -50,13 +51,30 @@
         >
       </div>
 
+      <div class="w-full mt-4">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input 
+            type="checkbox" 
+            v-model="agreedToPolicy" 
+            class="mt-1 w-5 h-5 rounded border-gray-300 text-[#7000ff] focus:ring-[#7000ff]"
+          >
+          <span class="text-sm text-gray-600">
+            Я согласен с 
+            <button @click.prevent="showPrivacyPolicy = true" class="text-[#7000ff] font-semibold hover:underline">
+              политикой конфиденциальности
+            </button>
+            и даю согласие на обработку персональных данных
+          </span>
+        </label>
+      </div>
+
       <div v-if="errorMessage" class="mt-4 p-3 rounded-2xl bg-red-50/80 text-red-500 text-xs font-bold text-center border border-red-100 w-full animate-fade-in">
         {{ errorMessage }}
       </div>
       
       <button 
         @click="handleRegister" 
-        :disabled="isLoading"
+        :disabled="isLoading || !agreedToPolicy"
         class="ios-button mt-8"
       >
         {{ isLoading ? 'Создаем аккаунт...' : 'Создать аккаунт' }}
@@ -67,6 +85,12 @@
         <router-link to="/login" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Войти</router-link>
       </p>
     </div>
+    
+    <PrivacyPolicyModal 
+      :show="showPrivacyPolicy" 
+      @close="showPrivacyPolicy = false"
+      @accept="handlePolicyAccept"
+    />
   </div>
 </template>
 
@@ -74,6 +98,7 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 
 const email = ref('')
 const password = ref('')
@@ -81,18 +106,30 @@ const confirmPassword = ref('')
 const role = ref('client')
 const errorMessage = ref('')
 const isLoading = ref(false)
+const agreedToPolicy = ref(false)
+const showPrivacyPolicy = ref(false)
 
 const auth = useAuthStore()
 const router = useRouter()
 
+const handlePolicyAccept = () => {
+  agreedToPolicy.value = true
+  showPrivacyPolicy.value = false
+}
+
 const handleRegister = async () => {
+  if (!agreedToPolicy.value) {
+    errorMessage.value = "Необходимо согласие на обработку персональных данных"
+    return
+  }
+
   if (!email.value || password.value.length < 6) {
-    errorMessage.value = "Please enter a valid email and password (min 6 chars)"
+    errorMessage.value = "Введите корректный email и пароль (минимум 6 символов)"
     return
   }
 
   if (password.value !== confirmPassword.value) {
-    errorMessage.value = "Passwords do not match!"
+    errorMessage.value = "Пароли не совпадают!"
     return
   }
 
@@ -113,7 +150,6 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-/* ГЛАВНЫЙ ЭФФЕКТ: IOS THICK GLASS */
 .ios-glass-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(40px) saturate(180%);
@@ -128,7 +164,6 @@ const handleRegister = async () => {
     inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
-/* СЕЛЕКТОР РОЛЕЙ */
 .role-selector {
   background: rgba(0, 0, 0, 0.05);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -144,7 +179,6 @@ const handleRegister = async () => {
   transition: color 0.3s ease;
 }
 
-/* ИНПУТЫ */
 .ios-input {
   width: 100%;
   padding: 16px 20px;
@@ -179,19 +213,12 @@ const handleRegister = async () => {
   font-weight: 700;
   font-size: 17px;
   color: white;
-  
-  /* Фиолетовый цвет из вашего примера */
   background: #7000ff; 
-  
-  /* Блики и границы для эффекта линзы */
   border-top: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  
-  /* Фиолетовое свечение (тень) */
   box-shadow: 
     0 12px 24px rgba(112, 0, 255, 0.3),
     inset 0 2px 0 rgba(255, 255, 255, 0.2);
-    
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
@@ -209,10 +236,10 @@ const handleRegister = async () => {
 .ios-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #a8a8a8; /* Серый цвет при загрузке, если нужно */
+  background: #a8a8a8;
   box-shadow: none;
 }
-/* АНИМАЦИЯ */
+
 .animate-fade-in {
   animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }

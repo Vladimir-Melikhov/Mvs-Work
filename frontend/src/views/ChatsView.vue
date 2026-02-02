@@ -1,3 +1,4 @@
+// frontend/src/views/ChatsView.vue
 <template>
   <div class="min-h-screen pt-4 pb-20 animate-fade-in px-2 md:px-0">
     
@@ -191,9 +192,9 @@ const formatLastMessage = (message) => {
   
   if (!isSystem) return text
   
-  // ✅ ИСПРАВЛЕНО: Добавлен эмодзи 💳 для рубля
+  // ✅ ИСПРАВЛЕНО: Используем тот же маппинг что и в ChatDetailView
   const emojiMap = {
-    '💳': { type: 'ruble', color: 'purple' },     // ✅ Основной эмодзи оплаты
+    '💳': { type: 'ruble', color: 'purple' },
     '✅': { type: 'check', color: 'success' },
     '📦': { type: 'work', color: 'info' },
     '🔄': { type: 'clock', color: 'warning' },
@@ -234,7 +235,7 @@ const getColorClass = (color) => {
 
 const getIconPath = (type) => {
   const paths = {
-    // ✅ Иконка рубля с кругом
+    // ✅ Иконка рубля с кругом (идентично ChatDetailView)
     ruble: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9 7h4.5c1.38 0 2.5 1.12 2.5 2.5S14.88 12 13.5 12H9M9 7v12M7 14h5M9 12h4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     check: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     work: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
