@@ -1,8 +1,8 @@
-# services/auth/apps/users/urls.py
 from django.urls import path
 from .views import (
     RegisterView, 
-    LoginView, 
+    LoginView,
+    LogoutView,  # ✅ Добавлен
     ProfileView, 
     CheckBalanceView, 
     BatchUsersView, 
@@ -13,13 +13,18 @@ from .views import (
     TelegramDisconnectView,
     TelegramGetUserByIdView,
     CookieTokenRefreshView,
+    VerifyEmailView,
+    ResendVerificationView,
 )
 from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('logout/', LogoutView.as_view(), name='logout'),  # ✅ Добавлен
     path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
+    path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
+    path('resend-verification/', ResendVerificationView.as_view(), name='resend_verification'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),

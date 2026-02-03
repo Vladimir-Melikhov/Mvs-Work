@@ -8,6 +8,7 @@ import os
 from django.core.exceptions import ValidationError
 import bleach
 import re
+import secrets
 
 avatar_storage = FileSystemStorage(location='media/avatars')
 
@@ -72,6 +73,7 @@ class User(AbstractBaseUser):
     email = models.EmailField(unique=True, db_index=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='client')
     is_active = models.BooleanField(default=True)
+    email_verified = models.BooleanField(default=False, help_text="Email подтвержден")
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -85,6 +87,47 @@ class User(AbstractBaseUser):
 
     def __str__(self) -> str:
         return self.email
+
+
+class EmailVerification(models.Model):
+    """Коды для подтверждения email"""
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_verifications')
+    code = models.CharField(max_length=6, help_text="6-значный код")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'email_verifications'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Code {self.code} for {self.user.email}"
+    
+    @staticmethod
+    def generate_code():
+        """Генерация 6-значного кода"""
+        return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    
+    def is_valid(self):
+        """Проверка валидности кода"""
+        return not self.used and timezone.now() < self.expires_at
+    
+    @classmethod
+    def create_for_user(cls, user):
+        """Создать новый код для пользователя"""
+        # Удаляем старые неиспользованные коды
+        cls.objects.filter(user=user, used=False).delete()
+        
+        code = cls.generate_code()
+        expires_at = timezone.now() + timedelta(minutes=15)
+        
+        return cls.objects.create(
+            user=user,
+            code=code,
+            expires_at=expires_at
+        )
 
 
 class Profile(models.Model):
@@ -265,7 +308,6 @@ class TelegramLinkToken(models.Model):
         return not self.used and not self.is_expired()
 
 
-# ✅ НОВАЯ МОДЕЛЬ: Отслеживание попыток входа
 class LoginAttempt(models.Model):
     """Отслеживание попыток входа для защиты от брутфорса"""
     

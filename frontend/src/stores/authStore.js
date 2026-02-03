@@ -1,6 +1,7 @@
 // frontend/src/stores/authStore.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
+import router from '../router'
 
 let isRefreshing = false
 let failedQueue = []
@@ -19,11 +20,12 @@ const processQueue = (error, token = null) => {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    accessToken: null,  // ✅ Только в памяти
+    accessToken: null,
+    isInitialized: false  // ✅ Флаг инициализации
   }),
 
   getters: {
-    isAuthenticated: (state) => !!state.accessToken,
+    isAuthenticated: (state) => !!state.accessToken && !!state.user,
     isWorker: (state) => state.user?.role === 'worker'
   },
 
@@ -41,6 +43,7 @@ export const useAuthStore = defineStore('auth', {
         if (response.data.status === 'success') {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
+          this.isInitialized = true
           
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
@@ -54,11 +57,12 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(email, password) {
+    async login(email, password, recaptchaToken) {
       try {
         const response = await axios.post('/api/auth/login/', {
           email,
-          password
+          password,
+          recaptcha_token: recaptchaToken
         }, {
           withCredentials: true
         })
@@ -66,6 +70,7 @@ export const useAuthStore = defineStore('auth', {
         if (response.data.status === 'success') {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
+          this.isInitialized = true
           
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
@@ -80,21 +85,21 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async updateProfile(profileData) {
-        try {
-            const response = await axios.patch('/api/auth/profile/', profileData, {
-                headers: { Authorization: `Bearer ${this.accessToken}` }
-            })
+      try {
+        const response = await axios.patch('/api/auth/profile/', profileData, {
+          headers: { Authorization: `Bearer ${this.accessToken}` }
+        })
 
-            if (response.data.status === 'success') {
-                this.user = response.data.data
-                return { success: true }
-            }
-        } catch (error) {
-            return {
-                success: false,
-                error: error.response?.data?.error || 'Update failed'
-            }
+        if (response.data.status === 'success') {
+          this.user = response.data.data
+          return { success: true }
         }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Update failed'
+        }
+      }
     },
 
     async fetchProfile() {
@@ -109,6 +114,7 @@ export const useAuthStore = defineStore('auth', {
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error)
+        throw error
       }
     },
 
@@ -127,29 +133,80 @@ export const useAuthStore = defineStore('auth', {
         return false
       } catch (error) {
         console.error('Token refresh failed:', error)
-        this.logout()
         return false
       }
     },
 
     async initAuth() {
       try {
-        await this.refreshAccessToken()
-        if (this.accessToken) {
+        const success = await this.refreshAccessToken()
+        if (success) {
           await this.fetchProfile()
         }
       } catch (error) {
         console.error('Auth initialization failed:', error)
-        this.logout()
+      } finally {
+        this.isInitialized = true
       }
     },
 
-    logout() {
-      this.user = null
-      this.accessToken = null
-      delete axios.defaults.headers.common['Authorization']
-      
-      document.cookie = 'refresh_token=; Max-Age=0; path=/;'
+    async verifyEmail(code) {
+      try {
+        const response = await axios.post('/api/auth/verify-email/', {
+          code
+        }, {
+          headers: { Authorization: `Bearer ${this.accessToken}` }
+        })
+        
+        if (response.data.status === 'success') {
+          this.user.email_verified = true
+          return { success: true }
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Verification failed'
+        }
+      }
+    },
+
+    async resendVerificationCode() {
+      try {
+        const response = await axios.post('/api/auth/resend-verification/', {}, {
+          headers: { Authorization: `Bearer ${this.accessToken}` }
+        })
+        
+        if (response.data.status === 'success') {
+          return { success: true }
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Failed to resend code'
+        }
+      }
+    },
+
+    async logout() {
+      try {
+        await axios.post('/api/auth/logout/', {}, {
+          headers: { Authorization: `Bearer ${this.accessToken}` }
+        })
+      } catch (error) {
+        console.error('Logout error:', error)
+      } finally {
+        // Очищаем состояние ПЕРЕД редиректом
+        this.user = null
+        this.accessToken = null
+        this.isInitialized = true  // ✅ Важно! Иначе initAuth сработает снова
+        delete axios.defaults.headers.common['Authorization']
+        
+        // Очищаем cookie (на всякий случай)
+        document.cookie = 'refresh_token=; Max-Age=0; path=/;'
+        
+        // Редирект на логин
+        router.push('/login')
+      }
     }
   }
 })
@@ -191,7 +248,6 @@ axios.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null)
         authStore.logout()
-        window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

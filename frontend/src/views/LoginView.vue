@@ -14,6 +14,7 @@
             type="email" 
             placeholder="Почта" 
             class="ios-input"
+            @keydown.enter="handleLogin"
           >
         </div>
 
@@ -23,78 +24,140 @@
             type="password" 
             placeholder="Пароль" 
             class="ios-input"
+            @keydown.enter="handleLogin"
           >
         </div>
+
+        <div ref="recaptchaContainer" class="flex justify-center"></div>
+      </div>
+
+      <div v-if="errorMessage" class="mt-4 p-3 rounded-2xl bg-red-50/80 text-red-500 text-xs font-bold text-center border border-red-100 w-full animate-fade-in">
+        {{ errorMessage }}
       </div>
       
-      <button @click="handleLogin" class="ios-button mt-8">
-        Войти
+      <button @click="handleLogin" :disabled="isLoading" class="ios-button mt-8">
+        {{ isLoading ? 'Вход...' : 'Войти' }}
       </button>
 
       <p class="mt-6 text-center text-gray-500 text-sm font-medium">
         Нет аккаунта? 
-        <router-link to="/register" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Зарегестрироваться</router-link>
+        <router-link to="/register" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Зарегистрироваться</router-link>
       </p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
 
 const email = ref('')
 const password = ref('')
+const errorMessage = ref('')
+const isLoading = ref(false)
+const recaptchaContainer = ref(null)
+let recaptchaWidgetId = null
+
 const auth = useAuthStore()
 const router = useRouter()
 
-const handleLogin = async () => {
-  const res = await auth.login(email.value, password.value)
-  if (res.success) router.push('/')
-  else alert('Login failed')
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // test key
+
+const loadRecaptcha = () => {
+  return new Promise((resolve) => {
+    if (window.grecaptcha) {
+      resolve()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit'
+    script.async = true
+    script.defer = true
+    script.onload = resolve
+    document.head.appendChild(script)
+  })
 }
+
+const renderRecaptcha = () => {
+  if (!recaptchaContainer.value) return
+
+  recaptchaWidgetId = window.grecaptcha.render(recaptchaContainer.value, {
+    sitekey: RECAPTCHA_SITE_KEY,
+    size: 'normal',
+    theme: 'light'
+  })
+}
+
+const handleLogin = async () => {
+  errorMessage.value = ''
+
+  if (!email.value || !password.value) {
+    errorMessage.value = 'Введите email и пароль'
+    return
+  }
+
+  // Получаем токен reCAPTCHA
+  const recaptchaToken = window.grecaptcha.getResponse(recaptchaWidgetId)
+  
+  if (!recaptchaToken) {
+    errorMessage.value = 'Пожалуйста, подтвердите, что вы не робот'
+    return
+  }
+
+  isLoading.value = true
+
+  const res = await auth.login(email.value, password.value, recaptchaToken)
+  
+  if (res.success) {
+    router.push('/')
+  } else {
+    errorMessage.value = res.error
+    // Сбрасываем reCAPTCHA
+    window.grecaptcha.reset(recaptchaWidgetId)
+  }
+
+  isLoading.value = false
+}
+
+onMounted(async () => {
+  await loadRecaptcha()
+  
+  // Ждем пока grecaptcha полностью загрузится
+  const checkRecaptcha = setInterval(() => {
+    if (window.grecaptcha && window.grecaptcha.render) {
+      clearInterval(checkRecaptcha)
+      renderRecaptcha()
+    }
+  }, 100)
+})
 </script>
 
 <style scoped>
-/* ГЛАВНЫЙ ЭФФЕКТ: IOS THICK GLASS */
 .ios-glass-card {
-  /* Основа: Нейтральный серый полупрозрачный (как на часах), а не фиолетовый */
   background: rgba(255, 255, 255, 0.25);
-  
-  /* Размытие фона под карточкой */
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
-  
-  /* Скругление */
   border-radius: 40px;
-  
-  /* ГРАНИ (BEVEL) - создают 3D объем стекла */
   border-top: 1px solid rgba(255, 255, 255, 0.8);
   border-left: 1px solid rgba(255, 255, 255, 0.4);
   border-right: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  
-  /* Тени: Мягкая тень от карточки + внутренние блики */
   box-shadow: 
     0 30px 60px rgba(0, 0, 0, 0.1), 
     inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
-/* ИНПУТЫ: Вдавленные в стекло */
 .ios-input {
   width: 100%;
   padding: 16px 20px;
-  /* Полупрозрачный фон, темнее самой карточки */
   background: rgba(0, 0, 0, 0.05); 
   border-radius: 20px;
   border: none;
-  
-  /* Внутренняя тень создает эффект углубления */
   box-shadow: 
     inset 0 2px 4px rgba(0, 0, 0, 0.05), 
     0 1px 0 rgba(255, 255, 255, 0.5);
-    
   color: #1a1a2e;
   font-size: 16px;
   outline: none;
@@ -109,35 +172,37 @@ const handleLogin = async () => {
   background: rgba(255, 255, 255, 0.5);
   box-shadow: 
     inset 0 1px 2px rgba(0, 0, 0, 0.05),
-    0 0 0 2px rgba(112, 0, 255, 0.1); /* Легкий фиолетовый акцент при фокусе */
+    0 0 0 2px rgba(112, 0, 255, 0.1);
 }
 
-/* КНОПКА: Выпуклая линза */
 .ios-button {
   width: 100%;
-  padding: 16px;
+  padding: 18px;
   border-radius: 24px;
   font-weight: 700;
   font-size: 17px;
   color: white;
-  
-  /* Градиент или цвет кнопки */
   background: #7000ff; 
-  
-  /* Блики для объема */
   border-top: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  
   box-shadow: 
-    0 10px 20px rgba(112, 0, 255, 0.3),
+    0 15px 30px rgba(112, 0, 255, 0.3),
     inset 0 2px 0 rgba(255, 255, 255, 0.2);
-    
-  transition: transform 0.1s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ios-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: #5b00d1;
 }
 
 .ios-button:active {
-  transform: scale(0.96);
-  filter: brightness(0.9);
+  transform: scale(0.97);
+}
+
+.ios-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .animate-fade-in {

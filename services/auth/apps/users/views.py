@@ -1,4 +1,3 @@
-# services/auth/apps/users/views.py
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -13,7 +12,7 @@ from .serializers import (
     SubscriptionSerializer
 )
 from .services import AuthService
-from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile, LoginAttempt
+from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile, LoginAttempt, EmailVerification
 from .throttling import (
     AuthenticationThrottle, 
     SubscriptionThrottle, 
@@ -27,6 +26,7 @@ from datetime import timedelta
 import requests
 import os
 import secrets
+from django.core.mail import send_mail
 
 
 def get_client_ip(request):
@@ -46,7 +46,6 @@ def check_login_attempts(email, ip_address):
     
     cutoff_time = timezone.now() - timedelta(seconds=timeout)
     
-    # Считаем неудачные попытки за последние N минут
     recent_attempts = LoginAttempt.objects.filter(
         email=email,
         attempt_time__gte=cutoff_time,
@@ -63,6 +62,63 @@ def log_login_attempt(email, ip_address, successful):
         ip_address=ip_address,
         successful=successful
     )
+
+
+def verify_recaptcha(token):
+    """Проверка reCAPTCHA токена"""
+    secret_key = os.getenv('RECAPTCHA_SECRET_KEY')
+    
+    if not secret_key:
+        # В dev режиме без ключа пропускаем
+        if settings.DEBUG:
+            return True
+        return False
+    
+    try:
+        response = requests.post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            data={
+                'secret': secret_key,
+                'response': token
+            },
+            timeout=5
+        )
+        
+        result = response.json()
+        return result.get('success', False)
+    except Exception as e:
+        print(f"reCAPTCHA verification error: {e}")
+        return False
+
+
+def send_verification_email(user, code):
+    """Отправка email с кодом подтверждения"""
+    try:
+        subject = 'Подтверждение email - Mvs-Work'
+        message = f'''
+Здравствуйте!
+
+Ваш код подтверждения: {code}
+
+Код действителен в течение 15 минут.
+
+Если вы не регистрировались на Mvs-Work, проигнорируйте это письмо.
+
+С уважением,
+Команда Mvs-Work
+        '''
+        
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        print(f"Email sending error: {e}")
+        return False
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
@@ -126,6 +182,12 @@ class RegisterView(APIView):
                 role=serializer.validated_data['role']
             )
             
+            # Создаем код верификации
+            verification = EmailVerification.create_for_user(user)
+            
+            # Отправляем email
+            send_verification_email(user, verification.code)
+            
             response_data = {
                 'status': 'success',
                 'data': {
@@ -174,9 +236,18 @@ class LoginView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         email = serializer.validated_data['email']
+        recaptcha_token = serializer.validated_data['recaptcha_token']
         ip_address = get_client_ip(request)
         
-        # ✅ Проверка количества попыток
+        # Проверка reCAPTCHA
+        if not verify_recaptcha(recaptcha_token):
+            return Response({
+                'status': 'error',
+                'error': 'reCAPTCHA проверка не пройдена',
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Проверка количества попыток
         if not check_login_attempts(email, ip_address):
             return Response({
                 'status': 'error',
@@ -190,7 +261,7 @@ class LoginView(APIView):
                 password=serializer.validated_data['password']
             )
             
-            # ✅ Успешный вход
+            # Успешный вход
             log_login_attempt(email, ip_address, successful=True)
             
             response_data = {
@@ -219,7 +290,7 @@ class LoginView(APIView):
             return response
             
         except ValueError as e:
-            # ✅ Неудачная попытка
+            # Неудачная попытка
             log_login_attempt(email, ip_address, successful=False)
             
             return Response({
@@ -227,6 +298,100 @@ class LoginView(APIView):
                 'error': str(e),
                 'data': None
             }, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class LogoutView(APIView):
+    """Выход из системы - удаление refresh token из cookies"""
+    permission_classes = [AllowAny]  # Разрешаем всем, даже если токен невалидный
+    
+    def post(self, request):
+        response = Response({
+            'status': 'success',
+            'message': 'Logged out successfully'
+        }, status=status.HTTP_200_OK)
+        
+        # Удаляем refresh_token из cookies
+        response.delete_cookie(
+            'refresh_token',
+            path='/',
+            samesite='Lax'
+        )
+        
+        return response
+
+
+class VerifyEmailView(APIView):
+    """Подтверждение email по коду"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        code = request.data.get('code')
+        
+        if not code:
+            return Response({
+                'status': 'error',
+                'error': 'Код обязателен'
+            }, status=400)
+        
+        try:
+            verification = EmailVerification.objects.get(
+                user=request.user,
+                code=code,
+                used=False
+            )
+            
+            if not verification.is_valid():
+                return Response({
+                    'status': 'error',
+                    'error': 'Код истек или уже использован'
+                }, status=400)
+            
+            # Подтверждаем email
+            request.user.email_verified = True
+            request.user.save()
+            
+            # Помечаем код как использованный
+            verification.used = True
+            verification.save()
+            
+            return Response({
+                'status': 'success',
+                'data': UserSerializer(request.user, context={'request': request}).data,
+                'message': 'Email успешно подтвержден'
+            })
+            
+        except EmailVerification.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Неверный код'
+            }, status=400)
+
+
+class ResendVerificationView(APIView):
+    """Повторная отправка кода подтверждения"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        if request.user.email_verified:
+            return Response({
+                'status': 'error',
+                'error': 'Email уже подтвержден'
+            }, status=400)
+        
+        # Создаем новый код
+        verification = EmailVerification.create_for_user(request.user)
+        
+        # Отправляем email
+        if send_verification_email(request.user, verification.code):
+            return Response({
+                'status': 'success',
+                'message': 'Код отправлен повторно'
+            })
+        else:
+            return Response({
+                'status': 'error',
+                'error': 'Не удалось отправить email'
+            }, status=500)
 
 
 class ProfileView(APIView):

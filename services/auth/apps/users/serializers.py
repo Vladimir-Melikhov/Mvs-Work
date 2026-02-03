@@ -53,13 +53,11 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not isinstance(value, InMemoryUploadedFile):
             return value
         
-        # Проверка размера
         if value.size > 5 * 1024 * 1024:
             raise serializers.ValidationError(
                 "Размер файла не должен превышать 5MB"
             )
         
-        # Проверка расширения
         ext = os.path.splitext(value.name)[1][1:].lower()
         allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
         
@@ -68,11 +66,9 @@ class ProfileSerializer(serializers.ModelSerializer):
                 f"Неподдерживаемый формат файла. Разрешены: {', '.join(allowed_extensions)}"
             )
         
-        # MIME-type валидация
         try:
-            # Читаем первые 2048 байт для определения типа
             file_head = value.read(2048)
-            value.seek(0)  # Возвращаем указатель в начало
+            value.seek(0)
             
             mime = magic.from_buffer(file_head, mime=True)
             allowed_mimes = [
@@ -115,8 +111,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'role', 'profile', 'wallet', 'subscription', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'email', 'role', 'email_verified', 'profile', 'wallet', 'subscription', 'created_at']
+        read_only_fields = ['id', 'created_at', 'email_verified']
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -133,3 +129,4 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    recaptcha_token = serializers.CharField(write_only=True, required=True)
