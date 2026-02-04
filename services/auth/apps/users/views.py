@@ -14,7 +14,10 @@ from .serializers import (
     SubscriptionSerializer
 )
 from .services import AuthService
-from .models import User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, Profile, LoginAttempt, EmailVerification
+from .models import (
+    User, Subscription, SubscriptionPayment, Service, TelegramLinkToken, 
+    Profile, LoginAttempt, EmailVerification, PasswordResetToken
+)
 from .throttling import (
     AuthenticationThrottle, 
     SubscriptionThrottle, 
@@ -71,12 +74,10 @@ def verify_recaptcha(token):
     secret_key = os.getenv('RECAPTCHA_SECRET_KEY')
     
     if not secret_key:
-        # В dev режиме без ключа пропускаем
         if settings.DEBUG:
             return True
         return False
     
-    # Тестовые ключи Google (всегда пропускаем в DEV)
     TEST_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
     if secret_key == TEST_SECRET_KEY and settings.DEBUG:
         print("⚠️ Используются тестовые ключи reCAPTCHA (только для разработки!)")
@@ -94,26 +95,43 @@ def verify_recaptcha(token):
         
         result = response.json()
         
-        # Для отладки
         if settings.DEBUG:
             print(f"reCAPTCHA response: {result}")
         
         return result.get('success', False)
     except Exception as e:
         print(f"reCAPTCHA verification error: {e}")
-        # В DEV режиме при ошибке пропускаем
         if settings.DEBUG:
             return True
         return False
 
 
-def send_verification_email(user, code):
+def send_verification_email(user, code, verification_type='registration', new_email=None):
     """Отправка email с кодом подтверждения"""
     import ssl
     
     try:
-        subject = 'Подтверждение email - Mvs-Work'
-        message = f'''
+        email_to_send = new_email if new_email else user.email
+        
+        if verification_type == 'email_change':
+            subject = 'Подтверждение смены email - Mvs-Work'
+            message = f'''
+Здравствуйте!
+
+Вы запросили смену email на вашем аккаунте Mvs-Work.
+
+Ваш код подтверждения: {code}
+
+Код действителен в течение 15 минут.
+
+Если вы не запрашивали смену email, проигнорируйте это письмо.
+
+С уважением,
+Команда Mvs-Work
+            '''
+        else:
+            subject = 'Подтверждение email - Mvs-Work'
+            message = f'''
 Здравствуйте!
 
 Ваш код подтверждения: {code}
@@ -124,18 +142,16 @@ def send_verification_email(user, code):
 
 С уважением,
 Команда Mvs-Work
-        '''
+            '''
         
-        # Отключаем проверку SSL сертификатов
         import smtplib
         from email.mime.text import MIMEText
         
         msg = MIMEText(message)
         msg['Subject'] = subject
         msg['From'] = settings.DEFAULT_FROM_EMAIL
-        msg['To'] = user.email
+        msg['To'] = email_to_send
         
-        # Создаём контекст SSL без проверки сертификатов
         context = ssl._create_unverified_context()
         
         with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10) as server:
@@ -148,6 +164,54 @@ def send_verification_email(user, code):
     except Exception as e:
         print(f"❌ Email sending error: {e}")
         return False
+
+
+def send_password_reset_email(user, token):
+    """Отправка email с ссылкой для сброса пароля"""
+    import ssl
+    
+    try:
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+        
+        subject = 'Сброс пароля - Mvs-Work'
+        message = f'''
+Здравствуйте!
+
+Вы запросили сброс пароля на вашем аккаунте Mvs-Work.
+
+Перейдите по ссылке для сброса пароля:
+{reset_link}
+
+Ссылка действительна в течение 1 часа.
+
+Если вы не запрашивали сброс пароля, проигнорируйте это письмо.
+
+С уважением,
+Команда Mvs-Work
+        '''
+        
+        import smtplib
+        from email.mime.text import MIMEText
+        
+        msg = MIMEText(message)
+        msg['Subject'] = subject
+        msg['From'] = settings.DEFAULT_FROM_EMAIL
+        msg['To'] = user.email
+        
+        context = ssl._create_unverified_context()
+        
+        with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10) as server:
+            server.starttls(context=context)
+            server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+            server.send_message(msg)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Password reset email error: {e}")
+        return False
+
 
 class CookieTokenRefreshView(TokenRefreshView):
     """Кастомный refresh view который читает refresh token из cookie"""
@@ -196,7 +260,10 @@ class RegisterView(APIView):
                 role=serializer.validated_data['role']
             )
             
-            verification = EmailVerification.create_for_user(user)
+            verification = EmailVerification.create_for_user(
+                user, 
+                verification_type='registration'
+            )
             send_verification_email(user, verification.code)
             
             response_data = {
@@ -352,8 +419,23 @@ class VerifyEmailView(APIView):
                     'error': 'Код истек или уже использован'
                 }, status=400)
             
-            request.user.email_verified = True
-            request.user.save()
+            # Если это смена email
+            if verification.verification_type == 'email_change' and verification.new_email:
+                # Проверяем, что новый email не занят
+                if User.objects.filter(email=verification.new_email).exclude(id=request.user.id).exists():
+                    return Response({
+                        'status': 'error',
+                        'error': 'Этот email уже используется'
+                    }, status=400)
+                
+                # Меняем email
+                request.user.email = verification.new_email
+                request.user.email_verified = True
+                request.user.save()
+            else:
+                # Обычное подтверждение
+                request.user.email_verified = True
+                request.user.save()
             
             verification.used = True
             verification.save()
@@ -382,7 +464,10 @@ class ResendVerificationView(APIView):
                 'error': 'Email уже подтвержден'
             }, status=400)
         
-        verification = EmailVerification.create_for_user(request.user)
+        verification = EmailVerification.create_for_user(
+            request.user,
+            verification_type='registration'
+        )
         
         if send_verification_email(request.user, verification.code):
             return Response({
@@ -394,6 +479,310 @@ class ResendVerificationView(APIView):
                 'status': 'error',
                 'error': 'Не удалось отправить email'
             }, status=500)
+
+
+class UpdateEmailView(APIView):
+    """Обновление email на странице верификации"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        new_email = request.data.get('new_email')
+        
+        if not new_email:
+            return Response({
+                'status': 'error',
+                'error': 'Новый email обязателен'
+            }, status=400)
+        
+        # Проверка формата email
+        from django.core.validators import validate_email as django_validate_email
+        from django.core.exceptions import ValidationError
+        
+        try:
+            django_validate_email(new_email)
+        except ValidationError:
+            return Response({
+                'status': 'error',
+                'error': 'Неверный формат email'
+            }, status=400)
+        
+        # Проверка, что email не занят
+        if User.objects.filter(email=new_email).exclude(id=request.user.id).exists():
+            return Response({
+                'status': 'error',
+                'error': 'Этот email уже используется'
+            }, status=400)
+        
+        # Меняем email и сбрасываем верификацию
+        request.user.email = new_email
+        request.user.email_verified = False
+        request.user.save()
+        
+        # Создаем новый код верификации
+        verification = EmailVerification.create_for_user(
+            request.user,
+            verification_type='registration'
+        )
+        
+        if send_verification_email(request.user, verification.code):
+            return Response({
+                'status': 'success',
+                'data': UserSerializer(request.user, context={'request': request}).data,
+                'message': 'Email обновлен. Код отправлен на новый адрес.'
+            })
+        else:
+            return Response({
+                'status': 'error',
+                'error': 'Email обновлен, но не удалось отправить код'
+            }, status=500)
+
+
+class RequestEmailChangeView(APIView):
+    """Запрос на смену email из профиля"""
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ProfileUpdateThrottle]
+    
+    def post(self, request):
+        new_email = request.data.get('new_email')
+        
+        if not new_email:
+            return Response({
+                'status': 'error',
+                'error': 'Новый email обязателен'
+            }, status=400)
+        
+        # Проверка формата email
+        from django.core.validators import validate_email as django_validate_email
+        from django.core.exceptions import ValidationError
+        
+        try:
+            django_validate_email(new_email)
+        except ValidationError:
+            return Response({
+                'status': 'error',
+                'error': 'Неверный формат email'
+            }, status=400)
+        
+        # Проверка, что email не занят
+        if User.objects.filter(email=new_email).exists():
+            return Response({
+                'status': 'error',
+                'error': 'Этот email уже используется'
+            }, status=400)
+        
+        # Создаем код верификации для смены email
+        verification = EmailVerification.create_for_user(
+            request.user,
+            verification_type='email_change',
+            new_email=new_email
+        )
+        
+        if send_verification_email(
+            request.user, 
+            verification.code, 
+            verification_type='email_change',
+            new_email=new_email
+        ):
+            return Response({
+                'status': 'success',
+                'message': f'Код подтверждения отправлен на {new_email}'
+            })
+        else:
+            return Response({
+                'status': 'error',
+                'error': 'Не удалось отправить email'
+            }, status=500)
+
+
+class ConfirmEmailChangeView(APIView):
+    """Подтверждение смены email"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        code = request.data.get('code')
+        
+        if not code:
+            return Response({
+                'status': 'error',
+                'error': 'Код обязателен'
+            }, status=400)
+        
+        try:
+            verification = EmailVerification.objects.get(
+                user=request.user,
+                code=code,
+                verification_type='email_change',
+                used=False
+            )
+            
+            if not verification.is_valid():
+                return Response({
+                    'status': 'error',
+                    'error': 'Код истек или уже использован'
+                }, status=400)
+            
+            if not verification.new_email:
+                return Response({
+                    'status': 'error',
+                    'error': 'Новый email не найден'
+                }, status=400)
+            
+            # Проверяем, что новый email не занят
+            if User.objects.filter(email=verification.new_email).exclude(id=request.user.id).exists():
+                return Response({
+                    'status': 'error',
+                    'error': 'Этот email уже используется'
+                }, status=400)
+            
+            # Меняем email
+            request.user.email = verification.new_email
+            request.user.save()
+            
+            verification.used = True
+            verification.save()
+            
+            return Response({
+                'status': 'success',
+                'data': UserSerializer(request.user, context={'request': request}).data,
+                'message': 'Email успешно изменен'
+            })
+            
+        except EmailVerification.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Неверный код'
+            }, status=400)
+
+
+class ForgotPasswordView(APIView):
+    """Запрос на сброс пароля"""
+    permission_classes = [AllowAny]
+    throttle_classes = [AuthenticationThrottle]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({
+                'status': 'error',
+                'error': 'Email обязателен'
+            }, status=400)
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            # Создаем токен для сброса пароля
+            reset_token = PasswordResetToken.create_for_user(user)
+            
+            # Отправляем email
+            if send_password_reset_email(user, reset_token.token):
+                return Response({
+                    'status': 'success',
+                    'message': 'Ссылка для сброса пароля отправлена на email'
+                })
+            else:
+                return Response({
+                    'status': 'error',
+                    'error': 'Не удалось отправить email'
+                }, status=500)
+                
+        except User.DoesNotExist:
+            # Не раскрываем, существует ли пользователь
+            return Response({
+                'status': 'success',
+                'message': 'Если такой email существует, ссылка для сброса пароля отправлена'
+            })
+
+
+class ResetPasswordView(APIView):
+    """Сброс пароля по токену"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        
+        if not token or not new_password:
+            return Response({
+                'status': 'error',
+                'error': 'Токен и новый пароль обязательны'
+            }, status=400)
+        
+        if len(new_password) < 6:
+            return Response({
+                'status': 'error',
+                'error': 'Пароль должен быть не менее 6 символов'
+            }, status=400)
+        
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token, used=False)
+            
+            if not reset_token.is_valid():
+                return Response({
+                    'status': 'error',
+                    'error': 'Токен истек или уже использован'
+                }, status=400)
+            
+            # Меняем пароль
+            user = reset_token.user
+            user.set_password(new_password)
+            user.save()
+            
+            # Отмечаем токен как использованный
+            reset_token.used = True
+            reset_token.save()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Пароль успешно изменен'
+            })
+            
+        except PasswordResetToken.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Неверный или истекший токен'
+            }, status=400)
+
+
+class DeleteAccountView(APIView):
+    """Полное удаление аккаунта"""
+    permission_classes = [IsAuthenticated]
+    
+    @transaction.atomic
+    def post(self, request):
+        password = request.data.get('password')
+        
+        if not password:
+            return Response({
+                'status': 'error',
+                'error': 'Пароль обязателен для удаления аккаунта'
+            }, status=400)
+        
+        # Проверяем пароль
+        if not request.user.check_password(password):
+            return Response({
+                'status': 'error',
+                'error': 'Неверный пароль'
+            }, status=400)
+        
+        user = request.user
+        
+        # Удаляем пользователя (каскадно удалятся связанные объекты)
+        user.delete()
+        
+        response = Response({
+            'status': 'success',
+            'message': 'Аккаунт успешно удален'
+        })
+        
+        # Удаляем refresh token
+        response.delete_cookie(
+            'refresh_token',
+            path='/',
+            samesite='Lax'
+        )
+        
+        return response
 
 
 class ProfileView(APIView):

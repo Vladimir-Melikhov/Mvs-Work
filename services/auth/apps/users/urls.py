@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     RegisterView, 
     LoginView,
-    LogoutView,  # ✅ Добавлен
+    LogoutView,
     ProfileView, 
     CheckBalanceView, 
     BatchUsersView, 
@@ -15,16 +15,28 @@ from .views import (
     CookieTokenRefreshView,
     VerifyEmailView,
     ResendVerificationView,
+    UpdateEmailView,
+    RequestEmailChangeView,
+    ConfirmEmailChangeView,
+    ForgotPasswordView,
+    ResetPasswordView,
+    DeleteAccountView,
 )
 from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
-    path('logout/', LogoutView.as_view(), name='logout'),  # ✅ Добавлен
+    path('logout/', LogoutView.as_view(), name='logout'),
     path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
     path('resend-verification/', ResendVerificationView.as_view(), name='resend_verification'),
+    path('update-email/', UpdateEmailView.as_view(), name='update_email'),
+    path('request-email-change/', RequestEmailChangeView.as_view(), name='request_email_change'),
+    path('confirm-email-change/', ConfirmEmailChangeView.as_view(), name='confirm_email_change'),
+    path('forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
+    path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
+    path('delete-account/', DeleteAccountView.as_view(), name='delete_account'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),

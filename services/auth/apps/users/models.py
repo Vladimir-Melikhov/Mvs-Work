@@ -92,8 +92,19 @@ class User(AbstractBaseUser):
 class EmailVerification(models.Model):
     """Коды для подтверждения email"""
     
+    VERIFICATION_TYPE_CHOICES = [
+        ('registration', 'Подтверждение при регистрации'),
+        ('email_change', 'Подтверждение смены email'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_verifications')
     code = models.CharField(max_length=6, help_text="6-значный код")
+    new_email = models.EmailField(null=True, blank=True, help_text="Новый email для смены")
+    verification_type = models.CharField(
+        max_length=20, 
+        choices=VERIFICATION_TYPE_CHOICES, 
+        default='registration'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
@@ -115,10 +126,14 @@ class EmailVerification(models.Model):
         return not self.used and timezone.now() < self.expires_at
     
     @classmethod
-    def create_for_user(cls, user):
+    def create_for_user(cls, user, verification_type='registration', new_email=None):
         """Создать новый код для пользователя"""
-        # Удаляем старые неиспользованные коды
-        cls.objects.filter(user=user, used=False).delete()
+        # Удаляем старые неиспользованные коды этого типа
+        cls.objects.filter(
+            user=user, 
+            used=False, 
+            verification_type=verification_type
+        ).delete()
         
         code = cls.generate_code()
         expires_at = timezone.now() + timedelta(minutes=15)
@@ -126,6 +141,49 @@ class EmailVerification(models.Model):
         return cls.objects.create(
             user=user,
             code=code,
+            new_email=new_email,
+            verification_type=verification_type,
+            expires_at=expires_at
+        )
+
+
+class PasswordResetToken(models.Model):
+    """Токены для сброса пароля"""
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'password_reset_tokens'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Reset token for {self.user.email}"
+    
+    @staticmethod
+    def generate_token():
+        """Генерация безопасного токена"""
+        return secrets.token_urlsafe(48)
+    
+    def is_valid(self):
+        """Проверка валидности токена"""
+        return not self.used and timezone.now() < self.expires_at
+    
+    @classmethod
+    def create_for_user(cls, user):
+        """Создать новый токен для пользователя"""
+        # Удаляем старые неиспользованные токены
+        cls.objects.filter(user=user, used=False).delete()
+        
+        token = cls.generate_token()
+        expires_at = timezone.now() + timedelta(hours=1)
+        
+        return cls.objects.create(
+            user=user,
+            token=token,
             expires_at=expires_at
         )
 

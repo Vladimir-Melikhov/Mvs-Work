@@ -11,6 +11,8 @@ import ServiceDetailView from '../views/ServiceDetailView.vue'
 import CreateServiceView from '../views/CreateServiceView.vue'
 import ChatDetailView from '../views/ChatDetailView.vue'
 import VerifyEmailView from '../views/VerifyEmailView.vue'
+import ForgotPasswordView from '../views/ForgotPasswordView.vue'
+import ResetPasswordView from '../views/ResetPasswordView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,43 +29,44 @@ const router = createRouter({
     {
       path: '/services/:id',
       name: 'service-detail',
-      component: ServiceDetailView
+      component: ServiceDetailView,
+      meta: { requiresEmailVerification: false }
     },
     {
       path: '/create-service',
       name: 'create-service',
       component: CreateServiceView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/my-services/edit/:id',
       name: 'edit-service',
       component: CreateServiceView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/chats',
       name: 'chats',
       component: ChatsView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/chats/:id', 
       name: 'chat-detail',
       component: ChatDetailView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/profile',
       name: 'profile',
       component: ProfileView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/users/:id',
       name: 'public-profile',
       component: PublicProfileView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     },
     {
       path: '/login',
@@ -78,6 +81,18 @@ const router = createRouter({
       meta: { requiresGuest: true }
     },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
+      meta: { requiresGuest: true }
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: ResetPasswordView,
+      meta: { requiresGuest: true }
+    },
+    {
       path: '/verify-email',
       name: 'verify-email',
       component: VerifyEmailView,
@@ -87,7 +102,7 @@ const router = createRouter({
       path: '/onboarding',
       name: 'onboarding',
       component: OnboardingView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: true }
     }
   ],
   scrollBehavior(to, from, savedPosition) {
@@ -111,47 +126,50 @@ router.beforeEach(async (to, from, next) => {
   
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
+  const requiresEmailVerification = to.matched.some(record => record.meta.requiresEmailVerification)
 
-  // КРИТИЧНО: Пропускаем публичные страницы БЕЗ проверки токена
+  // Публичные страницы - пропускаем без проверки
   if (!requiresAuth && !requiresGuest) {
     return next()
   }
 
-  // Проверяем токен ТОЛЬКО на страницах с requiresGuest или requiresAuth
+  // Проверяем токен только на защищенных страницах
   if (!auth.isInitialized) {
-    // Для страниц login/register НЕ вызываем initAuth (не проверяем токен)
     if (requiresGuest) {
       auth.isInitialized = true
       return next()
     }
     
-    // Для защищенных страниц - проверяем токен
     await auth.initAuth()
   }
 
   const isAuthenticated = auth.isAuthenticated
 
-  // Если не авторизован и страница требует авторизацию
+  // Редирект неавторизованных с защищенных страниц
   if (!isAuthenticated && requiresAuth) {
     return next('/login')
   }
 
-  // Если авторизован и пытается зайти на login/register
+  // Редирект авторизованных с гостевых страниц
   if (isAuthenticated && requiresGuest) {
     return next('/')
   }
 
-  // Проверка email verification
-  if (isAuthenticated && auth.user && !auth.user.email_verified) {
-    if (to.name !== 'verify-email') {
-      return next('/verify-email')
+  // Проверка подтверждения email
+  if (isAuthenticated && auth.user) {
+    const emailVerified = auth.user.email_verified
+    
+    // Если email не подтвержден и страница требует подтверждения
+    if (!emailVerified && requiresEmailVerification) {
+      if (to.name !== 'verify-email') {
+        return next('/verify-email')
+      }
     }
-    return next()
-  }
-
-  // Редирект с verify-email если email уже подтвержден
-  if (isAuthenticated && auth.user && auth.user.email_verified && to.name === 'verify-email') {
-    return next('/')
+    
+    // Если email подтвержден и пользователь на странице верификации
+    if (emailVerified && to.name === 'verify-email') {
+      return next('/')
+    }
   }
 
   // Проверка заполненности профиля для worker

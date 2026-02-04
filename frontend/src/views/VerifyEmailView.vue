@@ -12,10 +12,18 @@
           Подтвердите email
         </h1>
         
-        <p class="text-center text-gray-600 mb-8 text-sm">
+        <p class="text-center text-gray-600 mb-6 text-sm">
           Мы отправили код подтверждения на<br>
           <span class="font-bold text-[#7000ff]">{{ user?.email }}</span>
         </p>
+        
+        <!-- Кнопка редактирования email -->
+        <button 
+          @click="showEditEmail = true"
+          class="mb-6 text-sm text-[#7000ff] hover:underline font-bold"
+        >
+          Изменить email
+        </button>
   
         <div class="w-full space-y-4">
           <div class="relative">
@@ -65,6 +73,40 @@
           Выйти
         </button>
       </div>
+      
+      <!-- Модальное окно редактирования email -->
+      <div v-if="showEditEmail" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6">
+        <div class="ios-glass-card w-full max-w-[400px] p-8">
+          <h2 class="text-xl font-bold mb-4 text-[#1a1a2e]">Изменить email</h2>
+          
+          <input 
+            v-model="newEmail" 
+            type="email" 
+            placeholder="Новый email" 
+            class="ios-input mb-4"
+          >
+          
+          <div v-if="editError" class="mb-4 p-3 rounded-2xl bg-red-50/80 text-red-500 text-xs font-bold text-center border border-red-100">
+            {{ editError }}
+          </div>
+          
+          <div class="flex gap-3">
+            <button 
+              @click="showEditEmail = false; newEmail = ''; editError = ''"
+              class="flex-1 ios-button-secondary"
+            >
+              Отмена
+            </button>
+            <button 
+              @click="updateEmail"
+              :disabled="isUpdating || !newEmail"
+              class="flex-1 ios-button"
+            >
+              {{ isUpdating ? 'Обновление...' : 'Обновить' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </template>
   
@@ -72,6 +114,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useAuthStore } from '../stores/authStore'
   import { useRouter } from 'vue-router'
+  import axios from 'axios'
   
   const auth = useAuthStore()
   const router = useRouter()
@@ -82,6 +125,11 @@
   const isLoading = ref(false)
   const isResending = ref(false)
   const resendCooldown = ref(0)
+  
+  const showEditEmail = ref(false)
+  const newEmail = ref('')
+  const editError = ref('')
+  const isUpdating = ref(false)
   
   const user = computed(() => auth.user)
   
@@ -138,6 +186,34 @@
     }
   
     isResending.value = false
+  }
+  
+  const updateEmail = async () => {
+    if (!newEmail.value) {
+      editError.value = 'Введите новый email'
+      return
+    }
+    
+    editError.value = ''
+    isUpdating.value = true
+    
+    try {
+      const response = await axios.post('/api/auth/update-email/', {
+        new_email: newEmail.value
+      })
+      
+      if (response.data.status === 'success') {
+        await auth.fetchProfile()
+        showEditEmail.value = false
+        newEmail.value = ''
+        successMessage.value = 'Email обновлен! Код отправлен на новый адрес.'
+        code.value = ''
+      }
+    } catch (error) {
+      editError.value = error.response?.data?.error || 'Ошибка обновления email'
+    } finally {
+      isUpdating.value = false
+    }
   }
   
   const logout = () => {
@@ -221,6 +297,23 @@
     cursor: not-allowed;
     background: #a8a8a8;
     box-shadow: none;
+  }
+  
+  .ios-button-secondary {
+    padding: 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 15px;
+    color: #1a1a2e;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  
+  .ios-button-secondary:hover {
+    background: rgba(255, 255, 255, 0.8);
   }
   
   .animate-fade-in {
