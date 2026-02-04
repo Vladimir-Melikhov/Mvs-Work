@@ -39,7 +39,14 @@
         {{ isLoading ? 'Вход...' : 'Войти' }}
       </button>
 
-      <p class="mt-6 text-center text-gray-500 text-sm font-medium">
+      <router-link 
+        to="/forgot-password" 
+        class="mt-4 text-center text-sm text-gray-500 hover:text-[#7000ff] transition-colors font-medium"
+      >
+        Забыли пароль?
+      </router-link>
+
+      <p class="mt-4 text-center text-gray-500 text-sm font-medium">
         Нет аккаунта? 
         <router-link to="/register" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Зарегистрироваться</router-link>
       </p>
