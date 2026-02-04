@@ -744,12 +744,51 @@ class ResetPasswordView(APIView):
             }, status=400)
 
 
+class ChangePasswordView(APIView):
+    """Смена пароля для авторизованного пользователя"""
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ProfileUpdateThrottle]
+    
+    def post(self, request):
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        
+        if not old_password or not new_password:
+            return Response({
+                'status': 'error',
+                'error': 'Старый и новый пароль обязательны'
+            }, status=400)
+        
+        # Проверяем старый пароль
+        if not request.user.check_password(old_password):
+            return Response({
+                'status': 'error',
+                'error': 'Неверный текущий пароль'
+            }, status=400)
+        
+        # Валидация нового пароля
+        if len(new_password) < 6:
+            return Response({
+                'status': 'error',
+                'error': 'Новый пароль должен быть не менее 6 символов'
+            }, status=400)
+        
+        # Меняем пароль
+        request.user.set_password(new_password)
+        request.user.save()
+        
+        return Response({
+            'status': 'success',
+            'message': 'Пароль успешно изменен'
+        })
+
+
 class DeleteAccountView(APIView):
     """Полное удаление аккаунта"""
     permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request):
+    def delete(self, request):
         password = request.data.get('password')
         
         if not password:

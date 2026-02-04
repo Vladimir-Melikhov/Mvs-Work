@@ -91,7 +91,28 @@
           </div>
 
           <div v-else>
-            <button @click="showWizard = true" class="ios-button py-3.5 md:py-4 w-full text-sm md:text-base">
+            <!-- Кнопка создания заказа или авторизации -->
+            <button 
+              v-if="!auth.isAuthenticated"
+              @click="$router.push('/login')" 
+              class="ios-button py-3.5 md:py-4 w-full text-sm md:text-base"
+            >
+              Войти для создания заказа
+            </button>
+            
+            <button 
+              v-else-if="!auth.user.email_verified"
+              @click="$router.push('/verify-email')" 
+              class="ios-button py-3.5 md:py-4 w-full text-sm md:text-base"
+            >
+              Подтвердить email для заказа
+            </button>
+            
+            <button 
+              v-else
+              @click="showWizard = true" 
+              class="ios-button py-3.5 md:py-4 w-full text-sm md:text-base"
+            >
               Начать сделку с AI
             </button>
             

@@ -20,6 +20,7 @@ from .views import (
     ConfirmEmailChangeView,
     ForgotPasswordView,
     ResetPasswordView,
+    ChangePasswordView,
     DeleteAccountView,
 )
 from . import views
@@ -36,6 +37,7 @@ urlpatterns = [
     path('confirm-email-change/', ConfirmEmailChangeView.as_view(), name='confirm_email_change'),
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
+    path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('delete-account/', DeleteAccountView.as_view(), name='delete_account'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),

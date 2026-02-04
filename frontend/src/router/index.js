@@ -24,13 +24,14 @@ const router = createRouter({
     {
       path: '/search',
       name: 'search',
-      component: SearchView
+      component: SearchView,
+      meta: { requiresAuth: false, requiresEmailVerification: false }
     },
     {
       path: '/services/:id',
       name: 'service-detail',
       component: ServiceDetailView,
-      meta: { requiresEmailVerification: false }
+      meta: { requiresAuth: false, requiresEmailVerification: false }
     },
     {
       path: '/create-service',
@@ -96,7 +97,7 @@ const router = createRouter({
       path: '/verify-email',
       name: 'verify-email',
       component: VerifyEmailView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresEmailVerification: false }
     },
     {
       path: '/onboarding',
@@ -128,7 +129,7 @@ router.beforeEach(async (to, from, next) => {
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
   const requiresEmailVerification = to.matched.some(record => record.meta.requiresEmailVerification)
 
-  // Публичные страницы - пропускаем без проверки
+  // Публичные страницы (search, service-detail) - пропускаем без проверки
   if (!requiresAuth && !requiresGuest) {
     return next()
   }
