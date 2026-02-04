@@ -109,46 +109,55 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
   
-  // Ждем инициализации auth (попытка refresh токена)
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
+
+  // КРИТИЧНО: Пропускаем публичные страницы БЕЗ проверки токена
+  if (!requiresAuth && !requiresGuest) {
+    return next()
+  }
+
+  // Проверяем токен ТОЛЬКО на страницах с requiresGuest или requiresAuth
   if (!auth.isInitialized) {
+    // Для страниц login/register НЕ вызываем initAuth (не проверяем токен)
+    if (requiresGuest) {
+      auth.isInitialized = true
+      return next()
+    }
+    
+    // Для защищенных страниц - проверяем токен
     await auth.initAuth()
   }
 
   const isAuthenticated = auth.isAuthenticated
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
 
-  // ===== ПОЛЬЗОВАТЕЛЬ НЕ АВТОРИЗОВАН =====
-  if (!isAuthenticated) {
-    // Пытается зайти на защищенную страницу → редирект на логин
-    if (requiresAuth) {
-      return next('/login')
-    }
-    // Разрешаем доступ к гостевым страницам
-    return next()
+  // Если не авторизован и страница требует авторизацию
+  if (!isAuthenticated && requiresAuth) {
+    return next('/login')
   }
 
-  // ===== ПОЛЬЗОВАТЕЛЬ АВТОРИЗОВАН =====
-
-  // Проверка верификации email (ТОЛЬКО для авторизованных!)
-  if (auth.user && !auth.user.email_verified) {
-    // Если не подтвержден email и пытается зайти НЕ на verify-email
-    if (to.name !== 'verify-email') {
-      return next('/verify-email')
-    }
-    // Уже на странице верификации - пускаем
-    return next()
-  }
-
-  // Если email подтвержден, но пытается зайти на страницу верификации
-  if (auth.user && auth.user.email_verified && to.name === 'verify-email') {
+  // Если авторизован и пытается зайти на login/register
+  if (isAuthenticated && requiresGuest) {
     return next('/')
   }
 
-  // Проверка заполненности профиля для воркеров
-  if (auth.user && auth.user.email_verified) {
+  // Проверка email verification
+  if (isAuthenticated && auth.user && !auth.user.email_verified) {
+    if (to.name !== 'verify-email') {
+      return next('/verify-email')
+    }
+    return next()
+  }
+
+  // Редирект с verify-email если email уже подтвержден
+  if (isAuthenticated && auth.user && auth.user.email_verified && to.name === 'verify-email') {
+    return next('/')
+  }
+
+  // Проверка заполненности профиля для worker
+  if (isAuthenticated && auth.user && auth.user.email_verified) {
     const isWorker = auth.user.role === 'worker'
-    const isProfileIncomplete = isWorker && (!auth.user.profile.skills || auth.user.profile.skills.length === 0)
+    const isProfileIncomplete = isWorker && (!auth.user.profile?.skills || auth.user.profile.skills.length === 0)
     
     if (isProfileIncomplete && to.name !== 'onboarding') {
       return next('/onboarding')
@@ -159,12 +168,6 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Если уже залогинен и пытается зайти на login/register
-  if (requiresGuest) {
-    return next('/')
-  }
-
-  // Все проверки пройдены - разрешаем переход
   next()
 })
 

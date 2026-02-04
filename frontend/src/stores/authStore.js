@@ -1,4 +1,3 @@
-// frontend/src/stores/authStore.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import router from '../router'
@@ -21,7 +20,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
     accessToken: null,
-    isInitialized: false  // ✅ Флаг инициализации
+    isInitialized: false
   }),
 
   getters: {
@@ -120,9 +119,14 @@ export const useAuthStore = defineStore('auth', {
 
     async refreshAccessToken() {
       try {
+        console.log('🔄 Refreshing token...')
+        console.log('📨 Cookies:', document.cookie)
+        
         const response = await axios.post('/api/auth/token/refresh/', {}, {
           withCredentials: true
         })
+        
+        console.log('✅ Refresh response:', response.data)
         
         if (response.data && response.data.access) {
           this.accessToken = response.data.access
@@ -130,9 +134,11 @@ export const useAuthStore = defineStore('auth', {
           return true
         }
         
+        console.warn('⚠️ No access token in response')
         return false
       } catch (error) {
-        console.error('Token refresh failed:', error)
+        console.error('❌ Token refresh failed:', error.response?.data || error.message)
+        this.clearAuth()
         return false
       }
     },
@@ -145,6 +151,7 @@ export const useAuthStore = defineStore('auth', {
         }
       } catch (error) {
         console.error('Auth initialization failed:', error)
+        this.clearAuth()
       } finally {
         this.isInitialized = true
       }
@@ -187,31 +194,29 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    clearAuth() {
+      this.user = null
+      this.accessToken = null
+      delete axios.defaults.headers.common['Authorization']
+    },
+
     async logout() {
       try {
         await axios.post('/api/auth/logout/', {}, {
-          headers: { Authorization: `Bearer ${this.accessToken}` }
+          headers: { Authorization: `Bearer ${this.accessToken}` },
+          withCredentials: true
         })
       } catch (error) {
         console.error('Logout error:', error)
       } finally {
-        // Очищаем состояние ПЕРЕД редиректом
-        this.user = null
-        this.accessToken = null
-        this.isInitialized = true  // ✅ Важно! Иначе initAuth сработает снова
-        delete axios.defaults.headers.common['Authorization']
-        
-        // Очищаем cookie (на всякий случай)
-        document.cookie = 'refresh_token=; Max-Age=0; path=/;'
-        
-        // Редирект на логин
+        this.clearAuth()
+        this.isInitialized = true
         router.push('/login')
       }
     }
   }
 })
 
-// Axios interceptor для автоматического refresh токена
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -243,11 +248,14 @@ axios.interceptors.response.use(
           return axios(originalRequest)
         } else {
           processQueue(error, null)
+          authStore.clearAuth()
+          router.push('/login')
           return Promise.reject(error)
         }
       } catch (refreshError) {
         processQueue(refreshError, null)
-        authStore.logout()
+        authStore.clearAuth()
+        router.push('/login')
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

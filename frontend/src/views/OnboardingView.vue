@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen bg-[#f2f4f8] flex items-center justify-center p-4">
-    <div class="glass w-full max-w-3xl rounded-[32px] overflow-hidden flex flex-col md:flex-row shadow-2xl animate-fade-in relative border border-white/60">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="onboarding-container w-full max-w-3xl rounded-[32px] overflow-hidden flex flex-col md:flex-row shadow-2xl animate-fade-in relative border border-white/60">
       
       <div class="bg-[#1a1a2e] w-full md:w-5/12 p-8 flex flex-col justify-between text-white relative">
         <div class="relative z-10 mt-4">
@@ -14,9 +14,9 @@
       </div>
 
       <div class="flex-1 p-8 md:p-10 bg-white/60 backdrop-blur-md">
+        <!-- Весь остальной контент формы без изменений -->
         <div class="space-y-6">
           
-          <!-- ✅ ОБНОВЛЕНО: Загрузка аватара -->
           <div class="flex items-center gap-4">
             <div class="relative w-16 h-16 rounded-full bg-white shadow-md border border-gray-100 overflow-hidden group">
               <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover">
@@ -40,7 +40,6 @@
             </div>
           </div>
 
-          <!-- ✅ НОВОЕ: Переключатель типа профиля (для всех) -->
           <div class="bg-white/80 p-1 rounded-xl flex shadow-sm border border-gray-100">
              <button @click="isCompany = false" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="!isCompany ? 'bg-[#1a1a2e] text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'">Personal</button>
              <button @click="isCompany = true" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="isCompany ? 'bg-[#1a1a2e] text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'">Company</button>
@@ -93,6 +92,7 @@
               </div>
             </div>
           </div>
+          
           <div v-if="isWorker" class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
            <div>
             <label class="block text-xs font-bold text-gray-400 uppercase mb-1">GitHub Profile</label>
@@ -138,7 +138,10 @@
   </div>
 </template>
 
+
+
 <script setup>
+// Весь script остается таким же
 import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
@@ -282,7 +285,7 @@ const save = async () => {
 </script>
 
 <style scoped>
-.glass {
+.onboarding-container {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(30px);
 }

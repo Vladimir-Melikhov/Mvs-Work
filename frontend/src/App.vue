@@ -3,7 +3,7 @@
   <div class="app">
     <TopNav v-if="!isMobile" />
     <BottomNav v-if="isMobile" />
-    <main class="main-content">
+    <main class="main-content" :class="{ 'onboarding-page': isOnboardingPage }">
       <router-view />
     </main>
     
@@ -24,6 +24,7 @@ const authStore = useAuthStore()
 const isMobile = ref(false)
 
 const isChatPage = computed(() => route.path.startsWith('/chats'))
+const isOnboardingPage = computed(() => route.path === '/onboarding')
 
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768
@@ -48,11 +49,25 @@ onUnmounted(() => {
   padding: 0 8px;
 }
 
+.main-content.onboarding-page {
+  max-width: 100%;
+  margin-top: 140px; /* Оставляем верхний отступ для навигации */
+  margin-bottom: 20px;
+  padding: 0;
+  background: transparent;
+}
+
 @media (max-width: 768px) {
   .main-content {
     margin-top: 20px; 
     margin-bottom: 100px;
     padding: 0 8px;
+  }
+  
+  .main-content.onboarding-page {
+    margin-top: 20px;
+    margin-bottom: 100px;
+    padding: 0;
   }
 }
 </style>

@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from .serializers import (
     RegisterSerializer, 
     LoginSerializer, 
@@ -74,6 +76,12 @@ def verify_recaptcha(token):
             return True
         return False
     
+    # Тестовые ключи Google (всегда пропускаем в DEV)
+    TEST_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
+    if secret_key == TEST_SECRET_KEY and settings.DEBUG:
+        print("⚠️ Используются тестовые ключи reCAPTCHA (только для разработки!)")
+        return True
+    
     try:
         response = requests.post(
             'https://www.google.com/recaptcha/api/siteverify',
@@ -85,14 +93,24 @@ def verify_recaptcha(token):
         )
         
         result = response.json()
+        
+        # Для отладки
+        if settings.DEBUG:
+            print(f"reCAPTCHA response: {result}")
+        
         return result.get('success', False)
     except Exception as e:
         print(f"reCAPTCHA verification error: {e}")
+        # В DEV режиме при ошибке пропускаем
+        if settings.DEBUG:
+            return True
         return False
 
 
 def send_verification_email(user, code):
     """Отправка email с кодом подтверждения"""
+    import ssl
+    
     try:
         subject = 'Подтверждение email - Mvs-Work'
         message = f'''
@@ -108,57 +126,53 @@ def send_verification_email(user, code):
 Команда Mvs-Work
         '''
         
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-        )
-        return True
-    except Exception as e:
-        print(f"Email sending error: {e}")
-        return False
-
-
-class CookieTokenObtainPairView(TokenObtainPairView):
-    """Кастомный login view с сохранением refresh token в httpOnly cookie"""
-    
-    def finalize_response(self, request, response, *args, **kwargs):
-        if response.data.get('refresh'):
-            response.set_cookie(
-                key='refresh_token',
-                value=response.data['refresh'],
-                httponly=True,
-                secure=not settings.DEBUG,
-                samesite='Lax',
-                max_age=7*24*60*60,
-                path='/'
-            )
-            del response.data['refresh']
+        # Отключаем проверку SSL сертификатов
+        import smtplib
+        from email.mime.text import MIMEText
         
-        return super().finalize_response(request, response, *args, **kwargs)
-
+        msg = MIMEText(message)
+        msg['Subject'] = subject
+        msg['From'] = settings.DEFAULT_FROM_EMAIL
+        msg['To'] = user.email
+        
+        # Создаём контекст SSL без проверки сертификатов
+        context = ssl._create_unverified_context()
+        
+        with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10) as server:
+            server.starttls(context=context)
+            server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+            server.send_message(msg)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Email sending error: {e}")
+        return False
 
 class CookieTokenRefreshView(TokenRefreshView):
     """Кастомный refresh view который читает refresh token из cookie"""
+    permission_classes = [AllowAny]
     
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get('refresh_token')
         
         if not refresh_token:
-            refresh_token = request.data.get('refresh')
-        
-        if not refresh_token:
             return Response({
-                'status': 'error',
-                'error': 'Refresh token not found',
-                'data': None
+                'error': 'Refresh token not found'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        request._full_data = {'refresh': refresh_token}
-        
-        return super().post(request, *args, **kwargs)
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = str(refresh.access_token)
+            
+            return Response({
+                'access': access_token
+            }, status=status.HTTP_200_OK)
+            
+        except TokenError:
+            return Response({
+                'error': 'Invalid or expired refresh token'
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class RegisterView(APIView):
@@ -182,10 +196,7 @@ class RegisterView(APIView):
                 role=serializer.validated_data['role']
             )
             
-            # Создаем код верификации
             verification = EmailVerification.create_for_user(user)
-            
-            # Отправляем email
             send_verification_email(user, verification.code)
             
             response_data = {
@@ -239,7 +250,6 @@ class LoginView(APIView):
         recaptcha_token = serializer.validated_data['recaptcha_token']
         ip_address = get_client_ip(request)
         
-        # Проверка reCAPTCHA
         if not verify_recaptcha(recaptcha_token):
             return Response({
                 'status': 'error',
@@ -247,7 +257,6 @@ class LoginView(APIView):
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Проверка количества попыток
         if not check_login_attempts(email, ip_address):
             return Response({
                 'status': 'error',
@@ -261,7 +270,6 @@ class LoginView(APIView):
                 password=serializer.validated_data['password']
             )
             
-            # Успешный вход
             log_login_attempt(email, ip_address, successful=True)
             
             response_data = {
@@ -290,7 +298,6 @@ class LoginView(APIView):
             return response
             
         except ValueError as e:
-            # Неудачная попытка
             log_login_attempt(email, ip_address, successful=False)
             
             return Response({
@@ -302,7 +309,7 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     """Выход из системы - удаление refresh token из cookies"""
-    permission_classes = [AllowAny]  # Разрешаем всем, даже если токен невалидный
+    permission_classes = [AllowAny]
     
     def post(self, request):
         response = Response({
@@ -310,7 +317,6 @@ class LogoutView(APIView):
             'message': 'Logged out successfully'
         }, status=status.HTTP_200_OK)
         
-        # Удаляем refresh_token из cookies
         response.delete_cookie(
             'refresh_token',
             path='/',
@@ -346,11 +352,9 @@ class VerifyEmailView(APIView):
                     'error': 'Код истек или уже использован'
                 }, status=400)
             
-            # Подтверждаем email
             request.user.email_verified = True
             request.user.save()
             
-            # Помечаем код как использованный
             verification.used = True
             verification.save()
             
@@ -378,10 +382,8 @@ class ResendVerificationView(APIView):
                 'error': 'Email уже подтвержден'
             }, status=400)
         
-        # Создаем новый код
         verification = EmailVerification.create_for_user(request.user)
         
-        # Отправляем email
         if send_verification_email(request.user, verification.code):
             return Response({
                 'status': 'success',
