@@ -213,6 +213,35 @@ export const useAuthStore = defineStore('auth', {
         this.isInitialized = true
         router.push('/login')
       }
+    },
+
+    async deleteAccount(password) {
+      try {
+        const response = await axios.delete('/api/auth/delete-account/', {
+          data: { password },
+          headers: { Authorization: `Bearer ${this.accessToken}` },
+          withCredentials: true
+        })
+        
+        if (response.data.status === 'success') {
+          // Полная очистка состояния и перенаправление
+          this.clearAuth()
+          this.isInitialized = true
+          
+          // Принудительный переход на страницу логина
+          await router.push('/login')
+          
+          // Перезагрузка страницы для полной очистки
+          window.location.href = '/login'
+          
+          return { success: true }
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Ошибка удаления аккаунта'
+        }
+      }
     }
   }
 })

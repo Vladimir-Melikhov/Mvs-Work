@@ -833,18 +833,16 @@ const deleteAccount = async () => {
   deleteLoading.value = true
   
   try {
-    const response = await axios.delete('/api/auth/delete-account/', {
-      data: { password: deletePassword.value }
-    })
+    const result = await auth.deleteAccount(deletePassword.value)
     
-    if (response.data.status === 'success') {
-      alert('Аккаунт успешно удален')
-      auth.logout()
-      router.push('/login')
+    if (result.success) {
+      // Успешное удаление - пользователь будет перенаправлен в authStore
+    } else {
+      deleteError.value = result.error || 'Ошибка удаления аккаунта'
+      deleteLoading.value = false
     }
   } catch (error) {
     deleteError.value = error.response?.data?.error || 'Ошибка удаления аккаунта'
-  } finally {
     deleteLoading.value = false
   }
 }

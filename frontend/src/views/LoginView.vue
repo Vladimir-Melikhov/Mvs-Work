@@ -15,6 +15,7 @@
             placeholder="Почта" 
             class="ios-input"
             @keydown.enter="handleLogin"
+            :disabled="isLoading"
           >
         </div>
 
@@ -25,6 +26,7 @@
             placeholder="Пароль" 
             class="ios-input"
             @keydown.enter="handleLogin"
+            :disabled="isLoading"
           >
         </div>
 
@@ -69,7 +71,7 @@ let recaptchaWidgetId = null
 const auth = useAuthStore()
 const router = useRouter()
 
-const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // test key
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
 
 const loadRecaptcha = () => {
   return new Promise((resolve) => {
@@ -98,40 +100,48 @@ const renderRecaptcha = () => {
 }
 
 const handleLogin = async () => {
+  // Сброс ошибки
   errorMessage.value = ''
 
+  // Валидация полей
   if (!email.value || !password.value) {
     errorMessage.value = 'Введите email и пароль'
     return
   }
 
-  // Получаем токен reCAPTCHA
-  const recaptchaToken = window.grecaptcha.getResponse(recaptchaWidgetId)
+  // Проверка reCAPTCHA
+  const recaptchaToken = window.grecaptcha?.getResponse(recaptchaWidgetId)
   
   if (!recaptchaToken) {
     errorMessage.value = 'Пожалуйста, подтвердите, что вы не робот'
     return
   }
 
+  // Начало загрузки
   isLoading.value = true
 
-  const res = await auth.login(email.value, password.value, recaptchaToken)
-  
-  if (res.success) {
-    router.push('/')
-  } else {
-    errorMessage.value = res.error
-    // Сбрасываем reCAPTCHA
+  try {
+    const res = await auth.login(email.value, password.value, recaptchaToken)
+    
+    if (res.success) {
+      router.push('/')
+    } else {
+      errorMessage.value = res.error || 'Ошибка входа'
+      // Сброс reCAPTCHA при ошибке
+      window.grecaptcha.reset(recaptchaWidgetId)
+    }
+  } catch (error) {
+    errorMessage.value = 'Произошла ошибка. Попробуйте снова.'
     window.grecaptcha.reset(recaptchaWidgetId)
+  } finally {
+    // Завершение загрузки в любом случае
+    isLoading.value = false
   }
-
-  isLoading.value = false
 }
 
 onMounted(async () => {
   await loadRecaptcha()
   
-  // Ждем пока grecaptcha полностью загрузится
   const checkRecaptcha = setInterval(() => {
     if (window.grecaptcha && window.grecaptcha.render) {
       clearInterval(checkRecaptcha)
@@ -169,6 +179,11 @@ onMounted(async () => {
   font-size: 16px;
   outline: none;
   transition: all 0.3s ease;
+}
+
+.ios-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .ios-input::placeholder {
