@@ -1,146 +1,90 @@
 <template>
   <div class="deals-history">
-    <div class="flex flex-col gap-4 mb-6 px-2">
-      <h3 class="text-xl font-bold text-[#1a1a2e]">История сделок</h3>
+    <div class="flex flex-col gap-3 mb-4 px-2">
+      <h3 class="text-lg font-bold text-[#2d1b4e]">История сделок</h3>
       
       <div class="flex gap-2">
         <button 
           v-for="tab in tabs" 
           :key="tab.value"
           @click="activeTab = tab.value"
-          class="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold transition-all"
+          class="px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-bold transition-all"
           :class="activeTab === tab.value 
-            ? 'bg-[#7000ff] text-white' 
-            : 'bg-white/20 text-gray-600 hover:bg-white/40'"
+            ? 'bg-[#7000ff] text-white shadow-lg shadow-purple-200' 
+            : 'bg-white/20 text-[#5a4a7d] hover:bg-white/40'"
         >
           {{ tab.label }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="text-center py-10 opacity-50">
-      <div class="w-8 h-8 border-4 border-[#7000ff]/30 border-t-[#7000ff] rounded-full animate-spin mx-auto"></div>
+    <div v-if="loading" class="text-center py-10">
+      <div class="w-8 h-8 border-4 border-[#7000ff]/20 border-t-[#7000ff] rounded-full animate-spin mx-auto"></div>
     </div>
 
-    <div v-else-if="paginatedDeals.length === 0" class="glass p-8 rounded-[32px] text-center border border-white/20 opacity-70">
+    <div v-else-if="filteredDeals.length === 0" class="glass p-8 rounded-[24px] text-center border border-white/20 opacity-70">
       <div class="flex justify-center mb-3 opacity-30">
-        <svg class="w-12 h-12 text-[#1a1a2e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-12 h-12 text-[#7000ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
         </svg>
       </div>
-      <p class="font-bold text-[#1a1a2e] mb-2">Сделок пока нет</p>
-      <p class="text-sm text-gray-500">Начните общение с исполнителями или клиентами</p>
+      <p class="font-bold text-[#2d1b4e] mb-1">Сделок пока нет</p>
+      <p class="text-xs text-[#7c6a96]">В этой категории пока пусто</p>
     </div>
 
     <div v-else>
-      <div class="space-y-4">
+      <div class="space-y-3">
         <div 
           v-for="deal in paginatedDeals" 
           :key="deal.id"
-          class="glass rounded-[32px] p-4 md:p-6 hover:bg-white/20 transition-all border border-white/20 cursor-pointer"
+          class="glass rounded-[24px] p-4 md:p-5 hover:translate-y-[-1px] transition-all border border-white/20 cursor-pointer"
           @click="$router.push(`/chats/${deal.chat_room_id}`)"
         >
-          <div class="flex items-start justify-between mb-4">
+          <div class="flex items-start justify-between mb-3">
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-3 mb-2">
-                <div class="w-8 md:w-10 h-8 md:h-10 rounded-2xl bg-white/30 flex items-center justify-center text-[#7000ff] shrink-0">
-                  <svg v-if="deal.status === 'pending'" class="w-4 md:w-5 h-4 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <svg v-else-if="deal.status === 'paid'" class="w-4 md:w-5 h-4 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <svg v-else-if="deal.status === 'delivered'" class="w-4 md:w-5 h-4 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                  <svg v-else-if="deal.status === 'completed'" class="w-4 md:w-5 h-4 md:h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <svg v-else-if="deal.status === 'cancelled'" class="w-4 md:w-5 h-4 md:h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <svg v-else class="w-4 md:w-5 h-4 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+              <div class="flex items-center gap-3 mb-1.5">
+                <div class="w-9 h-9 rounded-xl bg-[#7000ff]/10 flex items-center justify-center text-[#7000ff] shrink-0 border border-white/10">
+                  <svg v-if="deal.status === 'pending'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg v-else-if="deal.status === 'paid'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  <svg v-else-if="deal.status === 'delivered'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  <svg v-else-if="deal.status === 'completed'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </div>
-
                 <div class="flex-1 min-w-0">
-                  <h4 class="text-base md:text-lg font-bold text-[#1a1a2e] break-words">{{ deal.title }}</h4>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    {{ getStatusText(deal.status) }}
-                  </div>
+                  <h4 class="text-sm md:text-base font-bold text-[#2d1b4e] break-words">{{ deal.title }}</h4>
+                  <div class="text-[9px] font-bold uppercase tracking-wider text-[#a491c3]">{{ getStatusText(deal.status) }}</div>
                 </div>
               </div>
-              <div class="text-xs md:text-sm text-gray-600 mt-2 line-clamp-2 break-words">
-                {{ deal.description }}
-              </div>
+              <div class="text-[11px] md:text-xs text-[#5a4a7d] mt-1 line-clamp-1 break-words opacity-80 pl-1">{{ deal.description }}</div>
             </div>
-            
-            <div class="text-right ml-4 shrink-0">
-              <div class="text-xl md:text-2xl font-bold" :class="getPriceColor(deal.status)">
-                {{ deal.price }}₽
-              </div>
-              <div class="text-[10px] font-bold text-gray-400 mt-1 uppercase">
-                {{ formatDate(deal.created_at) }}
-              </div>
+            <div class="text-right ml-3 shrink-0">
+              <div class="text-lg md:text-xl font-black" :class="getPriceColor(deal.status)">{{ deal.price }}₽</div>
+              <div class="text-[9px] font-bold text-[#a491c3] uppercase">{{ formatDate(deal.created_at) }}</div>
             </div>
           </div>
-
-          <div class="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest pt-4 border-t border-white/10 flex-wrap">
-            <span class="px-3 py-1 rounded-lg" :class="getRoleBadge(deal)">
-              {{ getRole(deal) }}
+          <div class="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest pt-3 border-t border-purple-100/10 flex-wrap">
+            <span class="px-2 py-1 rounded-lg transition-colors" :class="getRoleBadge(deal)">{{ getRole(deal) }}</span>
+            <span v-if="['pending', 'paid', 'delivered'].includes(deal.status)" class="text-[#7000ff] flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#7000ff]"></span> Активна
             </span>
-            
-            <span v-if="['pending', 'paid', 'delivered'].includes(deal.status)" class="text-green-600 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-              Активна
-            </span>
-            <span v-if="deal.status === 'completed'" class="text-blue-600 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-              Завершена {{ formatDate(deal.completed_at) }}
-            </span>
-            <span v-if="deal.status === 'cancelled'" class="text-red-500 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-              Отменена
+            <span v-if="deal.status === 'completed'" class="text-[#a855f7] flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#a855f7]"></span> Завершена
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex justify-center items-center gap-2 mt-6">
-        <button 
-          @click="currentPage--" 
-          :disabled="currentPage === 1"
-          class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
+      <div v-if="totalPages > 1" class="flex justify-center items-center gap-3 mt-6">
+        <button @click="currentPage--" :disabled="currentPage === 1" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-[#7000ff] disabled:opacity-30 transition-all flex items-center justify-center border border-white/10">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
         </button>
-
-        <div class="flex gap-1">
-          <button 
-            v-for="page in visiblePages" 
-            :key="page"
-            @click="currentPage = page"
-            class="w-9 h-9 rounded-full font-bold text-sm transition-all"
-            :class="currentPage === page 
-              ? 'bg-[#7000ff] text-white' 
-              : 'bg-white/20 hover:bg-white/40 text-gray-700'"
-          >
+        <div class="flex gap-1.5">
+          <button v-for="page in visiblePages" :key="page" @click="currentPage = page" class="w-10 h-10 rounded-full font-bold text-sm transition-all border border-white/10" :class="currentPage === page ? 'bg-[#7000ff] text-white' : 'bg-white/20 hover:bg-white/40 text-[#5a4a7d]'">
             {{ page }}
           </button>
         </div>
-
-        <button 
-          @click="currentPage++" 
-          :disabled="currentPage === totalPages"
-          class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
+        <button @click="currentPage++" :disabled="currentPage === totalPages" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-[#7000ff] disabled:opacity-30 transition-all flex items-center justify-center border border-white/10">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
     </div>
@@ -148,12 +92,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
 const auth = useAuthStore()
-
 const deals = ref([])
 const loading = ref(true)
 const activeTab = ref('all')
@@ -166,6 +109,11 @@ const tabs = [
   { value: 'completed', label: 'Завершенные' },
 ]
 
+// При смене таба всегда возвращаемся на 1 страницу
+watch(activeTab, () => {
+  currentPage.value = 1
+})
+
 const filteredDeals = computed(() => {
   if (activeTab.value === 'all') return deals.value
   if (activeTab.value === 'active') return deals.value.filter(d => ['pending', 'paid', 'delivered'].includes(d.status))
@@ -174,88 +122,42 @@ const filteredDeals = computed(() => {
 })
 
 const totalPages = computed(() => Math.ceil(filteredDeals.value.length / itemsPerPage))
-
 const paginatedDeals = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
-  const end = start + itemsPerPage
-  return filteredDeals.value.slice(start, end)
+  return filteredDeals.value.slice(start, start + itemsPerPage)
 })
 
 const visiblePages = computed(() => {
-  const pages = []
-  const total = totalPages.value
-  const current = currentPage.value
-  
-  if (total <= 5) {
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    if (current <= 3) {
-      pages.push(1, 2, 3, 4, 5)
-    } else if (current >= total - 2) {
-      pages.push(total - 4, total - 3, total - 2, total - 1, total)
-    } else {
-      pages.push(current - 2, current - 1, current, current + 1, current + 2)
-    }
+  const pages = []; const total = totalPages.value; const current = currentPage.value
+  if (total <= 5) { for (let i = 1; i <= total; i++) pages.push(i) }
+  else {
+    if (current <= 3) pages.push(1, 2, 3, 4, 5)
+    else if (current >= total - 2) pages.push(total - 4, total - 3, total - 2, total - 1, total)
+    else pages.push(current - 2, current - 1, current, current + 1, current + 2)
   }
-  
   return pages
-})
-
-// Reset page when tab changes
-const previousTab = ref(activeTab.value)
-const tabChanged = computed(() => {
-  const changed = previousTab.value !== activeTab.value
-  if (changed) {
-    currentPage.value = 1
-    previousTab.value = activeTab.value
-  }
-  return changed
 })
 
 const fetchDeals = async () => {
   loading.value = true
   try {
     const res = await axios.get('/api/market/deals/')
-    if (res.data.status === 'success') {
-      deals.value = res.data.data
-    }
-  } catch (e) {
-    console.error('Failed to fetch deals:', e)
-  } finally {
-    loading.value = false
-  }
+    if (res.data.status === 'success') { deals.value = res.data.data }
+  } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
-const getRole = (deal) => {
-  const isClient = String(auth.user.id) === String(deal.client_id)
-  return isClient ? 'Заказчик' : 'Исполнитель'
-}
+const getRole = (deal) => String(auth.user.id) === String(deal.client_id) ? 'Заказчик' : 'Исполнитель'
+const getRoleBadge = (deal) => String(auth.user.id) === String(deal.client_id) 
+  ? 'bg-indigo-50/50 text-indigo-600 border border-indigo-100/20' 
+  : 'bg-purple-50/50 text-purple-700 border border-purple-100/20'
 
-const getRoleBadge = (deal) => {
-  const isClient = String(auth.user.id) === String(deal.client_id)
-  return isClient 
-    ? 'bg-blue-50 text-blue-600 border border-blue-100' 
-    : 'bg-green-50 text-green-700 border border-green-100'
-}
-
-const getStatusText = (status) => {
-  const texts = {
-    pending: 'Ожидает оплаты',
-    paid: 'В работе',
-    delivered: 'Сдано на проверку',
-    completed: 'Завершена',
-    cancelled: 'Отменена'
-  }
-  return texts[status] || status
-}
+const getStatusText = (status) => ({
+  pending: 'Ожидает оплаты', paid: 'В работе', delivered: 'Сдано на проверку', completed: 'Завершена', cancelled: 'Отменена'
+}[status] || status)
 
 const getPriceColor = (status) => {
-  if (status === 'completed') return 'text-green-600'
-  if (status === 'cancelled') return 'text-gray-400'
-  if (['pending', 'paid', 'delivered'].includes(status)) return 'text-[#7000ff]'
-  return 'text-gray-700'
+  if (status === 'completed') return 'text-[#7000ff]'
+  return 'text-[#2d1b4e]'
 }
 
 const formatDate = (dateStr) => {
@@ -264,9 +166,7 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }
 
-onMounted(() => {
-  fetchDeals()
-})
+onMounted(fetchDeals)
 </script>
 
 <style scoped>
