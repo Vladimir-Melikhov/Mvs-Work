@@ -104,16 +104,13 @@ const renderRecaptcha = () => {
 }
 
 const handleLogin = async () => {
-  // Сброс предыдущих ошибок
   errorMessage.value = ''
 
-  // Валидация полей
   if (!email.value || !password.value) {
     errorMessage.value = 'Введите email и пароль'
     return
   }
 
-  // Проверка reCAPTCHA
   const recaptchaToken = window.grecaptcha?.getResponse(recaptchaWidgetId)
   
   if (!recaptchaToken) {
@@ -121,7 +118,6 @@ const handleLogin = async () => {
     return
   }
 
-  // Начало загрузки
   isLoading.value = true
 
   try {
@@ -131,7 +127,6 @@ const handleLogin = async () => {
       router.push('/')
     } else {
       errorMessage.value = res.error || 'Ошибка входа. Проверьте данные и попробуйте снова.'
-      // Сброс reCAPTCHA при ошибке
       if (window.grecaptcha && recaptchaWidgetId !== null) {
         window.grecaptcha.reset(recaptchaWidgetId)
       }
@@ -139,12 +134,10 @@ const handleLogin = async () => {
   } catch (error) {
     console.error('Login error:', error)
     errorMessage.value = 'Произошла ошибка. Попробуйте снова.'
-    // Сброс reCAPTCHA при ошибке
     if (window.grecaptcha && recaptchaWidgetId !== null) {
       window.grecaptcha.reset(recaptchaWidgetId)
     }
   } finally {
-    // КРИТИЧНО: Завершение загрузки в любом случае
     isLoading.value = false
   }
 }
@@ -159,12 +152,10 @@ onMounted(async () => {
     }
   }, 100)
   
-  // Очистка интервала через 10 секунд на случай ошибки
   setTimeout(() => clearInterval(checkRecaptcha), 10000)
 })
 
 onBeforeUnmount(() => {
-  // Очистка reCAPTCHA при размонтировании
   if (recaptchaWidgetId !== null && window.grecaptcha) {
     try {
       window.grecaptcha.reset(recaptchaWidgetId)

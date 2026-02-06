@@ -89,9 +89,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         console.error('Login error:', error)
         
-        // Обработка разных типов ошибок
         if (error.response) {
-          // Сервер ответил с ошибкой
           const errorData = error.response.data
           
           if (error.response.status === 401) {
@@ -116,13 +114,11 @@ export const useAuthStore = defineStore('auth', {
             }
           }
         } else if (error.request) {
-          // Запрос был отправлен, но ответа не получено
           return { 
             success: false, 
             error: 'Нет соединения с сервером' 
           }
         } else {
-          // Ошибка при настройке запроса
           return { 
             success: false, 
             error: 'Ошибка при отправке запроса' 
@@ -290,14 +286,11 @@ export const useAuthStore = defineStore('auth', {
         })
         
         if (response.data.status === 'success') {
-          // Полная очистка состояния и перенаправление
           this.clearAuth()
           this.isInitialized = true
           
-          // Принудительный переход на страницу логина
           await router.push('/login')
           
-          // Перезагрузка страницы для полной очистки
           window.location.href = '/login'
           
           return { success: true }
@@ -318,11 +311,31 @@ export const useAuthStore = defineStore('auth', {
   }
 })
 
+// ИСПРАВЛЕННЫЙ INTERCEPTOR
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
 
+    // КРИТИЧНО: Исключаем эндпоинты аутентификации из автоматического refresh
+    const authEndpoints = [
+      '/api/auth/login/',
+      '/api/auth/register/',
+      '/api/auth/token/refresh/',
+      '/api/auth/forgot-password/',
+      '/api/auth/reset-password/'
+    ]
+
+    const isAuthEndpoint = authEndpoints.some(endpoint => 
+      originalRequest.url?.includes(endpoint)
+    )
+
+    // Если это эндпоинт аутентификации - просто возвращаем ошибку
+    if (isAuthEndpoint) {
+      return Promise.reject(error)
+    }
+
+    // Для остальных эндпоинтов - пытаемся обновить токен
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
