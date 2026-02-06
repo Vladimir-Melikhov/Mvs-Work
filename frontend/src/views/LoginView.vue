@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
 
@@ -92,15 +92,19 @@ const loadRecaptcha = () => {
 const renderRecaptcha = () => {
   if (!recaptchaContainer.value) return
 
-  recaptchaWidgetId = window.grecaptcha.render(recaptchaContainer.value, {
-    sitekey: RECAPTCHA_SITE_KEY,
-    size: 'normal',
-    theme: 'light'
-  })
+  try {
+    recaptchaWidgetId = window.grecaptcha.render(recaptchaContainer.value, {
+      sitekey: RECAPTCHA_SITE_KEY,
+      size: 'normal',
+      theme: 'light'
+    })
+  } catch (error) {
+    console.error('reCAPTCHA render error:', error)
+  }
 }
 
 const handleLogin = async () => {
-  // Сброс ошибки
+  // Сброс предыдущих ошибок
   errorMessage.value = ''
 
   // Валидация полей
@@ -126,15 +130,21 @@ const handleLogin = async () => {
     if (res.success) {
       router.push('/')
     } else {
-      errorMessage.value = res.error || 'Ошибка входа'
+      errorMessage.value = res.error || 'Ошибка входа. Проверьте данные и попробуйте снова.'
       // Сброс reCAPTCHA при ошибке
-      window.grecaptcha.reset(recaptchaWidgetId)
+      if (window.grecaptcha && recaptchaWidgetId !== null) {
+        window.grecaptcha.reset(recaptchaWidgetId)
+      }
     }
   } catch (error) {
+    console.error('Login error:', error)
     errorMessage.value = 'Произошла ошибка. Попробуйте снова.'
-    window.grecaptcha.reset(recaptchaWidgetId)
+    // Сброс reCAPTCHA при ошибке
+    if (window.grecaptcha && recaptchaWidgetId !== null) {
+      window.grecaptcha.reset(recaptchaWidgetId)
+    }
   } finally {
-    // Завершение загрузки в любом случае
+    // КРИТИЧНО: Завершение загрузки в любом случае
     isLoading.value = false
   }
 }
@@ -148,6 +158,20 @@ onMounted(async () => {
       renderRecaptcha()
     }
   }, 100)
+  
+  // Очистка интервала через 10 секунд на случай ошибки
+  setTimeout(() => clearInterval(checkRecaptcha), 10000)
+})
+
+onBeforeUnmount(() => {
+  // Очистка reCAPTCHA при размонтировании
+  if (recaptchaWidgetId !== null && window.grecaptcha) {
+    try {
+      window.grecaptcha.reset(recaptchaWidgetId)
+    } catch (error) {
+      console.error('reCAPTCHA cleanup error:', error)
+    }
+  }
 })
 </script>
 

@@ -47,8 +47,14 @@ export const useAuthStore = defineStore('auth', {
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
           return { success: true }
+        } else {
+          return { 
+            success: false, 
+            error: response.data.error || 'Registration failed' 
+          }
         }
       } catch (error) {
+        console.error('Registration error:', error)
         return { 
           success: false, 
           error: error.response?.data?.error || 'Registration failed' 
@@ -74,11 +80,53 @@ export const useAuthStore = defineStore('auth', {
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
           
           return { success: true }
+        } else {
+          return { 
+            success: false, 
+            error: response.data.error || 'Login failed' 
+          }
         }
       } catch (error) {
-        return { 
-          success: false, 
-          error: error.response?.data?.error || 'Login failed' 
+        console.error('Login error:', error)
+        
+        // Обработка разных типов ошибок
+        if (error.response) {
+          // Сервер ответил с ошибкой
+          const errorData = error.response.data
+          
+          if (error.response.status === 401) {
+            return { 
+              success: false, 
+              error: errorData.error || 'Неверный email или пароль' 
+            }
+          } else if (error.response.status === 429) {
+            return { 
+              success: false, 
+              error: errorData.error || 'Слишком много попыток. Попробуйте позже.' 
+            }
+          } else if (error.response.status === 400) {
+            return { 
+              success: false, 
+              error: errorData.error || 'Некорректные данные' 
+            }
+          } else {
+            return { 
+              success: false, 
+              error: errorData.error || 'Ошибка сервера' 
+            }
+          }
+        } else if (error.request) {
+          // Запрос был отправлен, но ответа не получено
+          return { 
+            success: false, 
+            error: 'Нет соединения с сервером' 
+          }
+        } else {
+          // Ошибка при настройке запроса
+          return { 
+            success: false, 
+            error: 'Ошибка при отправке запроса' 
+          }
         }
       }
     },
@@ -92,8 +140,14 @@ export const useAuthStore = defineStore('auth', {
         if (response.data.status === 'success') {
           this.user = response.data.data
           return { success: true }
+        } else {
+          return {
+            success: false,
+            error: response.data.error || 'Update failed'
+          }
         }
       } catch (error) {
+        console.error('Update profile error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Update failed'
@@ -168,8 +222,14 @@ export const useAuthStore = defineStore('auth', {
         if (response.data.status === 'success') {
           this.user.email_verified = true
           return { success: true }
+        } else {
+          return {
+            success: false,
+            error: response.data.error || 'Verification failed'
+          }
         }
       } catch (error) {
+        console.error('Email verification error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Verification failed'
@@ -185,8 +245,14 @@ export const useAuthStore = defineStore('auth', {
         
         if (response.data.status === 'success') {
           return { success: true }
+        } else {
+          return {
+            success: false,
+            error: response.data.error || 'Failed to resend code'
+          }
         }
       } catch (error) {
+        console.error('Resend verification error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Failed to resend code'
@@ -235,8 +301,14 @@ export const useAuthStore = defineStore('auth', {
           window.location.href = '/login'
           
           return { success: true }
+        } else {
+          return {
+            success: false,
+            error: response.data.error || 'Ошибка удаления аккаунта'
+          }
         }
       } catch (error) {
+        console.error('Delete account error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Ошибка удаления аккаунта'
