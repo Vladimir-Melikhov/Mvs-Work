@@ -41,12 +41,15 @@
 
           <div class="p-4 md:p-8 lg:p-12">
             <div class="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8">
-               <div class="flex items-start justify-between gap-3">
-                 <h1 class="text-xl md:text-3xl lg:text-4xl font-black text-[#1a1a2e] leading-tight tracking-tight flex-1">
-                   {{ service.title }}
-                 </h1>
-                 <span class="bg-[#7000ff]/10 text-[#7000ff] px-3 py-1 md:px-5 md:py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest whitespace-nowrap shrink-0">
-                   {{ service.category || 'Development' }}
+               <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                 <div class="flex-1 min-w-0">
+                    <h1 class="text-xl md:text-3xl lg:text-4xl font-black text-[#1a1a2e] leading-tight tracking-tight mb-2 md:mb-3">
+                      {{ service.title }}
+                    </h1>
+                 </div>
+                 
+                 <span class="bg-[#7000ff]/10 text-[#7000ff] px-3 py-1 md:px-5 md:py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest whitespace-nowrap self-start md:mt-1">
+                   {{  service.subcategory_display || getCategoryLabel(service.category) || 'Услуга' }}
                  </span>
                </div>
             </div>
@@ -91,7 +94,6 @@
           </div>
 
           <div v-else>
-            <!-- Кнопка создания заказа или авторизации -->
             <button 
               v-if="!auth.isAuthenticated"
               @click="$router.push('/login')" 
@@ -141,7 +143,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/authStore'
+import { useAuthStore } from '../stores/authStore' // Исправлен путь к стору, если нужно
 import axios from 'axios'
 import AiDealWizard from '../components/AiDealWizard.vue'
 import UserAvatar from '../components/UserAvatar.vue'
@@ -157,6 +159,20 @@ const touchStartX = ref(0)
 
 const workerRating = ref(0)
 const totalReviews = ref(0)
+
+// Маппинг категорий как в SearchView
+const categories = [
+  { label: 'Дизайн', value: 'design' },
+  { label: 'Разработка', value: 'development' },
+  { label: 'Тексты', value: 'writing' },
+  { label: 'Маркетинг', value: 'marketing' },
+  { label: 'Видео', value: 'video' },
+]
+
+const getCategoryLabel = (value) => {
+  const cat = categories.find(c => c.value === value)
+  return cat ? cat.label : value
+}
 
 const nextSlide = () => {
   if (currentSlide.value < service.value.images.length - 1) currentSlide.value++
@@ -196,12 +212,13 @@ const deleteService = async () => {
 }
 
 onMounted(async () => {
-  if (!auth.user) await auth.fetchProfile()
+  if (!auth.user && auth.isAuthenticated) await auth.fetchProfile()
   fetchService()
 })
 </script>
 
 <style scoped>
+/* Ваши стили остаются без изменений */
 .ios-glass-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(40px) saturate(180%);
@@ -211,81 +228,17 @@ onMounted(async () => {
   border-left: 1px solid rgba(255, 255, 255, 0.4);
   border-right: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 
-    0 30px 60px rgba(0, 0, 0, 0.1), 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
-
-@media (max-width: 768px) {
-  .ios-glass-card {
-    border-radius: 28px;
-  }
-}
-
-.ios-inner-inset {
-  background: rgba(0, 0, 0, 0.05); 
-  border-radius: 20px;
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.05), 
-    0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.ios-button {
-  border-radius: 24px;
-  font-weight: 800;
-  color: white;
-  background: #7000ff; 
-  border-top: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 
-    0 10px 20px rgba(112, 0, 255, 0.3),
-    inset 0 2px 0 rgba(255, 255, 255, 0.2);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ios-button:active {
-  transform: scale(0.96);
-  filter: brightness(0.9);
-}
-
-.ios-button-secondary {
-  border-radius: 20px;
-  font-weight: 700;
-  color: #1a1a2e;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  transition: all 0.2s;
-}
-
-.ios-button-secondary:hover {
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.ios-button-danger {
-  border-radius: 20px;
-  font-weight: 700;
-  color: #ff3b30;
-  background: rgba(255, 59, 48, 0.1);
-  border: 1px solid rgba(255, 59, 48, 0.2);
-  transition: all 0.2s;
-}
-
-.ios-button-danger:hover {
-  background: #ff3b30;
-  color: white;
-}
-
-.glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07);
-}
-
-.glass-slider {
-  background: rgba(0, 0, 0, 0.05);
-}
+@media (max-width: 768px) { .ios-glass-card { border-radius: 28px; } }
+.ios-inner-inset { background: rgba(0, 0, 0, 0.05); border-radius: 20px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05), 0 1px 0 rgba(255, 255, 255, 0.5); }
+.ios-button { border-radius: 24px; font-weight: 800; color: white; background: #7000ff; border-top: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 10px 20px rgba(112, 0, 255, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.2); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; justify-content: center; }
+.ios-button:active { transform: scale(0.96); filter: brightness(0.9); }
+.ios-button-secondary { border-radius: 20px; font-weight: 700; color: #1a1a2e; background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: all 0.2s; }
+.ios-button-danger { border-radius: 20px; font-weight: 700; color: #ff3b30; background: rgba(255, 59, 48, 0.1); border: 1px solid rgba(255, 59, 48, 0.2); transition: all 0.2s; }
+.ios-button-danger:hover { background: #ff3b30; color: white; }
+.glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07); }
+.glass-slider { background: rgba(0, 0, 0, 0.05); }
+.animate-fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>

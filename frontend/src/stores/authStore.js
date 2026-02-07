@@ -83,7 +83,7 @@ export const useAuthStore = defineStore('auth', {
         } else {
           return { 
             success: false, 
-            error: response.data.error || 'Login failed' 
+            error: response.data.error || 'Ошибка входа. Проверьте данные и попробуйте снова.' 
           }
         }
       } catch (error) {
@@ -95,33 +95,33 @@ export const useAuthStore = defineStore('auth', {
           if (error.response.status === 401) {
             return { 
               success: false, 
-              error: errorData.error || 'Неверный email или пароль' 
+              error: 'Неверный email или пароль'
             }
           } else if (error.response.status === 429) {
             return { 
               success: false, 
-              error: errorData.error || 'Слишком много попыток. Попробуйте позже.' 
+              error: 'Слишком много попыток. Попробуйте позже.'
             }
           } else if (error.response.status === 400) {
             return { 
               success: false, 
-              error: errorData.error || 'Некорректные данные' 
+              error: errorData.error || 'Некорректные данные'
             }
           } else {
             return { 
               success: false, 
-              error: errorData.error || 'Ошибка сервера' 
+              error: 'Ошибка сервера. Попробуйте позже.'
             }
           }
         } else if (error.request) {
           return { 
             success: false, 
-            error: 'Нет соединения с сервером' 
+            error: 'Нет соединения с сервером'
           }
         } else {
           return { 
             success: false, 
-            error: 'Ошибка при отправке запроса' 
+            error: 'Ошибка входа. Проверьте данные и попробуйте снова.'
           }
         }
       }
@@ -311,13 +311,11 @@ export const useAuthStore = defineStore('auth', {
   }
 })
 
-// ИСПРАВЛЕННЫЙ INTERCEPTOR
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
 
-    // КРИТИЧНО: Исключаем эндпоинты аутентификации из автоматического refresh
     const authEndpoints = [
       '/api/auth/login/',
       '/api/auth/register/',
@@ -330,12 +328,10 @@ axios.interceptors.response.use(
       originalRequest.url?.includes(endpoint)
     )
 
-    // Если это эндпоинт аутентификации - просто возвращаем ошибку
     if (isAuthEndpoint) {
       return Promise.reject(error)
     }
 
-    // Для остальных эндпоинтов - пытаемся обновить токен
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

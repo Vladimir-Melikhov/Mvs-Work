@@ -1,3 +1,4 @@
+<!-- frontend/src/views/SearchView.vue -->
 <template>
   <div class="min-h-screen pt-4 pb-24 md:pb-20">
     <div class="text-center mb-8 md:mb-12 px-4">
@@ -23,20 +24,46 @@
         </div>
       </div>
       
+      <!-- Категории и подкатегории -->
       <div class="flex justify-center gap-1.5 md:gap-2 mt-6 md:mt-8 flex-wrap px-2">
+         <!-- Показываем основные категории если нет выбранной или подкатегории -->
+         <template v-if="!selectedCategory">
+           <button 
+             v-for="cat in categories" 
+             :key="cat.value" 
+             @click="selectCategory(cat.value)"
+             @mouseenter="hoverCategory = cat.value"
+             @mouseleave="hoverCategory = null"
+             class="px-3 md:px-5 py-2 rounded-full text-[10px] md:text-sm font-bold transition-all border glass-chip text-gray-600 hover:bg-white/30 hover:text-[#1a1a2e] border-white/20"
+           >
+             {{ cat.label }}
+           </button>
+         </template>
+         
+         <!-- Показываем подкатегории выбранной категории -->
+         <template v-else>
+           <button 
+             @click="clearCategory"
+             class="px-3 md:px-5 py-2 rounded-full text-[10px] md:text-sm font-bold transition-all border bg-gray-200 text-gray-700 hover:bg-gray-300 border-gray-300"
+           >
+             ← {{ getCategoryLabel(selectedCategory) }}
+           </button>
+           
+           <button 
+             v-for="subcat in currentSubcategories" 
+             :key="subcat.value" 
+             @click="toggleSubcategory(subcat.value)"
+             class="px-3 md:px-5 py-2 rounded-full text-[10px] md:text-sm font-bold transition-all border"
+             :class="selectedSubcategories.includes(subcat.value)
+               ? 'bg-[#7000ff] text-white border-[#7000ff] shadow-lg' 
+               : 'glass-chip text-gray-600 hover:bg-white/30 hover:text-[#1a1a2e] border-white/20'"
+           >
+             {{ subcat.label }}
+           </button>
+         </template>
+         
          <button 
-           v-for="cat in categories" 
-           :key="cat.value" 
-           @click="toggleCategory(cat.value)"
-           class="px-3 md:px-5 py-2 rounded-full text-[10px] md:text-sm font-bold transition-all border"
-           :class="selectedCategories.includes(cat.value) 
-             ? 'bg-[#7000ff] text-white border-[#7000ff] shadow-lg' 
-             : 'glass-chip text-gray-600 hover:bg-white/30 hover:text-[#1a1a2e] border-white/20'"
-         >
-           {{ cat.label }}
-         </button>
-         <button 
-           v-if="selectedCategories.length > 0"
+           v-if="selectedCategory || selectedSubcategories.length > 0"
            @click="clearFilters"
            class="px-3 md:px-5 py-2 rounded-full glass-chip text-[10px] md:text-sm font-bold text-red-500 hover:bg-red-50 transition-all border border-red-200"
          >
@@ -79,7 +106,9 @@
                 
                 <div class="flex-1 min-w-0">
                    <div class="text-xs md:text-sm font-bold text-[#1a1a2e] line-clamp-1 leading-tight">{{ service.owner_name || 'Мастер' }}</div>
-                   <div class="text-[8px] md:text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">{{ service.category || 'Услуга' }}</div>
+                   <div class="text-[8px] md:text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">
+                     {{ service.subcategory_display || getCategoryLabel(service.category) || 'Услуга' }}
+                   </div>
                 </div>
               </div>
               
@@ -143,17 +172,25 @@ const services = ref([])
 const allServices = ref([]) 
 const searchQuery = ref('')
 const loading = ref(false)
-const selectedCategories = ref([])
+const selectedCategory = ref(null)
+const selectedSubcategories = ref([])
+const hoverCategory = ref(null)
+const subcategoriesMap = ref({})
 const currentPage = ref(1)
 const itemsPerPage = 8
 
 const categories = [
   { label: 'Дизайн', value: 'design' },
   { label: 'Разработка', value: 'development' },
-  { label: 'Тексты', value: 'copywriting' },
+  { label: 'Тексты', value: 'writing' },
   { label: 'Маркетинг', value: 'marketing' },
   { label: 'Видео', value: 'video' },
 ]
+
+const currentSubcategories = computed(() => {
+  if (!selectedCategory.value) return []
+  return subcategoriesMap.value[selectedCategory.value] || []
+})
 
 const totalPages = computed(() => Math.ceil(services.value.length / itemsPerPage))
 const paginatedServices = computed(() => {
@@ -166,17 +203,66 @@ const changePage = (page) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const getCategoryLabel = (value) => {
+  const cat = categories.find(c => c.value === value)
+  return cat ? cat.label : value
+}
+
+const selectCategory = (category) => {
+  selectedCategory.value = category
+  selectedSubcategories.value = []
+  currentPage.value = 1
+}
+
+const clearCategory = () => {
+  selectedCategory.value = null
+  selectedSubcategories.value = []
+  fetchServices()
+}
+
+const toggleSubcategory = (subcategory) => {
+  const index = selectedSubcategories.value.indexOf(subcategory)
+  if (index > -1) {
+    selectedSubcategories.value.splice(index, 1)
+  } else {
+    selectedSubcategories.value.push(subcategory)
+  }
+}
+
+const fetchSubcategories = async () => {
+  try {
+    const res = await axios.get('/api/market/services/subcategories/')
+    if (res.data.status === 'success') {
+      subcategoriesMap.value = res.data.data
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки подкатегорий:', e)
+  }
+}
+
 const fetchServices = async () => {
   loading.value = true
   try {
     let url = '/api/market/services/'
     const params = new URLSearchParams()
-    if (selectedCategories.value.length > 0) params.append('categories', selectedCategories.value.join(','))
+    
+    if (selectedCategory.value && selectedSubcategories.value.length === 0) {
+      params.append('categories', selectedCategory.value)
+    }
+    
+    if (selectedSubcategories.value.length > 0) {
+      params.append('subcategories', selectedSubcategories.value.join(','))
+    }
+    
     const res = await axios.get(url, { params })
     const data = res.data.status === 'success' ? res.data.data : (Array.isArray(res.data) ? res.data : (res.data.data || []))
     allServices.value = data
     services.value = data
-  } catch (e) { console.error(e) } finally { loading.value = false }
+  } catch (e) { 
+    console.error(e) 
+  } finally { 
+    loading.value = false 
+  }
 }
 
 const handleSearch = () => {
@@ -185,19 +271,21 @@ const handleSearch = () => {
   services.value = query ? allServices.value.filter(s => s.title?.toLowerCase().includes(query) || s.description?.toLowerCase().includes(query)) : allServices.value
 }
 
-const toggleCategory = (category) => {
-  const index = selectedCategories.value.indexOf(category)
-  index > -1 ? selectedCategories.value.splice(index, 1) : selectedCategories.value.push(category)
-}
-
 const clearFilters = () => {
   searchQuery.value = ''
-  selectedCategories.value = []
+  selectedCategory.value = null
+  selectedSubcategories.value = []
   fetchServices()
 }
 
-watch(selectedCategories, () => fetchServices(), { deep: true })
-onMounted(() => fetchServices())
+watch(selectedSubcategories, () => {
+  fetchServices()
+}, { deep: true })
+
+onMounted(() => {
+  fetchSubcategories()
+  fetchServices()
+})
 </script>
 
 <style scoped>

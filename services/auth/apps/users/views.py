@@ -309,7 +309,7 @@ class LoginView(APIView):
         if not serializer.is_valid():
             return Response({
                 'status': 'error',
-                'error': serializer.errors,
+                'error': 'Некорректные данные',
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
         
@@ -369,9 +369,17 @@ class LoginView(APIView):
             
             return Response({
                 'status': 'error',
-                'error': str(e),
+                'error': 'Неверный email или пароль',
                 'data': None
             }, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            log_login_attempt(email, ip_address, successful=False)
+            
+            return Response({
+                'status': 'error',
+                'error': 'Ошибка сервера. Попробуйте позже.',
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LogoutView(APIView):

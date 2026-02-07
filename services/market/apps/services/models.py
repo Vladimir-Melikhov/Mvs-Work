@@ -54,6 +54,76 @@ class Service(models.Model):
         ('other', 'Другое'),
     ]
 
+    SUBCATEGORY_CHOICES = {
+        'development': [
+            ('web', 'Веб-разработка'),
+            ('mobile', 'Мобильная разработка'),
+            ('desktop', 'Десктопная разработка'),
+            ('backend', 'Backend разработка'),
+            ('frontend', 'Frontend разработка'),
+            ('fullstack', 'Fullstack разработка'),
+            ('bots', 'Боты и автоматизация'),
+            ('databases', 'Базы данных'),
+            ('devops', 'DevOps'),
+            ('other_dev', 'Другое'),
+        ],
+        'design': [
+            ('ui_ux', 'UI/UX дизайн'),
+            ('graphic', 'Графический дизайн'),
+            ('logo', 'Логотипы и брендинг'),
+            ('illustration', 'Иллюстрации'),
+            ('web_design', 'Веб-дизайн'),
+            ('mobile_design', 'Мобильный дизайн'),
+            ('print', 'Полиграфия'),
+            ('3d', '3D моделирование'),
+            ('other_design', 'Другое'),
+        ],
+        'marketing': [
+            ('smm', 'SMM'),
+            ('seo', 'SEO'),
+            ('context', 'Контекстная реклама'),
+            ('email', 'Email-маркетинг'),
+            ('analytics', 'Аналитика'),
+            ('strategy', 'Маркетинговая стратегия'),
+            ('other_marketing', 'Другое'),
+        ],
+        'writing': [
+            ('articles', 'Статьи'),
+            ('seo_texts', 'SEO-тексты'),
+            ('scripts', 'Сценарии'),
+            ('translation', 'Переводы'),
+            ('technical', 'Техническая документация'),
+            ('creative', 'Креативные тексты'),
+            ('other_writing', 'Другое'),
+        ],
+        'video': [
+            ('editing', 'Монтаж'),
+            ('motion', 'Моушн-дизайн'),
+            ('animation', 'Анимация'),
+            ('filming', 'Съемка'),
+            ('color', 'Цветокоррекция'),
+            ('other_video', 'Другое'),
+        ],
+        'audio': [
+            ('voiceover', 'Озвучка'),
+            ('music', 'Музыка'),
+            ('mixing', 'Сведение'),
+            ('mastering', 'Мастеринг'),
+            ('sound_design', 'Звуковой дизайн'),
+            ('other_audio', 'Другое'),
+        ],
+        'business': [
+            ('consulting', 'Консалтинг'),
+            ('finance', 'Финансы'),
+            ('legal', 'Юридические услуги'),
+            ('hr', 'HR'),
+            ('other_business', 'Другое'),
+        ],
+        'other': [
+            ('other_other', 'Другое'),
+        ],
+    }
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -75,6 +145,15 @@ class Service(models.Model):
         default='other',
         db_index=True
     )
+    
+    subcategory = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Подкатегория услуги (опционально)"
+    )
+    
     tags = models.JSONField(
         default=list, 
         blank=True,
@@ -95,6 +174,7 @@ class Service(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['category', '-created_at']),
+            models.Index(fields=['category', 'subcategory', '-created_at']),
             models.Index(fields=['owner_id']),
             models.Index(fields=['is_active', '-created_at']),
         ]
@@ -108,6 +188,12 @@ class Service(models.Model):
 
         if self.tags:
             validate_tags(self.tags)
+
+        # Валидация подкатегории
+        if self.subcategory:
+            valid_subcategories = [choice[0] for choice in self.SUBCATEGORY_CHOICES.get(self.category, [])]
+            if self.subcategory not in valid_subcategories:
+                raise ValidationError(f'Недопустимая подкатегория для категории {self.category}')
 
         ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h3', 'h4', 'a']
         ALLOWED_ATTRS = {'a': ['href', 'title']}

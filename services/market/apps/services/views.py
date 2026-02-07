@@ -1,3 +1,4 @@
+# services/market/apps/services/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -30,7 +31,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'get_subcategories']:
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -54,6 +55,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if cats_param:
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
+        
+        # Фильтрация по подкатегориям
+        subcats_param = self.request.query_params.get('subcategories') or self.request.query_params.get('subcategory')
+        if subcats_param:
+            subcat_list = subcats_param.split(',')
+            queryset = queryset.filter(subcategory__in=subcat_list)
 
         search = self.request.query_params.get('search')
         if search:
@@ -86,6 +93,24 @@ class ServiceViewSet(viewsets.ModelViewSet):
             return Response({'status': 'success', 'data': serializer.data, 'error': None})
         except Service.DoesNotExist:
             return Response({'status': 'error', 'error': 'Услуга не найдена', 'data': None}, status=404)
+
+    @action(detail=False, methods=['get'], url_path='subcategories')
+    def get_subcategories(self, request):
+        """Получить список всех подкатегорий для всех категорий"""
+        subcategories_data = {}
+        
+        for category_value, category_label in Service.CATEGORY_CHOICES:
+            subcats = Service.SUBCATEGORY_CHOICES.get(category_value, [])
+            subcategories_data[category_value] = [
+                {'value': subcat[0], 'label': subcat[1]} 
+                for subcat in subcats
+            ]
+        
+        return Response({
+            'status': 'success',
+            'data': subcategories_data,
+            'error': None
+        })
 
     def _validate_image_file(self, image_file):
         """Валидация изображения с MIME-type проверкой"""

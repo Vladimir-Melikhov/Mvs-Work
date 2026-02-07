@@ -27,16 +27,17 @@ class ServiceSerializer(serializers.ModelSerializer):
     owner_avatar = serializers.SerializerMethodField()
     owner_rating = serializers.SerializerMethodField()
     images = ServiceImageSerializer(many=True, read_only=True)
+    subcategory_display = serializers.SerializerMethodField()
     
     class Meta:
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 
             'owner_id', 'owner_name', 'owner_avatar', 'owner_rating',
-            'ai_template', 'category', 'tags', 
-            'created_at', 'updated_at', 'images', 'is_active',
+            'ai_template', 'category', 'subcategory', 'subcategory_display',
+            'tags', 'created_at', 'updated_at', 'images', 'is_active',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images', 'subcategory_display']
     
     def get_owner_avatar(self, obj):
         if not obj.owner_avatar:
@@ -64,6 +65,17 @@ class ServiceSerializer(serializers.ModelSerializer):
             return 0
         
         return round(float(avg_rating), 1)
+    
+    def get_subcategory_display(self, obj):
+        """Возвращает читаемое название подкатегории"""
+        if not obj.subcategory:
+            return None
+        
+        subcategories = Service.SUBCATEGORY_CHOICES.get(obj.category, [])
+        for value, label in subcategories:
+            if value == obj.subcategory:
+                return label
+        return None
 
 
 class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):
