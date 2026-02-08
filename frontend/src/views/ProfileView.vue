@@ -680,6 +680,10 @@ const toggleEdit = () => {
     isCompanyEdit.value = !!editForm.value.company_name
     avatarFile.value = null
     avatarPreview.value = null
+  } else {
+    // Отменяем редактирование
+    avatarFile.value = null
+    avatarPreview.value = null
   }
   isEditing.value = !isEditing.value
 }
@@ -694,25 +698,33 @@ const addSkill = () => {
 const saveProfile = async () => {
   uploadingAvatar.value = true
   try {
-    if (isCompanyEdit.value && !isWorker.value) editForm.value.full_name = null
-    else {
-      editForm.value.company_name = null
-      if (!isWorker.value) editForm.value.company_website = null
+    // Очищаем ненужные поля в зависимости от типа профиля
+    if (isCompanyEdit.value && !isWorker.value) {
+      editForm.value.full_name = ''
+    } else {
+      editForm.value.company_name = ''
+      if (!isWorker.value) editForm.value.company_website = ''
     }
     
     const formData = new FormData()
-    Object.keys(editForm.value).forEach(key => {
-      if (key === 'avatar') return
+    
+    // Добавляем только заполненные текстовые поля
+    const textFields = ['full_name', 'company_name', 'headline', 'company_website', 'bio', 'github_link', 'behance_link']
+    textFields.forEach(key => {
       const value = editForm.value[key]
-      if (value !== null && value !== undefined) {
-        if (key === 'skills') formData.append(key, JSON.stringify(value))
-        else formData.append(key, value)
+      if (value !== null && value !== undefined && value !== '') {
+        formData.append(key, value)
       }
     })
     
-    if (avatarPreview.value) {
-      const blob = await fetch(avatarPreview.value).then(r => r.blob())
-      formData.append('avatar', blob, 'avatar.jpg')
+    // Добавляем навыки как JSON
+    if (editForm.value.skills && Array.isArray(editForm.value.skills)) {
+      formData.append('skills', JSON.stringify(editForm.value.skills))
+    }
+    
+    // Добавляем аватар если есть
+    if (avatarFile.value) {
+      formData.append('avatar', avatarFile.value)
     }
     
     const res = await axios.patch('/api/auth/profile/', formData, {
@@ -727,6 +739,17 @@ const saveProfile = async () => {
     }
   } catch (error) {
     console.error('Save error:', error)
+    if (error.response?.data?.error) {
+      const errorData = error.response.data.error
+      if (typeof errorData === 'object') {
+        const firstError = Object.values(errorData)[0]
+        alert(Array.isArray(firstError) ? firstError[0] : firstError)
+      } else {
+        alert(errorData)
+      }
+    } else {
+      alert('Ошибка сохранения профиля')
+    }
   } finally {
     uploadingAvatar.value = false
   }
