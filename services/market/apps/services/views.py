@@ -5,16 +5,17 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.db.models import Q
+from django.db.models import Q, Count, Avg
 from django.db import transaction
-from .models import Service, ServiceImage, Deal, Review, DealDeliveryAttachment
+from .models import Service, ServiceImage, Deal, Review, DealDeliveryAttachment, Favorite
 from .serializers import (
     ServiceSerializer,
     ServiceImageSerializer,
     DealSerializer,
     ReviewSerializer,
     CreateDealSerializer,
-    CompleteDealSerializer
+    CompleteDealSerializer,
+    FavoriteSerializer
 )
 from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .services import AIService
@@ -48,9 +49,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
                     queryset = queryset.filter(is_active=True)
             else:
                 queryset = queryset.filter(is_active=True)
-        
-        queryset = queryset.order_by('-created_at')
 
+        # Фильтрация по категориям
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
         if cats_param:
             cat_list = cats_param.split(',')
@@ -62,6 +62,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             subcat_list = subcats_param.split(',')
             queryset = queryset.filter(subcategory__in=subcat_list)
 
+        # Поиск
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -69,6 +70,27 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 Q(description__icontains=search) |
                 Q(tags__contains=[search])
             )
+
+        # Сортировка
+        sort_by = self.request.query_params.get('sort', '-created_at')
+        
+        if sort_by == 'price_asc':
+            queryset = queryset.order_by('price')
+        elif sort_by == 'price_desc':
+            queryset = queryset.order_by('-price')
+        elif sort_by == 'popular':
+            # Сортировка по популярности (количество избранного)
+            queryset = queryset.annotate(
+                favorites_count=Count('favorited_by')
+            ).order_by('-favorites_count', '-created_at')
+        elif sort_by == 'rating':
+            # Сортировка по рейтингу владельца
+            queryset = queryset.annotate(
+                avg_rating=Avg('owner_id')  # Требует дополнительной логики
+            ).order_by('-created_at')  # Временно по дате
+        else:
+            # По умолчанию - новые первые
+            queryset = queryset.order_by('-created_at')
 
         return queryset
 
@@ -112,6 +134,50 @@ class ServiceViewSet(viewsets.ModelViewSet):
             'error': None
         })
 
+    @action(detail=False, methods=['get'], url_path='favorites', permission_classes=[IsAuthenticated])
+    def get_favorites(self, request):
+        """Получить избранные услуги пользователя"""
+        favorites = Favorite.objects.filter(user_id=request.user.id).select_related('service')
+        serializer = FavoriteSerializer(favorites, many=True, context={'request': request})
+        return Response({
+            'status': 'success',
+            'data': serializer.data,
+            'error': None
+        })
+
+    @action(detail=True, methods=['post'], url_path='toggle-favorite', permission_classes=[IsAuthenticated])
+    def toggle_favorite(self, request, pk=None):
+        """Добавить/удалить услугу из избранного"""
+        try:
+            service = self.get_object()
+            user_id = request.user.id
+            
+            favorite, created = Favorite.objects.get_or_create(
+                user_id=user_id,
+                service=service
+            )
+            
+            if not created:
+                favorite.delete()
+                return Response({
+                    'status': 'success',
+                    'data': {'is_favorited': False},
+                    'message': 'Удалено из избранного'
+                })
+            
+            return Response({
+                'status': 'success',
+                'data': {'is_favorited': True},
+                'message': 'Добавлено в избранное'
+            })
+            
+        except Service.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Услуга не найдена',
+                'data': None
+            }, status=404)
+
     def _validate_image_file(self, image_file):
         """Валидация изображения с MIME-type проверкой"""
         if image_file.size > 5 * 1024 * 1024:
@@ -154,6 +220,19 @@ class ServiceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
+
+        # Валидация подкатегории при создании
+        category = serializer.validated_data.get('category')
+        subcategory = serializer.validated_data.get('subcategory')
+        
+        if subcategory:
+            valid_subcategories = [choice[0] for choice in Service.SUBCATEGORY_CHOICES.get(category, [])]
+            if subcategory not in valid_subcategories:
+                return Response({
+                    'status': 'error',
+                    'error': f'Недопустимая подкатегория для категории {category}',
+                    'data': None
+                }, status=400)
 
         service = serializer.save(
             owner_id=request.user.id,
@@ -224,6 +303,19 @@ class ServiceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
+
+        # Валидация подкатегории при обновлении
+        category = serializer.validated_data.get('category', instance.category)
+        subcategory = serializer.validated_data.get('subcategory')
+        
+        if subcategory:
+            valid_subcategories = [choice[0] for choice in Service.SUBCATEGORY_CHOICES.get(category, [])]
+            if subcategory not in valid_subcategories:
+                return Response({
+                    'status': 'error',
+                    'error': f'Недопустимая подкатегория для категории {category}',
+                    'data': None
+                }, status=400)
 
         service = serializer.save(is_active=final_is_active)
         

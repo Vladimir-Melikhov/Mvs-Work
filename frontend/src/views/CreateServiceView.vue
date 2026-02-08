@@ -34,16 +34,35 @@
             </label>
             <select 
               v-model="form.category" 
+              @change="onCategoryChange"
               class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all font-medium text-[#1a1a2e] shadow-inner cursor-pointer appearance-none text-sm md:text-base"
             >
               <option value="development">Разработка</option>
               <option value="design">Дизайн</option>
               <option value="marketing">Маркетинг</option>
-              <option value="copywriting">Копирайтинг</option>
+              <option value="writing">Копирайтинг</option>
               <option value="video">Видео</option>
             </select>
           </div>
 
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+              Подкатегория
+            </label>
+            <select 
+              v-model="form.subcategory" 
+              :disabled="!availableSubcategories.length"
+              class="w-full p-3 md:p-4 bg-white/10 rounded-2xl border border-white/20 outline-none focus:bg-white/20 transition-all font-medium text-[#1a1a2e] shadow-inner cursor-pointer appearance-none text-sm md:text-base disabled:opacity-50"
+            >
+              <option value="">Не выбрана</option>
+              <option v-for="subcat in availableSubcategories" :key="subcat.value" :value="subcat.value">
+                {{ subcat.label }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
             <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
               Мин. цена (₽) <span class="text-[#7000ff]">*</span>
@@ -242,6 +261,7 @@ const form = ref({
   description: '',
   price: '',
   category: 'development',
+  subcategory: '',
   ai_template: '',
   tags: [],
   is_active: true
@@ -257,6 +277,11 @@ const error = ref('')
 const isEditing = ref(false)
 const showSubscriptionModal = ref(false)
 
+const subcategoriesMap = ref({})
+const availableSubcategories = computed(() => {
+  return subcategoriesMap.value[form.value.category] || []
+})
+
 const hasActiveSubscription = computed(() => {
   if (auth.user?.role !== 'worker') return true
   return auth.user?.subscription?.is_active || false
@@ -268,6 +293,10 @@ const isFormValid = computed(() => {
          form.value.price && 
          parseFloat(form.value.price) > 0
 })
+
+const onCategoryChange = () => {
+  form.value.subcategory = ''
+}
 
 const handleImageUpload = (event, index) => {
   const file = event.target.files[0]
@@ -324,6 +353,17 @@ const removeTag = (idx) => {
   form.value.tags.splice(idx, 1)
 }
 
+const fetchSubcategories = async () => {
+  try {
+    const res = await axios.get('/api/market/services/subcategories/')
+    if (res.data.status === 'success') {
+      subcategoriesMap.value = res.data.data
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки подкатегорий:', e)
+  }
+}
+
 const fetchServiceData = async () => {
   if (route.name === 'edit-service' && route.params.id) {
       isEditing.value = true
@@ -341,6 +381,7 @@ const fetchServiceData = async () => {
               description: data.description,
               price: data.price,
               category: data.category || 'development',
+              subcategory: data.subcategory || '',
               ai_template: data.ai_template || '',
               tags: data.tags || [],
               is_active: data.is_active !== undefined ? data.is_active : true
@@ -379,6 +420,7 @@ const submitForm = async () => {
     formData.append('description', form.value.description)
     formData.append('price', parseFloat(form.value.price))
     formData.append('category', form.value.category)
+    formData.append('subcategory', form.value.subcategory || '')
     formData.append('ai_template', form.value.ai_template || '')
     formData.append('tags', JSON.stringify(form.value.tags))
     
@@ -450,6 +492,7 @@ const handleSubscribed = async () => {
 }
 
 onMounted(() => {
+    fetchSubcategories()
     fetchServiceData()
 })
 </script>

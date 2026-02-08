@@ -1,7 +1,7 @@
 # services/market/apps/services/serializers.py
 from rest_framework import serializers
 from decimal import Decimal
-from .models import Service, ServiceImage, Deal, DealDeliveryAttachment, Transaction, Review
+from .models import Service, ServiceImage, Deal, DealDeliveryAttachment, Transaction, Review, Favorite
 
 
 class ServiceImageSerializer(serializers.ModelSerializer):
@@ -28,6 +28,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     owner_rating = serializers.SerializerMethodField()
     images = ServiceImageSerializer(many=True, read_only=True)
     subcategory_display = serializers.SerializerMethodField()
+    is_favorited = serializers.SerializerMethodField()
     
     class Meta:
         model = Service
@@ -36,8 +37,9 @@ class ServiceSerializer(serializers.ModelSerializer):
             'owner_id', 'owner_name', 'owner_avatar', 'owner_rating',
             'ai_template', 'category', 'subcategory', 'subcategory_display',
             'tags', 'created_at', 'updated_at', 'images', 'is_active',
+            'is_favorited',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images', 'subcategory_display']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images', 'subcategory_display', 'is_favorited']
     
     def get_owner_avatar(self, obj):
         if not obj.owner_avatar:
@@ -76,6 +78,23 @@ class ServiceSerializer(serializers.ModelSerializer):
             if value == obj.subcategory:
                 return label
         return None
+    
+    def get_is_favorited(self, obj):
+        """Проверяет, добавлена ли услуга в избранное текущим пользователем"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user') or not request.user.is_authenticated:
+            return False
+        
+        return Favorite.objects.filter(user_id=request.user.id, service=obj).exists()
+
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    service = ServiceSerializer(read_only=True)
+    
+    class Meta:
+        model = Favorite
+        fields = ['id', 'service', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):

@@ -177,6 +177,7 @@ class Service(models.Model):
             models.Index(fields=['category', 'subcategory', '-created_at']),
             models.Index(fields=['owner_id']),
             models.Index(fields=['is_active', '-created_at']),
+            models.Index(fields=['-price']),  # Для сортировки по цене
         ]
 
     def __str__(self) -> str:
@@ -236,6 +237,26 @@ class ServiceImage(models.Model):
     
     def __str__(self) -> str:
         return f"Image {self.order} for {self.service.title}"
+
+
+class Favorite(models.Model):
+    """Избранные услуги пользователя"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_id = models.UUIDField(db_index=True, help_text="ID пользователя")
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='favorited_by')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'favorites'
+        unique_together = [['user_id', 'service']]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user_id', '-created_at']),
+        ]
+    
+    def __str__(self) -> str:
+        return f"User {self.user_id} favorited {self.service.title}"
 
 
 class Deal(models.Model):
@@ -404,13 +425,13 @@ class Review(models.Model):
     """Отзывы о заказе"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     deal = models.OneToOneField(Deal, on_delete=models.CASCADE, related_name='review')
-    
+
     rating = models.IntegerField(help_text="Оценка от 1 до 5")
     comment = models.TextField(blank=True)
-    
+
     reviewer_id = models.UUIDField(help_text="Кто оставил отзыв (обычно клиент)")
     reviewee_id = models.UUIDField(help_text="О ком отзыв (обычно исполнитель)")
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

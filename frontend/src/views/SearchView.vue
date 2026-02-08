@@ -26,7 +26,6 @@
       
       <!-- Категории и подкатегории -->
       <div class="flex justify-center gap-1.5 md:gap-2 mt-6 md:mt-8 flex-wrap px-2">
-         <!-- Показываем основные категории если нет выбранной или подкатегории -->
          <template v-if="!selectedCategory">
            <button 
              v-for="cat in categories" 
@@ -40,7 +39,6 @@
            </button>
          </template>
          
-         <!-- Показываем подкатегории выбранной категории -->
          <template v-else>
            <button 
              @click="clearCategory"
@@ -70,6 +68,32 @@
            ✕
          </button>
       </div>
+
+      <!-- Сортировка и фильтры -->
+      <div class="flex justify-center gap-2 md:gap-3 mt-4 flex-wrap px-2">
+        <button 
+          v-for="sort in sortOptions" 
+          :key="sort.value"
+          @click="sortBy = sort.value"
+          class="px-3 md:px-4 py-1.5 md:py-2 rounded-full text-[10px] md:text-xs font-bold transition-all border"
+          :class="sortBy === sort.value
+            ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]'
+            : 'bg-white/20 text-gray-600 border-white/30 hover:bg-white/40'"
+        >
+          {{ sort.label }}
+        </button>
+
+        <button 
+          v-if="auth.isAuthenticated"
+          @click="showFavoritesOnly = !showFavoritesOnly"
+          class="px-3 md:px-4 py-1.5 md:py-2 rounded-full text-[10px] md:text-xs font-bold transition-all border flex items-center gap-1"
+          :class="showFavoritesOnly
+            ? 'bg-[#7000ff] text-white border-[#7000ff]'
+            : 'bg-white/20 text-gray-600 border-white/30 hover:bg-white/40'"
+        >
+          <span>Избранное</span>
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="text-center py-20">
@@ -82,9 +106,21 @@
         <div 
           v-for="service in paginatedServices" 
           :key="service.id" 
-          class="glass rounded-[20px] md:rounded-[32px] overflow-hidden hover:bg-white/20 transition-all cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1"
-          @click="$router.push(`/services/${service.id}`)"
+          class="glass rounded-[20px] md:rounded-[32px] overflow-hidden hover:bg-white/20 transition-all cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 relative"
+          @click="$router.push(`/services/${service.id}`)" 
         >
+          <!-- Кнопка избранного -->
+          <button
+            v-if="auth.isAuthenticated"
+            @click.stop="toggleFavorite(service.id)"
+            class="absolute top-2 right-2 z-10 w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-all shadow-lg"
+            :class="isFavorite(service.id) ? 'text-red-500' : 'text-gray-400'"
+          >
+            <svg class="w-5 h-5 md:w-6 md:h-6" :fill="isFavorite(service.id) ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </button>
+
           <div v-if="service.images && service.images.length > 0" class="relative aspect-video overflow-hidden">
             <img 
               :src="service.images[0].image_url" 
@@ -167,6 +203,9 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import axios from 'axios'
 import UserAvatar from '../components/UserAvatar.vue'
+import { useAuthStore } from '../stores/authStore'
+
+const auth = useAuthStore()
 
 const services = ref([]) 
 const allServices = ref([]) 
@@ -178,6 +217,17 @@ const hoverCategory = ref(null)
 const subcategoriesMap = ref({})
 const currentPage = ref(1)
 const itemsPerPage = 8
+
+const sortBy = ref('newest')
+const showFavoritesOnly = ref(false)
+const favorites = ref([])
+
+const sortOptions = [
+  { value: 'newest', label: 'Новые' },
+  { value: 'price_asc', label: 'Цена ↑' },
+  { value: 'price_desc', label: 'Цена ↓' },
+  { value: 'rating', label: 'Рейтинг' }
+]
 
 const categories = [
   { label: 'Дизайн', value: 'design' },
@@ -192,10 +242,36 @@ const currentSubcategories = computed(() => {
   return subcategoriesMap.value[selectedCategory.value] || []
 })
 
-const totalPages = computed(() => Math.ceil(services.value.length / itemsPerPage))
+const sortedServices = computed(() => {
+  let result = [...services.value]
+  
+  if (showFavoritesOnly.value) {
+    result = result.filter(s => favorites.value.includes(s.id))
+  }
+  
+  switch (sortBy.value) {
+    case 'price_asc':
+      result.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+      break
+    case 'price_desc':
+      result.sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+      break
+    case 'rating':
+      result.sort((a, b) => (b.owner_rating || 0) - (a.owner_rating || 0))
+      break
+    case 'newest':
+    default:
+      result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      break
+  }
+  
+  return result
+})
+
+const totalPages = computed(() => Math.ceil(sortedServices.value.length / itemsPerPage))
 const paginatedServices = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
-  return services.value.slice(start, start + itemsPerPage)
+  return sortedServices.value.slice(start, start + itemsPerPage)
 })
 
 const changePage = (page) => {
@@ -278,13 +354,46 @@ const clearFilters = () => {
   fetchServices()
 }
 
+const loadFavorites = () => {
+  if (!auth.isAuthenticated) {
+    favorites.value = []
+    return
+  }
+  const stored = localStorage.getItem(`favorites_${auth.user?.id}`)
+  favorites.value = stored ? JSON.parse(stored) : []
+}
+
+const saveFavorites = () => {
+  if (!auth.isAuthenticated) return
+  localStorage.setItem(`favorites_${auth.user?.id}`, JSON.stringify(favorites.value))
+}
+
+const toggleFavorite = (serviceId) => {
+  const index = favorites.value.indexOf(serviceId)
+  if (index > -1) {
+    favorites.value.splice(index, 1)
+  } else {
+    favorites.value.push(serviceId)
+  }
+  saveFavorites()
+}
+
+const isFavorite = (serviceId) => {
+  return favorites.value.includes(serviceId)
+}
+
 watch(selectedSubcategories, () => {
   fetchServices()
 }, { deep: true })
 
+watch(() => auth.isAuthenticated, () => {
+  loadFavorites()
+})
+
 onMounted(() => {
   fetchSubcategories()
   fetchServices()
+  loadFavorites()
 })
 </script>
 
