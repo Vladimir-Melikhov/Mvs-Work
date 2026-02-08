@@ -134,50 +134,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
             'error': None
         })
 
-    @action(detail=False, methods=['get'], url_path='favorites', permission_classes=[IsAuthenticated])
-    def get_favorites(self, request):
-        """Получить избранные услуги пользователя"""
-        favorites = Favorite.objects.filter(user_id=request.user.id).select_related('service')
-        serializer = FavoriteSerializer(favorites, many=True, context={'request': request})
-        return Response({
-            'status': 'success',
-            'data': serializer.data,
-            'error': None
-        })
-
-    @action(detail=True, methods=['post'], url_path='toggle-favorite', permission_classes=[IsAuthenticated])
-    def toggle_favorite(self, request, pk=None):
-        """Добавить/удалить услугу из избранного"""
-        try:
-            service = self.get_object()
-            user_id = request.user.id
-            
-            favorite, created = Favorite.objects.get_or_create(
-                user_id=user_id,
-                service=service
-            )
-            
-            if not created:
-                favorite.delete()
-                return Response({
-                    'status': 'success',
-                    'data': {'is_favorited': False},
-                    'message': 'Удалено из избранного'
-                })
-            
-            return Response({
-                'status': 'success',
-                'data': {'is_favorited': True},
-                'message': 'Добавлено в избранное'
-            })
-            
-        except Service.DoesNotExist:
-            return Response({
-                'status': 'error',
-                'error': 'Услуга не найдена',
-                'data': None
-            }, status=404)
-
     def _validate_image_file(self, image_file):
         """Валидация изображения с MIME-type проверкой"""
         if image_file.size > 5 * 1024 * 1024:
@@ -405,6 +361,139 @@ class ServiceViewSet(viewsets.ModelViewSet):
             
         except Exception:
             return False
+
+
+class FavoriteViewSet(viewsets.ViewSet):
+    """Управление избранными услугами"""
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        """GET /api/market/favorites/ - получить избранное пользователя"""
+        favorites = Favorite.objects.filter(
+            user_id=request.user.id
+        ).select_related('service').order_by('-created_at')
+        
+        serializer = FavoriteSerializer(favorites, many=True, context={'request': request})
+        
+        return Response({
+            'status': 'success',
+            'data': serializer.data,
+            'error': None
+        })
+
+    def create(self, request):
+        """POST /api/market/favorites/ - добавить в избранное"""
+        service_id = request.data.get('service_id')
+        
+        if not service_id:
+            return Response({
+                'status': 'error',
+                'error': 'service_id обязателен',
+                'data': None
+            }, status=400)
+        
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Услуга не найдена',
+                'data': None
+            }, status=404)
+        
+        # Проверяем, не добавлено ли уже
+        favorite, created = Favorite.objects.get_or_create(
+            user_id=request.user.id,
+            service=service
+        )
+        
+        if not created:
+            return Response({
+                'status': 'success',
+                'data': FavoriteSerializer(favorite, context={'request': request}).data,
+                'message': 'Уже в избранном'
+            })
+        
+        return Response({
+            'status': 'success',
+            'data': FavoriteSerializer(favorite, context={'request': request}).data,
+            'message': 'Добавлено в избранное'
+        }, status=201)
+
+    def destroy(self, request, pk=None):
+        """DELETE /api/market/favorites/{id}/ - удалить из избранного"""
+        try:
+            favorite = Favorite.objects.get(
+                id=pk,
+                user_id=request.user.id
+            )
+            
+            favorite.delete()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Удалено из избранного'
+            })
+            
+        except Favorite.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Не найдено в избранном',
+                'data': None
+            }, status=404)
+
+    @action(detail=False, methods=['post'], url_path='toggle')
+    def toggle(self, request):
+        """POST /api/market/favorites/toggle/ - переключить избранное (add/remove)"""
+        service_id = request.data.get('service_id')
+        
+        if not service_id:
+            return Response({
+                'status': 'error',
+                'error': 'service_id обязателен',
+                'data': None
+            }, status=400)
+        
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Услуга не найдена',
+                'data': None
+            }, status=404)
+        
+        favorite = Favorite.objects.filter(
+            user_id=request.user.id,
+            service=service
+        ).first()
+        
+        if favorite:
+            # Удаляем
+            favorite.delete()
+            return Response({
+                'status': 'success',
+                'data': {
+                    'is_favorited': False,
+                    'service_id': str(service_id)
+                },
+                'message': 'Удалено из избранного'
+            })
+        else:
+            # Добавляем
+            favorite = Favorite.objects.create(
+                user_id=request.user.id,
+                service=service
+            )
+            return Response({
+                'status': 'success',
+                'data': {
+                    'is_favorited': True,
+                    'service_id': str(service_id),
+                    'favorite_id': str(favorite.id)
+                },
+                'message': 'Добавлено в избранное'
+            }, status=201)
 
 
 class DealViewSet(viewsets.ViewSet):

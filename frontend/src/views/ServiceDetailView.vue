@@ -1,3 +1,4 @@
+<!-- frontend/src/views/ServiceDetailView.vue -->
 <template>
   <div class="animate-fade-in pb-20 pt-4 md:pt-6">
     <button @click="$router.back()" class="mb-4 md:mb-6 flex items-center gap-2 text-gray-500 hover:text-[#7000ff] transition-colors font-medium ml-2 md:ml-4 text-sm md:text-base">
@@ -94,6 +95,27 @@
           </div>
 
           <div v-else>
+            <!-- Кнопка избранного -->
+            <button 
+  v-if="auth.isAuthenticated"
+  @click="toggleFavorite"
+  class="w-full mb-4 py-3 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all border text-sm md:text-base"
+  :class="isFavorited 
+    ? 'bg-[#7000ff]/10 border-[#7000ff]/20 text-[#7000ff] hover:bg-[#7000ff]/20' 
+    : 'bg-white/20 border-white/30 text-gray-600 hover:bg-white/40'"
+>
+  <svg 
+    class="w-5 h-5 transition-colors duration-300" 
+    :fill="isFavorited ? 'currentColor' : 'none'" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+  </svg>
+  {{ isFavorited ? 'В избранном' : 'В избранное' }}
+</button>
+
+
             <button 
               v-if="!auth.isAuthenticated"
               @click="$router.push('/login')" 
@@ -143,7 +165,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/authStore' // Исправлен путь к стору, если нужно
+import { useAuthStore } from '../stores/authStore'
 import axios from 'axios'
 import AiDealWizard from '../components/AiDealWizard.vue'
 import UserAvatar from '../components/UserAvatar.vue'
@@ -159,6 +181,8 @@ const touchStartX = ref(0)
 
 const workerRating = ref(0)
 const totalReviews = ref(0)
+
+const isFavorited = ref(false)
 
 // Маппинг категорий как в SearchView
 const categories = [
@@ -200,7 +224,33 @@ const fetchService = async () => {
   try {
     const res = await axios.get(`/api/market/services/${route.params.id}/`)
     service.value = res.data.data
-  } catch (e) { console.error("Failed to fetch service") }
+    
+    // Проверяем статус избранного из ответа API
+    if (auth.isAuthenticated) {
+      isFavorited.value = service.value.is_favorited || false
+    }
+  } catch (e) { 
+    console.error("Failed to fetch service") 
+  }
+}
+
+const toggleFavorite = async () => {
+  if (!auth.isAuthenticated) {
+    alert('Войдите, чтобы добавить в избранное')
+    return
+  }
+  
+  try {
+    const res = await axios.post('/api/market/favorites/toggle/', {
+      service_id: service.value.id
+    })
+    
+    if (res.data.status === 'success') {
+      isFavorited.value = res.data.data.is_favorited
+    }
+  } catch (e) {
+    console.error('Ошибка переключения избранного:', e)
+  }
 }
 
 const deleteService = async () => {

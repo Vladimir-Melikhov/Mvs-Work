@@ -114,12 +114,18 @@
             v-if="auth.isAuthenticated"
             @click.stop="toggleFavorite(service.id)"
             class="absolute top-2 right-2 z-10 w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-all shadow-lg"
-            :class="isFavorite(service.id) ? 'text-red-500' : 'text-gray-400'"
+            :class="isFavorite(service.id) ? 'text-[#7000ff]' : 'text-gray-400'"
           >
-            <svg class="w-5 h-5 md:w-6 md:h-6" :fill="isFavorite(service.id) ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+            <svg 
+              class="w-5 h-5 md:w-6 md:h-6 transition-colors" 
+              :fill="isFavorite(service.id) ? 'currentColor' : 'none'" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
           </button>
+
 
           <div v-if="service.images && service.images.length > 0" class="relative aspect-video overflow-hidden">
             <img 
@@ -220,7 +226,7 @@ const itemsPerPage = 8
 
 const sortBy = ref('newest')
 const showFavoritesOnly = ref(false)
-const favorites = ref([])
+const favorites = ref(new Set())
 
 const sortOptions = [
   { value: 'newest', label: 'Новые' },
@@ -246,7 +252,7 @@ const sortedServices = computed(() => {
   let result = [...services.value]
   
   if (showFavoritesOnly.value) {
-    result = result.filter(s => favorites.value.includes(s.id))
+    result = result.filter(s => favorites.value.has(s.id))
   }
   
   switch (sortBy.value) {
@@ -354,32 +360,48 @@ const clearFilters = () => {
   fetchServices()
 }
 
-const loadFavorites = () => {
+const loadFavorites = async () => {
   if (!auth.isAuthenticated) {
-    favorites.value = []
+    favorites.value = new Set()
     return
   }
-  const stored = localStorage.getItem(`favorites_${auth.user?.id}`)
-  favorites.value = stored ? JSON.parse(stored) : []
-}
-
-const saveFavorites = () => {
-  if (!auth.isAuthenticated) return
-  localStorage.setItem(`favorites_${auth.user?.id}`, JSON.stringify(favorites.value))
-}
-
-const toggleFavorite = (serviceId) => {
-  const index = favorites.value.indexOf(serviceId)
-  if (index > -1) {
-    favorites.value.splice(index, 1)
-  } else {
-    favorites.value.push(serviceId)
+  
+  try {
+    const res = await axios.get('/api/market/favorites/')
+    if (res.data.status === 'success') {
+      const favoriteIds = res.data.data.map(fav => fav.service.id)
+      favorites.value = new Set(favoriteIds)
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки избранного:', e)
   }
-  saveFavorites()
+}
+
+const toggleFavorite = async (serviceId) => {
+  if (!auth.isAuthenticated) {
+    alert('Войдите, чтобы добавить в избранное')
+    return
+  }
+  
+  try {
+    const res = await axios.post('/api/market/favorites/toggle/', {
+      service_id: serviceId
+    })
+    
+    if (res.data.status === 'success') {
+      if (res.data.data.is_favorited) {
+        favorites.value.add(serviceId)
+      } else {
+        favorites.value.delete(serviceId)
+      }
+    }
+  } catch (e) {
+    console.error('Ошибка переключения избранного:', e)
+  }
 }
 
 const isFavorite = (serviceId) => {
-  return favorites.value.includes(serviceId)
+  return favorites.value.has(serviceId)
 }
 
 watch(selectedSubcategories, () => {
