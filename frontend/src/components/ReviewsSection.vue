@@ -4,6 +4,16 @@
       <h3 class="text-xl font-bold text-[#1a1a2e]">Отзывы</h3>
       
       <div v-if="reviews.length > 0" class="flex items-center gap-3">
+        <select 
+          v-model="sortBy" 
+          class="text-xs px-2 py-1 rounded-lg bg-white/20 border border-white/30 text-[#1a1a2e] font-bold cursor-pointer hover:bg-white/30 transition-all"
+        >
+          <option value="newest">Новые</option>
+          <option value="oldest">Старые</option>
+          <option value="rating_desc">Высокий рейтинг</option>
+          <option value="rating_asc">Низкий рейтинг</option>
+        </select>
+        
         <div class="flex gap-1">
           <div v-for="i in 5" :key="'avg-' + i" class="relative w-4 h-4">
              <svg class="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -167,6 +177,7 @@ const reviews = ref([])
 const loading = ref(true)
 const currentPage = ref(1)
 const itemsPerPage = 3
+const sortBy = ref('newest')
 
 // Расчет среднего рейтинга
 const averageRating = computed(() => {
@@ -175,13 +186,31 @@ const averageRating = computed(() => {
   return sum / reviews.value.length
 })
 
+// Сортированные отзывы
+const sortedReviews = computed(() => {
+  const reviewsCopy = [...reviews.value]
+  
+  switch (sortBy.value) {
+    case 'newest':
+      return reviewsCopy.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    case 'oldest':
+      return reviewsCopy.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    case 'rating_desc':
+      return reviewsCopy.sort((a, b) => b.rating - a.rating)
+    case 'rating_asc':
+      return reviewsCopy.sort((a, b) => a.rating - b.rating)
+    default:
+      return reviewsCopy
+  }
+})
+
 // Логика пагинации
-const totalPages = computed(() => Math.ceil(reviews.value.length / itemsPerPage))
+const totalPages = computed(() => Math.ceil(sortedReviews.value.length / itemsPerPage))
 
 const paginatedReviews = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
   const end = start + itemsPerPage
-  return reviews.value.slice(start, end)
+  return sortedReviews.value.slice(start, end)
 })
 
 const visiblePages = computed(() => {

@@ -69,7 +69,6 @@
                   ? 'bg-[#1a1a2e] text-white rounded-[22px] rounded-br-none' 
                   : 'bg-white text-[#1a1a2e] rounded-[22px] rounded-bl-none border border-white/60'"
               >
-                <!-- ✅ БЕЗОПАСНОЕ отображение с санитизацией -->
                 <div 
                   class="whitespace-pre-wrap" 
                   v-html="sanitizeMessageText(msg.text, isSystemMessage(msg))"
@@ -373,7 +372,6 @@
                   ? 'bg-[#1a1a2e] text-white rounded-[18px] rounded-br-none' 
                   : 'bg-white text-[#1a1a2e] rounded-[18px] rounded-bl-none border border-white/60'"
               >
-                <!-- ✅ БЕЗОПАСНОЕ отображение с санитизацией -->
                 <div 
                   class="whitespace-pre-wrap" 
                   v-html="sanitizeMessageText(msg.text, isSystemMessage(msg))"
@@ -583,11 +581,16 @@ const dealMessages = computed(() => {
   return messages.value.filter(m => m.message_type !== 'text')
 })
 
+// ✅ ЗАДАЧА 1: Сортировка заказов по дате создания (новые первые)
 const activeDeals = computed(() => {
   return dealMessages.value
     .map(m => m.deal_data)
     .filter(d => d && d.deal_id)
-    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at || 0)
+      const dateB = new Date(b.created_at || 0)
+      return dateB - dateA // Новые первые
+    })
 })
 
 const groupedMessages = computed(() => {
@@ -650,23 +653,19 @@ const formatFileSize = (bytes) => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-// ✅ Проверка, является ли сообщение системным
 const isSystemMessage = (msg) => {
   if (!msg || !msg.text) return false
   const systemMarkers = ['📋', '💰', '💳', '📦', '🔄', '⚠️', '🛡️', '🎉', '❌']
   return systemMarkers.some(marker => msg.text.trim().startsWith(marker))
 }
 
-// ✅ БЕЗОПАСНОЕ форматирование с санитизацией
 const sanitizeMessageText = (text, isSystem = false) => {
   if (!text) return ''
   
-  // Для обычных сообщений - только экранирование
   if (!isSystem) {
     return sanitizeHtml(text, false)
   }
   
-  // Для системных - разрешаем SVG с заменой эмодзи
   let formatted = text
   
   const emojiMap = {
@@ -693,7 +692,6 @@ const sanitizeMessageText = (text, isSystem = false) => {
     formatted = formatted.replaceAll(emoji, iconSvg)
   })
   
-  // Санитизация с разрешением SVG
   return sanitizeHtml(formatted, true)
 }
 

@@ -43,15 +43,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ✅ ЗАДАЧА 4: Уменьшение отступа сверху для десктопа и планшетов */
 .main-content {
   max-width: 1200px;
-  margin: 140px auto 20px; 
+  margin: 110px auto 20px; 
   padding: 0 8px;
 }
 
 .main-content.onboarding-page {
   max-width: 100%;
-  margin-top: 140px; /* Оставляем верхний отступ для навигации */
+  margin-top: 80px; 
   margin-bottom: 20px;
   padding: 0;
   background: transparent;
