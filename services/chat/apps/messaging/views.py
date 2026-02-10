@@ -1,3 +1,4 @@
+# services/chat/apps/messaging/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import Room, Message, MessageAttachment, ReadReceipt
 from .serializers import RoomSerializer, MessageSerializer, MessageAttachmentSerializer
+from .notification_service import TelegramNotificationService
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.core.files.uploadedfile import UploadedFile
@@ -255,6 +257,9 @@ class RoomViewSet(viewsets.ViewSet):
                         display_mode='attachment'
                     )
             
+            # ✅ ОТПРАВКА TELEGRAM УВЕДОМЛЕНИЯ О СИСТЕМНОМ СООБЩЕНИИ
+            self._send_system_message_notification(message, sender_id, room.members)
+            
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{pk}',
@@ -274,6 +279,22 @@ class RoomViewSet(viewsets.ViewSet):
             return Response({'error': 'Комната не найдена'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=400)
+
+    def _send_system_message_notification(self, message, sender_id, members):
+        """
+        Отправить Telegram уведомление о системном сообщении
+        """
+        try:
+            notification_service = TelegramNotificationService()
+            success = notification_service.send_notification(message, sender_id, members)
+            
+            if success:
+                print(f"[TELEGRAM] ✅ Системное уведомление отправлено")
+            else:
+                print(f"[TELEGRAM] ℹ️ Системное уведомление не отправлено")
+                
+        except Exception as e:
+            print(f"[TELEGRAM] ⚠️ Ошибка отправки системного уведомления: {e}")
 
     @action(detail=False, methods=['post'], url_path='upload', throttle_classes=[FileUploadThrottle])
     def upload_files(self, request):
