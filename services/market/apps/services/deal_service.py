@@ -479,6 +479,7 @@ class DealService:
                 'dispute_winner': deal.dispute_winner or '',
                 'status_display': DealService._get_status_display(deal),
                 'dispute_result': DealService._get_dispute_result(deal),
+                'created_at': deal.created_at.isoformat() if deal.created_at else None,
             }
             
             message_texts = {
