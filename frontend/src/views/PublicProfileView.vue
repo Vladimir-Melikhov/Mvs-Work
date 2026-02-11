@@ -174,7 +174,7 @@
               <div class="flex-1 min-w-0">
                 <div class="text-[10px] md:text-xs font-bold text-gray-400 uppercase">{{ service.category }}</div>
               </div>
-              <div class="text-[#7000ff] font-bold text-sm md:text-base lg:text-lg">{{ service.price }}₽</div>
+              <div class="text-[#7000ff] font-bold text-sm md:text-base lg:text-lg">{{ parseInt(service.price) }}₽</div>
             </div>
 
             <h3 class="text-sm md:text-base lg:text-lg font-bold text-[#1a1a2e] mb-1 md:mb-2 leading-tight line-clamp-2 break-words">

@@ -42,7 +42,7 @@
             <div class="space-y-2">
               <div class="flex justify-between text-sm">
                 <span class="text-gray-400">Сумма:</span>
-                <span class="font-mono">{{ order.price }} ₽</span>
+                <span class="font-mono">{{ parseInt(order.price) }} ₽</span>
               </div>
             </div>
           </div>

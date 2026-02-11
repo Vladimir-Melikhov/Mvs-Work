@@ -14,8 +14,6 @@ class DealService:
     СЕРВИС РАБОТЫ С ЗАКАЗАМИ (С ПОДДЕРЖКОЙ АРБИТРАЖА)
     """
 
-    COMMISSION_RATE = Decimal('0.08')
-
     @staticmethod
     def _get_system_token() -> str:
         """Генерирует системный JWT-токен для внутренних операций через ServiceJWT"""
@@ -38,7 +36,7 @@ class DealService:
                     'chat_room_id': chat_room_id,
                     'title': title,
                     'description': description,
-                    'price': price,
+                    'price': int(price),
                     'status': 'pending'
                 }
             )
@@ -72,14 +70,14 @@ class DealService:
         if new_price <= 0:
             raise ValueError("Цена должна быть больше нуля")
 
-        old_price = deal.price
-        deal.price = new_price
+        old_price = int(deal.price)
+        deal.price = int(new_price)
         deal.save()
 
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=worker_id,
-            text=f"💰 ЦЕНА ИЗМЕНЕНА\n\nБыло: {old_price}₽\nСтало: {new_price}₽",
+            text=f"💰 ЦЕНА ИЗМЕНЕНА\n\nБыло: {old_price}₽\nСтало: {int(new_price)}₽",
             auth_token=auth_token
         )
 
@@ -96,13 +94,10 @@ class DealService:
         if deal.status != 'pending':
             raise ValueError(f"Нельзя оплатить заказ в статусе '{deal.status}'")
 
-        commission = deal.price * DealService.COMMISSION_RATE
-        total = deal.price + commission
-
         Transaction.objects.create(
             deal=deal,
-            amount=total,
-            commission=commission,
+            amount=deal.price,
+            commission=0,
             status='held',
             payment_provider='stub'
         )
@@ -114,7 +109,7 @@ class DealService:
         DealService._send_text_message(
             chat_room_id=deal.chat_room_id,
             sender_id=client_id,
-            text=f"💳 ЗАКАЗ ОПЛАЧЕН\n\nСумма: {total}₽\n\nТеперь исполнитель может приступить к работе.",
+            text=f"💳 ЗАКАЗ ОПЛАЧЕН\n\nСумма: {int(deal.price)}₽\n\nТеперь исполнитель может приступить к работе.",
             auth_token=auth_token
         )
 
@@ -434,9 +429,6 @@ class DealService:
             
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
-            commission = float(deal.price * DealService.COMMISSION_RATE)
-            total = float(deal.price) + commission
-            
             market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
             delivery_attachments = []
             for att in deal.delivery_attachments.all():
@@ -452,9 +444,7 @@ class DealService:
             deal_data = {
                 'deal_id': str(deal.id),
                 'title': deal.title,
-                'price': str(deal.price),
-                'commission': f"{commission:.2f}",
-                'total': f"{total:.2f}",
+                'price': int(deal.price),
                 'status': deal.status,
                 'client_id': str(deal.client_id),
                 'worker_id': str(deal.worker_id),
@@ -484,12 +474,12 @@ class DealService:
             
             message_texts = {
                 'created': f'📋 Создан заказ: {deal.title}',
-                'paid': f'💳 Заказ оплачен! {total}₽',
+                'paid': f'💳 Заказ оплачен! {int(deal.price)}₽',
                 'delivered': '📦 Работа сдана на проверку',
                 'revision': f'🔄 Запрошена доработка ({deal.revision_count}/{deal.max_revisions})',
                 'completed': '🎉 Заказ завершён!',
                 'cancelled': '❌ Заказ отменён',
-                'price_updated': f'💰 Цена изменена: {deal.price}₽',
+                'price_updated': f'💰 Цена изменена: {int(deal.price)}₽',
                 'dispute_opened': '⚠️ Открыт спор',
                 'defense_submitted': '🛡️ Защита подана, ждем админа',
                 'refunded': '💰 Деньги возвращены клиенту (решение администратора)',
@@ -541,7 +531,7 @@ class DealService:
 🚨 <b>НОВЫЙ СПОР #{deal.id}</b>
 
 📋 <b>Заказ:</b> {deal.title}
-💰 <b>Сумма:</b> {deal.price}₽
+💰 <b>Сумма:</b> {int(deal.price)}₽
 
 👤 <b>ПРЕТЕНЗИЯ КЛИЕНТА:</b>
 {deal.dispute_client_reason}

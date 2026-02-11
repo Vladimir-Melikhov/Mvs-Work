@@ -330,7 +330,7 @@
                <div class="flex-1 min-w-0">
                   <div class="text-[10px] md:text-xs font-bold text-gray-400 uppercase">Моя услуга</div>
                </div>
-               <div class="text-[#7000ff] font-bold text-xs md:text-lg shrink-0">{{ service.price }}₽</div>
+               <div class="text-[#7000ff] font-bold text-xs md:text-lg shrink-0">{{ parseInt(service.price) }}₽</div>
             </div>
 
             <h3 class="text-sm md:text-lg font-bold text-[#1a1a2e] mb-1 md:mb-2 leading-tight line-clamp-2 break-words">

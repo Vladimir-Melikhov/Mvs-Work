@@ -54,7 +54,7 @@
           <div class="space-y-1 text-sm">
             <div class="flex justify-between">
               <span class="text-gray-600">Стоимость работы:</span>
-              <span class="font-bold">{{ dealData.price }}₽</span>
+              <span class="font-bold">{{ parseInt(dealData.price) }}₽</span>
             </div>
           </div>
         </div>
@@ -274,7 +274,7 @@
           </div>
           
           <div class="flex gap-3">
-            <button @click="showPriceModal = false; newPrice = dealData.price" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
+            <button @click="showPriceModal = false; newPrice = parseInt(dealData.price)" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
             <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-purple-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Изменить</button>
           </div>
         </div>
@@ -483,7 +483,7 @@ const completionMessage = ref('')
 const revisionReason = ref('')
 const cancelReason = ref('')
 const rating = ref(0)
-const newPrice = ref(props.dealData.price)
+const newPrice = ref(parseInt(props.dealData.price))
 const disputeReason = ref('')
 const defenseText = ref('')
 
@@ -606,7 +606,7 @@ const updatePrice = async () => {
 }
 
 const payDeal = async () => {
-  if (!confirm(`Оплатить заказ на сумму ${props.dealData.price}₽?`)) return
+  if (!confirm(`Оплатить заказ на сумму ${parseInt(props.dealData.price)}₽?`)) return
   
   loading.value = true
   try {

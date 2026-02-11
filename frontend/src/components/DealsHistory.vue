@@ -58,7 +58,7 @@
               <div class="text-[11px] md:text-xs text-[#5a4a7d] mt-1 line-clamp-1 break-words opacity-80 pl-1">{{ deal.description }}</div>
             </div>
             <div class="text-right ml-3 shrink-0">
-              <div class="text-lg md:text-xl font-black" :class="getPriceColor(deal.status)">{{ deal.price }}₽</div>
+              <div class="text-lg md:text-xl font-black" :class="getPriceColor(deal.status)">{{ parseInt(deal.price) }}₽</div>
               <div class="text-[9px] font-bold text-[#a491c3] uppercase">{{ formatDate(deal.created_at) }}</div>
             </div>
           </div>
