@@ -65,7 +65,6 @@ class Service(models.Model):
             ('bots', 'Боты и автоматизация'),
             ('databases', 'Базы данных'),
             ('devops', 'DevOps'),
-            ('other_dev', 'Другое'),
         ],
         'design': [
             ('ui_ux', 'UI/UX дизайн'),
@@ -76,7 +75,6 @@ class Service(models.Model):
             ('mobile_design', 'Мобильный дизайн'),
             ('print', 'Полиграфия'),
             ('3d', '3D моделирование'),
-            ('other_design', 'Другое'),
         ],
         'marketing': [
             ('smm', 'SMM'),
@@ -85,7 +83,6 @@ class Service(models.Model):
             ('email', 'Email-маркетинг'),
             ('analytics', 'Аналитика'),
             ('strategy', 'Маркетинговая стратегия'),
-            ('other_marketing', 'Другое'),
         ],
         'writing': [
             ('articles', 'Статьи'),
@@ -94,7 +91,6 @@ class Service(models.Model):
             ('translation', 'Переводы'),
             ('technical', 'Техническая документация'),
             ('creative', 'Креативные тексты'),
-            ('other_writing', 'Другое'),
         ],
         'video': [
             ('editing', 'Монтаж'),
@@ -102,7 +98,6 @@ class Service(models.Model):
             ('animation', 'Анимация'),
             ('filming', 'Съемка'),
             ('color', 'Цветокоррекция'),
-            ('other_video', 'Другое'),
         ],
         'audio': [
             ('voiceover', 'Озвучка'),
@@ -110,14 +105,12 @@ class Service(models.Model):
             ('mixing', 'Сведение'),
             ('mastering', 'Мастеринг'),
             ('sound_design', 'Звуковой дизайн'),
-            ('other_audio', 'Другое'),
         ],
         'business': [
             ('consulting', 'Консалтинг'),
             ('finance', 'Финансы'),
             ('legal', 'Юридические услуги'),
             ('hr', 'HR'),
-            ('other_business', 'Другое'),
         ],
         'other': [
             ('other_other', 'Другое'),

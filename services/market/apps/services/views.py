@@ -159,7 +159,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Создание нового объявления с проверкой подписки"""
+        """Создание нового объявления с учетом выбора пользователя"""
         
         if request.user.role != 'worker':
             return Response({
@@ -168,10 +168,26 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'data': None
             }, status=403)
         
-        is_active = False
+        # ✅ ИСПРАВЛЕНО: Читаем выбор пользователя
+        user_wants_active = request.data.get('is_active')
+        if isinstance(user_wants_active, str):
+            user_wants_active = user_wants_active.lower() in ('true', '1', 'yes')
+        else:
+            user_wants_active = bool(user_wants_active)
         
-        has_subscription = self._check_subscription(request.user.id)
-        is_active = has_subscription
+        # ✅ ИСПРАВЛЕНО: Только если пользователь хочет активировать - проверяем подписку
+        final_is_active = False
+        if user_wants_active:
+            has_subscription = self._check_subscription(request.user.id)
+            if not has_subscription:
+                # Возвращаем ошибку, что нужна подписка
+                return Response({
+                    'status': 'error',
+                    'error': 'Для публикации объявления требуется активная подписка',
+                    'data': None,
+                    'require_subscription': True
+                }, status=403)
+            final_is_active = True
         
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -194,7 +210,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             owner_id=request.user.id,
             owner_name=request.data.get('owner_name', 'Фрилансер'),
             owner_avatar=request.data.get('owner_avatar', ''),
-            is_active=is_active
+            is_active=final_is_active
         )
         
         # Валидация и сохранение изображений
@@ -218,12 +234,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
         
         response_data = ServiceSerializer(service, context={'request': request}).data
         
-        if not is_active:
+        if not final_is_active:
             return Response({
                 'status': 'success', 
                 'data': response_data, 
                 'error': None,
-                'message': 'Объявление создано в неактивном статусе. Для публикации требуется активная подписка.'
+                'message': 'Объявление создано в неактивном статусе.'
             }, status=201)
         
         return Response({'status': 'success', 'data': response_data, 'error': None}, status=201)

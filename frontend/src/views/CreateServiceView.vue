@@ -264,7 +264,7 @@ const form = ref({
   subcategory: '',
   ai_template: '',
   tags: [],
-  is_active: true
+  is_active: false  // ✅ ИСПРАВЛЕНО: по умолчанию false
 })
 
 const imageFiles = ref([null, null, null, null, null])
@@ -384,7 +384,7 @@ const fetchServiceData = async () => {
               subcategory: data.subcategory || '',
               ai_template: data.ai_template || '',
               tags: data.tags || [],
-              is_active: data.is_active !== undefined ? data.is_active : true
+              is_active: data.is_active !== undefined ? data.is_active : false
           }
           
           if (data.images && data.images.length > 0) {
@@ -424,6 +424,7 @@ const submitForm = async () => {
     formData.append('ai_template', form.value.ai_template || '')
     formData.append('tags', JSON.stringify(form.value.tags))
     
+    // ✅ ИСПРАВЛЕНО: Передаем выбор пользователя
     formData.append('is_active', form.value.is_active ? 'true' : 'false')
     
     if (!isEditing.value) {
