@@ -1,0 +1,43 @@
+{
+    admin off
+}
+
+:80 {
+    handle /api/auth/* {
+        reverse_proxy auth:8001
+    }
+
+    handle /api/market/* {
+        reverse_proxy market:8002
+    }
+
+    handle /api/chat/* {
+        reverse_proxy chat:8003
+    }
+
+    handle /ws/* {
+        reverse_proxy chat:8003
+    }
+
+    handle /media/avatars/* {
+        reverse_proxy auth:8001
+    }
+
+    handle /media/service_images/* {
+        reverse_proxy market:8002
+    }
+
+    handle /media/deal_deliveries/* {
+        reverse_proxy market:8002
+    }
+
+    handle /media/message_attachments/* {
+        reverse_proxy chat:8003
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

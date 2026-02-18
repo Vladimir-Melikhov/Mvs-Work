@@ -1,0 +1,160 @@
+# ./docker-compose.yml
+
+services:
+
+  # ─────────────── DATABASES ───────────────
+  db_auth:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mvs_auth_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d mvs_auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_market:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mvs_market_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_market_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d mvs_market_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_chat:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mvs_chat_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_chat_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d mvs_chat_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────── BACKEND SERVICES ───────────────
+  auth:
+    build:
+      context: ./services/auth
+    restart: unless-stopped
+    env_file: ./services/auth/.env
+    volumes:
+      - auth_media:/app/media
+    depends_on:
+      db_auth:
+        condition: service_healthy
+    expose:
+      - "8001"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 3 --timeout 120"
+
+  market:
+    build:
+      context: ./services/market
+    restart: unless-stopped
+    env_file: ./services/market/.env
+    volumes:
+      - market_media:/app/media
+    depends_on:
+      db_market:
+        condition: service_healthy
+    expose:
+      - "8002"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8002 --workers 3 --timeout 120"
+
+  chat:
+    build:
+      context: ./services/chat
+    restart: unless-stopped
+    env_file: ./services/chat/.env
+    volumes:
+      - chat_media:/app/media
+    depends_on:
+      db_chat:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8003"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             daphne -b 0.0.0.0 -p 8003 config.asgi:application"
+
+  # ─────────────── TELEGRAM BOT ───────────────
+  bot:
+    build:
+      context: ./telegram_bot
+    restart: unless-stopped
+    env_file: ./telegram_bot/.env
+    depends_on:
+      - auth
+
+  # ─────────────── FRONTEND ───────────────
+  frontend:
+    build:
+      context: ./frontend
+    volumes:
+      - frontend_dist:/srv
+
+  # ─────────────── REVERSE PROXY ───────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - frontend_dist:/srv:ro
+      - auth_media:/media/auth:ro
+      - market_media:/media/market:ro
+      - chat_media:/media/chat:ro
+    depends_on:
+      - auth
+      - market
+      - chat
+      - frontend
+
+volumes:
+  db_auth_data:
+  db_market_data:
+  db_chat_data:
+  redis_data:
+  auth_media:
+  market_media:
+  chat_media:
+  caddy_data:
+  caddy_config:
+  frontend_dist:

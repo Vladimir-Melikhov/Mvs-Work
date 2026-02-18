@@ -360,7 +360,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
             
-            subscription_url = 'http://localhost:8001/api/auth/subscription/'
+            subscription_url = 'http://auth:8001/api/auth/subscription/'
             
             response = requests.get(
                 subscription_url,

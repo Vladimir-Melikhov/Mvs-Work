@@ -1,3 +1,4 @@
+# services/market/apps/services/deal_service.py
 import os
 import requests
 from decimal import Decimal
@@ -144,7 +145,7 @@ class DealService:
             attachment_data = []
             for att in deal.delivery_attachments.all():
                 if att.file:
-                    market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+                    market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://market:8002')
                     file_url = f"{market_service_url}{att.file.url}"
                     
                     attachment_data.append({
@@ -429,7 +430,7 @@ class DealService:
             
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
             
-            market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
+            market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://market:8002')
             delivery_attachments = []
             for att in deal.delivery_attachments.all():
                 if att.file:
