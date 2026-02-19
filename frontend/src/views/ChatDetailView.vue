@@ -930,7 +930,7 @@ const fetchHistory = async () => {
 
 const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8003'
+  const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
   const token = auth.accessToken || localStorage.getItem('access_token')
   
   const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${roomId}/?token=${token}`

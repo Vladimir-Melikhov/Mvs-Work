@@ -17,6 +17,7 @@ from .serializers import (
     CompleteDealSerializer,
     FavoriteSerializer
 )
+from django.conf import settings
 from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .services import AIService
 from .deal_service import DealService
@@ -566,7 +567,7 @@ class DealViewSet(viewsets.ViewSet):
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
             import requests as req
-            chat_url = f"http://localhost:8003/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
+            chat_url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{serializer.validated_data['chat_room_id']}/"
             chat_response = req.get(chat_url, headers={'Authorization': f'Bearer {token}'})
 
             if chat_response.status_code != 200:

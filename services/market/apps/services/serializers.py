@@ -16,10 +16,6 @@ class ServiceImageSerializer(serializers.ModelSerializer):
         """Формирует полный URL для изображения"""
         if not obj.image:
             return None
-        
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(obj.image.url)
         return obj.image.url
 
 
@@ -48,12 +44,8 @@ class ServiceSerializer(serializers.ModelSerializer):
         if obj.owner_avatar.startswith('http://') or obj.owner_avatar.startswith('https://'):
             return obj.owner_avatar
         
-        request = self.context.get('request')
-        if request:
-            avatar_path = obj.owner_avatar.lstrip('/media/')
-            return request.build_absolute_uri(f'/media/{avatar_path}')
-        
-        return obj.owner_avatar
+        avatar_path = obj.owner_avatar.lstrip('/media/')
+        return f'/media/{avatar_path}'
     
     def get_owner_rating(self, obj):
         """Получить средний рейтинг владельца услуги"""
@@ -108,10 +100,6 @@ class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):
     def get_url(self, obj):
         if not obj.file:
             return None
-        
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(obj.file.url)
         return obj.file.url
 
 

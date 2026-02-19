@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.utils import timezone
 import os
 
 
@@ -62,9 +63,17 @@ class Message(models.Model):
     
     def save(self, *args, **kwargs):
         """При сохранении обновляем updated_at комнаты"""
+        # ✅ ИСПРАВЛЕНИЕ: Проверяем, новое ли это сообщение
+        is_new = self._state.adding
+        
         super().save(*args, **kwargs)
-        # Обновляем время последнего обновления комнаты
-        Room.objects.filter(id=self.room_id).update(updated_at=self.created_at)
+        
+        if is_new:
+            # Новое сообщение → updated_at чата = created_at сообщения
+            Room.objects.filter(id=self.room_id).update(updated_at=self.created_at)
+        else:
+            # Обновление старого сообщения → updated_at чата = СЕЙЧАС
+            Room.objects.filter(id=self.room_id).update(updated_at=timezone.now())
 
 
 class ReadReceipt(models.Model):

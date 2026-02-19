@@ -145,8 +145,7 @@ class DealService:
             attachment_data = []
             for att in deal.delivery_attachments.all():
                 if att.file:
-                    market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://market:8002')
-                    file_url = f"{market_service_url}{att.file.url}"
+                    file_url = att.file.url 
                     
                     attachment_data.append({
                         'id': str(att.id),
@@ -429,12 +428,10 @@ class DealService:
                 auth_token = DealService._get_system_token()
             
             url = f"{settings.CHAT_SERVICE_URL}/api/chat/rooms/{deal.chat_room_id}/send_deal_message/"
-            
-            market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://market:8002')
             delivery_attachments = []
             for att in deal.delivery_attachments.all():
                 if att.file:
-                    file_url = f"{market_service_url}{att.file.url}"
+                    file_url = att.file.url
                     delivery_attachments.append({
                         'id': str(att.id),
                         'filename': att.filename,

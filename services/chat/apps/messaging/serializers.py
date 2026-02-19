@@ -16,11 +16,7 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         if not file_url:
             return None
         
-        if not file_url.startswith('http'):
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(file_url)
-        
+        # Возвращаем как есть (относительный путь или полный URL)
         return file_url
 
 

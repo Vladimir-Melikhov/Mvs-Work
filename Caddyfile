@@ -3,6 +3,15 @@
 }
 
 :80 {
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    
+    handle @websocket {
+        reverse_proxy chat:8003
+    }
+
     handle /api/auth/* {
         reverse_proxy auth:8001
     }
@@ -12,10 +21,6 @@
     }
 
     handle /api/chat/* {
-        reverse_proxy chat:8003
-    }
-
-    handle /ws/* {
         reverse_proxy chat:8003
     }
 

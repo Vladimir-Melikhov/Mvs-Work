@@ -1,4 +1,3 @@
-# services/chat/apps/messaging/consumers.py
 import json
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -126,9 +125,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             file_url = att.get_file_url()
             if not file_url:
                 continue
-            
-            if not file_url.startswith('http'):
-                file_url = f"http://localhost:8003{file_url}"
             
             attachments.append({
                 'id': str(att.id),
