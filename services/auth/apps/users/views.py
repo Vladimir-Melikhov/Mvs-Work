@@ -867,8 +867,19 @@ class ProfileView(APIView):
             if serializer.is_valid():
                 serializer.save()
                 
-                if 'avatar' in request.data or serializer.validated_data.get('avatar'):
+                # ✅ Проверяем, изменились ли поля, которые нужно обновить в объявлениях
+                should_update_services = (
+                    'avatar' in request.data or 
+                    serializer.validated_data.get('avatar') or
+                    'full_name' in request.data or
+                    'company_name' in request.data
+                )
+                
+                if should_update_services:
                     avatar_url = request.build_absolute_uri(profile.avatar.url) if profile.avatar else ''
+                    
+                    # ✅ Определяем owner_name (приоритет: company_name > full_name)
+                    owner_name = profile.company_name or profile.full_name or request.user.email.split('@')[0]
                     
                     market_service_url = os.getenv('MARKET_SERVICE_URL', 'http://localhost:8002')
                     
@@ -877,6 +888,7 @@ class ProfileView(APIView):
                         
                         update_url = f"{market_service_url}/api/market/services/update-owner-avatar/"
                         
+                        # ✅ Отправляем И аватар, И имя
                         requests.post(
                             update_url,
                             headers={
@@ -885,12 +897,13 @@ class ProfileView(APIView):
                             },
                             json={
                                 'owner_id': str(request.user.id),
-                                'owner_avatar': avatar_url
+                                'owner_avatar': avatar_url,
+                                'owner_name': owner_name  # ✅ Добавлено
                             },
                             timeout=5
                         )
                     except Exception as e:
-                        print(f"⚠️ Не удалось обновить аватар в объявлениях: {e}")
+                        print(f"⚠️ Не удалось обновить данные в объявлениях: {e}")
                 
                 return Response({
                     'status': 'success',

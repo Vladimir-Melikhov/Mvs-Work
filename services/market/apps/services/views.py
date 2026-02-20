@@ -936,13 +936,14 @@ class ReviewViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class UpdateOwnerAvatarView(APIView):
-    """Обновление аватара владельца во всех его объявлениях"""
+    """Обновление аватара и имени владельца во всех его объявлениях"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """Обновить owner_avatar во всех объявлениях пользователя"""
+        """Обновить owner_avatar и owner_name во всех объявлениях пользователя"""
         owner_id = request.data.get('owner_id')
         owner_avatar = request.data.get('owner_avatar', '')
+        owner_name = request.data.get('owner_name')  # ✅ ДОБАВЛЕНО
         
         if not owner_id:
             return Response({'error': 'owner_id обязателен'}, status=400)
@@ -950,7 +951,12 @@ class UpdateOwnerAvatarView(APIView):
         if str(request.user.id) != str(owner_id):
             return Response({'error': 'Нет прав'}, status=403)
         
-        count = Service.objects.filter(owner_id=owner_id).update(owner_avatar=owner_avatar)
+        # ✅ ИСПРАВЛЕНО: Обновляем и аватар, и имя
+        update_fields = {'owner_avatar': owner_avatar}
+        if owner_name:
+            update_fields['owner_name'] = owner_name
+        
+        count = Service.objects.filter(owner_id=owner_id).update(**update_fields)
         
         return Response({
             'status': 'success',
