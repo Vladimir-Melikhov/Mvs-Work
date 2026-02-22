@@ -170,7 +170,7 @@ class Service(models.Model):
             models.Index(fields=['category', 'subcategory', '-created_at']),
             models.Index(fields=['owner_id']),
             models.Index(fields=['is_active', '-created_at']),
-            models.Index(fields=['-price']),  # Для сортировки по цене
+            models.Index(fields=['-price']),
         ]
 
     def __str__(self) -> str:
@@ -183,7 +183,6 @@ class Service(models.Model):
         if self.tags:
             validate_tags(self.tags)
 
-        # Валидация подкатегории
         if self.subcategory:
             valid_subcategories = [choice[0] for choice in self.SUBCATEGORY_CHOICES.get(self.category, [])]
             if self.subcategory not in valid_subcategories:
@@ -278,6 +277,12 @@ class Deal(models.Model):
     revision_count = models.IntegerField(default=0)
     max_revisions = models.IntegerField(default=2)
     
+    # ✅ НОВОЕ ПОЛЕ: флаг "работа была сдана хотя бы раз"
+    was_delivered = models.BooleanField(
+        default=False,
+        help_text="Была ли работа хотя бы раз сдана (для контроля отмены)"
+    )
+    
     delivery_message = models.TextField(blank=True)
     completion_message = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
@@ -342,7 +347,13 @@ class Deal(models.Model):
 
     @property
     def can_cancel(self) -> bool:
-        return self.status in ['pending', 'paid']
+        """
+        ✅ ОБНОВЛЕННАЯ ЛОГИКА:
+        Отмена доступна только если:
+        1. Статус pending или paid
+        2. И работа ещё НИ РАЗУ не была сдана (was_delivered=False)
+        """
+        return self.status in ['pending', 'paid'] and not self.was_delivered
 
     @property
     def can_update_price(self) -> bool:

@@ -38,7 +38,8 @@ class DealService:
                     'title': title,
                     'description': description,
                     'price': int(price),
-                    'status': 'pending'
+                    'status': 'pending',
+                    'was_delivered': False  # ✅ Инициализация нового поля
                 }
             )
             
@@ -130,6 +131,7 @@ class DealService:
         deal.status = 'delivered'
         deal.delivered_at = timezone.now()
         deal.delivery_message = delivery_message
+        deal.was_delivered = True  # ✅ Устанавливаем флаг при первой сдаче
         deal.save()
 
         DealService._send_delivery_message(deal, worker_id, delivery_message, auth_token)
@@ -180,7 +182,10 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def request_revision(deal: Deal, client_id: str, revision_reason: str, auth_token: str):
-        """Запрос доработки"""
+        """
+        Запрос доработки
+        ✅ ВАЖНО: Не сбрасываем флаг was_delivered - работа УЖЕ была сдана
+        """
         if str(client_id) != str(deal.client_id):
             raise ValueError("Запросить доработку может только клиент")
 
@@ -190,8 +195,9 @@ class DealService:
         if deal.revision_count >= deal.max_revisions:
             raise ValueError(f"Исчерпан лимит доработок ({deal.max_revisions})")
 
-        deal.status = 'paid'
+        deal.status = 'paid'  # Возвращаем в работу
         deal.revision_count += 1
+        # was_delivered остается True - не сбрасываем!
         deal.save()
 
         DealService._send_text_message(
@@ -372,12 +378,19 @@ class DealService:
     @staticmethod
     @transaction.atomic
     def cancel_deal(deal: Deal, canceller_id: str, reason: str, auth_token: str):
-        """Отмена заказа (ТОЛЬКО ДО СДАЧИ РАБОТЫ)"""
+        """
+        Отмена заказа
+        ✅ ОБНОВЛЕННАЯ ЛОГИКА: Проверяем was_delivered
+        """
         if str(canceller_id) not in [str(deal.client_id), str(deal.worker_id)]:
             raise ValueError("Вы не участник заказа")
 
         if deal.status == 'completed':
             raise ValueError("Нельзя отменить завершённый заказ")
+
+        # ✅ НОВАЯ ПРОВЕРКА
+        if deal.was_delivered:
+            raise ValueError("Нельзя отменить заказ после сдачи работы. Используйте 'Открыть спор' или 'Запросить доработку'.")
 
         if deal.status in ['delivered', 'dispute']:
             raise ValueError("После сдачи работы отмена невозможна. Используйте спор.")
