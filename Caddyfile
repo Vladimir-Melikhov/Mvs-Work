@@ -3,6 +3,7 @@
 }
 
 :80 {
+    # WebSocket для чата
     @websocket {
         header Connection *Upgrade*
         header Upgrade websocket
@@ -12,6 +13,15 @@
         reverse_proxy chat:8003
     }
 
+    handle /admin* {
+        reverse_proxy market:8002
+    }
+
+    handle /static* {
+        reverse_proxy market:8002
+    }
+
+    # API маршруты
     handle /api/auth/* {
         reverse_proxy auth:8001
     }
@@ -24,6 +34,7 @@
         reverse_proxy chat:8003
     }
 
+    # Медиа файлы
     handle /media/avatars/* {
         reverse_proxy auth:8001
     }
@@ -40,6 +51,7 @@
         reverse_proxy chat:8003
     }
 
+    # Frontend (последним)
     handle {
         root * /srv
         try_files {path} /index.html
