@@ -69,12 +69,21 @@ CHANNEL_LAYERS = {
     },
 }
 
+# ✅ Ключ для верификации пользовательских JWT (от auth service)
+_USER_JWT_SECRET = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# ✅ Ключ для верификации межсервисных JWT (SERVICE_JWT_SECRET должен совпадать во всех сервисах)
+_SERVICE_JWT_SECRET = os.getenv('SERVICE_JWT_SECRET', _USER_JWT_SECRET + '-service-jwt-secure')
+
 SIMPLE_JWT = {
-    'SIGNING_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
+    'SIGNING_KEY': _USER_JWT_SECRET,
     'ALGORITHM': 'HS256',
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
 }
+
+# Оба секрета доступны для RemoteJWTAuthentication
+SERVICE_JWT_SECRET = _SERVICE_JWT_SECRET
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -97,13 +106,11 @@ REST_FRAMEWORK = {
     }
 }
 
-# Настройки медиа-файлов
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Настройки загрузки файлов
-FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
