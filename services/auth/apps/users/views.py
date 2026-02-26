@@ -1272,3 +1272,57 @@ class InternalUserProfileView(APIView):
                 'status': 'error',
                 'error': 'User not found'
             }, status=404)
+
+class InternalSetUserActiveView(APIView):
+    """
+    Внутренний endpoint: блокировка/разблокировка пользователя.
+    Вызывается только из market admin через ServiceJWT.
+    Защищён InternalServiceMiddleware.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def patch(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+
+            # Нельзя заблокировать суперадмина
+            if user.is_superuser:
+                return Response({
+                    'status': 'error',
+                    'error': 'Нельзя изменить статус суперадмина'
+                }, status=403)
+
+            is_active = request.data.get('is_active')
+            if is_active is None:
+                return Response({
+                    'status': 'error',
+                    'error': 'Поле is_active обязательно'
+                }, status=400)
+
+            user.is_active = bool(is_active)
+            user.save(update_fields=['is_active'])
+
+            action = 'разблокирован' if user.is_active else 'заблокирован'
+            return Response({
+                'status': 'success',
+                'data': {
+                    'user_id': str(user_id),
+                    'is_active': user.is_active,
+                    'email': user.email
+                },
+                'message': f'Пользователь {action}'
+            })
+
+        except User.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'error': 'Пользователь не найден'
+            }, status=404)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=400)
+
+

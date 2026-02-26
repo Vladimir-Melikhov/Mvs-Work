@@ -1,3 +1,4 @@
+# services/auth/config/settings.py
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -13,12 +14,18 @@ ALLOWED_HOSTS = ['*']
 
 
 INSTALLED_APPS = [
+    # Стандартные Django apps для работы admin
+    'django.contrib.admin',
     'django.contrib.contenttypes',
     'django.contrib.auth',
-    'rest_framework',
     'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    # DRF и прочее
+    'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    # Наши apps
     'apps.users',
 ]
 
@@ -45,6 +52,8 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -123,6 +132,10 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Static files (нужны для admin UI)
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
@@ -143,7 +156,7 @@ if not DEBUG:
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_ATTEMPT_TIMEOUT = 300
 
-# Email настройки (для отправки кодов верификации)
+# Email настройки
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
@@ -152,8 +165,8 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@mvs-work.com')
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'ru'
+TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_TZ = True
 
