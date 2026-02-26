@@ -65,4 +65,4 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f'✅ Суперадмин {email} создан успешно')
             )
 
-        self.stdout.write(f'   Доступ к админке: http://localhost:8001/admin/')
+        self.stdout.write(f'   Доступ к админке: http://localhost/auth-admin/')

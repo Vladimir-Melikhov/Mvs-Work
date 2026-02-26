@@ -16,9 +16,9 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',      
-    'django.contrib.messages',      
-    'django.contrib.staticfiles',   
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
     'apps.services',
@@ -66,16 +66,18 @@ DATABASES = {
     }
 }
 
-
+# Market admin на /admin/ (стандарт), статика на /static/
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Настройки медиа-файлов
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Настройки загрузки файлов
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+# X_FRAME_OPTIONS = SAMEORIGIN нужен чтобы admin работал (не DENY)
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 SIMPLE_JWT = {
     'SIGNING_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
@@ -112,16 +114,22 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost',
 ]
 
-AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://localhost:8001')
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost',
+]
+
+AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth:8001')
+CHAT_SERVICE_URL = os.getenv('CHAT_SERVICE_URL', 'http://chat:8003')
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'ru'
+TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-CHAT_SERVICE_URL = os.getenv('CHAT_SERVICE_URL', 'http://localhost:8003')

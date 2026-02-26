@@ -12,20 +12,16 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
-
 INSTALLED_APPS = [
-    # Стандартные Django apps для работы admin
     'django.contrib.admin',
     'django.contrib.contenttypes',
     'django.contrib.auth',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # DRF и прочее
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    # Наши apps
     'apps.users',
 ]
 
@@ -112,13 +108,14 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost',
 ]
-
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost',
 ]
 
 CSRF_COOKIE_HTTPONLY = True
@@ -129,11 +126,15 @@ SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+# X_FRAME_OPTIONS = SAMEORIGIN нужен чтобы admin работал (не DENY)
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Static files (нужны для admin UI)
-STATIC_URL = '/static/'
+# Caddy проксирует /auth-static/* → auth:8001/auth-static/*
+# Django должен знать что его статика живёт по этому префиксу
+STATIC_URL = '/auth-static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
@@ -143,7 +144,6 @@ ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -156,7 +156,6 @@ if not DEBUG:
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_ATTEMPT_TIMEOUT = 300
 
-# Email настройки
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))

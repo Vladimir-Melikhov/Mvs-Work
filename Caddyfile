@@ -8,17 +8,27 @@
         header Connection *Upgrade*
         header Upgrade websocket
     }
-    
+
     handle @websocket {
         reverse_proxy chat:8003
+    }
+
+    # Django Admin — у auth свой /admin, у market свой
+    handle /auth-admin* {
+        reverse_proxy auth:8001
     }
 
     handle /admin* {
         reverse_proxy market:8002
     }
 
+    # Статика Django Admin
     handle /static* {
         reverse_proxy market:8002
+    }
+
+    handle /auth-static* {
+        reverse_proxy auth:8001
     }
 
     # API маршруты

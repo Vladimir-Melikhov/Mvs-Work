@@ -10,39 +10,35 @@ def validate_tags(value):
     """Валидация тегов - должен быть список строк"""
     if not isinstance(value, list):
         raise ValidationError('Tags должны быть списком')
-    
+
     if len(value) > 20:
         raise ValidationError('Максимум 20 тегов')
-    
+
     for tag in value:
         if not isinstance(tag, str):
             raise ValidationError('Каждый тег должен быть строкой')
-        
+
         if len(tag) > 50:
             raise ValidationError('Тег не может быть длиннее 50 символов')
-        
+
         dangerous = ['--', '/*', '*/', 'drop', 'select', 'insert', 'update', 'delete', 'union', 'exec', 'script']
         if any(pattern in tag.lower() for pattern in dangerous):
             raise ValidationError('Тег содержит недопустимые символы')
 
 
 def service_image_upload_path(instance, filename):
-    """Генерирует путь для загрузки изображений сервиса"""
     ext = filename.split('.')[-1]
     filename = f"{uuid.uuid4()}.{ext}"
     return os.path.join('service_images', str(instance.service_id), filename)
 
 
 def deal_delivery_upload_path(instance, filename):
-    """Генерирует путь для загрузки файлов сдачи работы"""
     ext = filename.split('.')[-1]
     filename = f"{uuid.uuid4()}.{ext}"
     return os.path.join('deal_deliveries', str(instance.deal_id), filename)
 
 
 class Service(models.Model):
-    """Услуга на маркетплейсе"""
-
     CATEGORY_CHOICES = [
         ('development', 'Разработка'),
         ('design', 'Дизайн'),
@@ -127,18 +123,18 @@ class Service(models.Model):
     owner_avatar = models.TextField(blank=True, null=True)
 
     ai_template = models.TextField(
-        blank=True, 
+        blank=True,
         null=True,
         help_text="Требования к клиенту (бриф)"
     )
-    
+
     category = models.CharField(
-        max_length=50, 
-        choices=CATEGORY_CHOICES, 
+        max_length=50,
+        choices=CATEGORY_CHOICES,
         default='other',
         db_index=True
     )
-    
+
     subcategory = models.CharField(
         max_length=50,
         blank=True,
@@ -146,19 +142,19 @@ class Service(models.Model):
         db_index=True,
         help_text="Подкатегория услуги (опционально)"
     )
-    
+
     tags = models.JSONField(
-        default=list, 
+        default=list,
         blank=True,
         validators=[validate_tags]
     )
-    
+
     is_active = models.BooleanField(
         default=True,
         db_index=True,
         help_text="Активно ли объявление (требует активной подписки)"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -177,7 +173,6 @@ class Service(models.Model):
         return self.title
 
     def clean(self):
-        """Дополнительная валидация перед сохранением"""
         super().clean()
 
         if self.tags:
@@ -208,8 +203,6 @@ class Service(models.Model):
 
 
 class ServiceImage(models.Model):
-    """Изображения для услуги (до 5 шт)"""
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(
@@ -219,26 +212,24 @@ class ServiceImage(models.Model):
     )
     order = models.IntegerField(default=0, help_text="Порядок отображения")
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'service_images'
         ordering = ['order', 'created_at']
         indexes = [
             models.Index(fields=['service', 'order']),
         ]
-    
+
     def __str__(self) -> str:
         return f"Image {self.order} for {self.service.title}"
 
 
 class Favorite(models.Model):
-    """Избранные услуги пользователя"""
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user_id = models.UUIDField(db_index=True, help_text="ID пользователя")
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='favorited_by')
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'favorites'
         unique_together = [['user_id', 'service']]
@@ -246,13 +237,12 @@ class Favorite(models.Model):
         indexes = [
             models.Index(fields=['user_id', '-created_at']),
         ]
-    
+
     def __str__(self) -> str:
         return f"User {self.user_id} favorited {self.service.title}"
 
 
 class Deal(models.Model):
-    """МОДЕЛЬ ЗАКАЗА С ПОДДЕРЖКОЙ АРБИТРАЖА"""
     STATUS_CHOICES = [
         ('pending', 'Ожидает оплаты'),
         ('paid', 'Оплачен, в работе'),
@@ -267,39 +257,41 @@ class Deal(models.Model):
     client_id = models.UUIDField(db_index=True)
     worker_id = models.UUIDField(db_index=True)
     service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, blank=True)
-    
+
     title = models.CharField(max_length=255)
     description = models.TextField(help_text="Техническое задание")
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
-    
+
     revision_count = models.IntegerField(default=0)
     max_revisions = models.IntegerField(default=2)
-    
-    # ✅ НОВОЕ ПОЛЕ: флаг "работа была сдана хотя бы раз"
+
+    # Флаг "работа была сдана хотя бы раз"
     was_delivered = models.BooleanField(
         default=False,
         help_text="Была ли работа хотя бы раз сдана (для контроля отмены)"
     )
-    
+
     delivery_message = models.TextField(blank=True)
     completion_message = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
-    
+
     dispute_client_reason = models.TextField(blank=True, help_text="Претензия клиента")
     dispute_worker_defense = models.TextField(blank=True, help_text="Защита исполнителя")
     dispute_created_at = models.DateTimeField(null=True, blank=True, help_text="Когда открыт спор")
     dispute_resolved_at = models.DateTimeField(null=True, blank=True, help_text="Когда разрешен спор")
+    # default='' важен для фильтра dispute_winner='' в admin
     dispute_winner = models.CharField(
-        max_length=10, 
-        blank=True, 
+        max_length=10,
+        blank=True,
+        default='',
         choices=[('client', 'Клиент'), ('worker', 'Исполнитель')],
         help_text="Кто выиграл спор"
     )
-    
+
     last_message_id = models.UUIDField(null=True, blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
@@ -347,12 +339,6 @@ class Deal(models.Model):
 
     @property
     def can_cancel(self) -> bool:
-        """
-        ✅ ОБНОВЛЕННАЯ ЛОГИКА:
-        Отмена доступна только если:
-        1. Статус pending или paid
-        2. И работа ещё НИ РАЗУ не была сдана (was_delivered=False)
-        """
         return self.status in ['pending', 'paid'] and not self.was_delivered
 
     @property
@@ -377,8 +363,6 @@ class Deal(models.Model):
 
 
 class DealDeliveryAttachment(models.Model):
-    """Файлы, прикрепленные к сдаче работы"""
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='delivery_attachments')
     file = models.FileField(
@@ -390,17 +374,16 @@ class DealDeliveryAttachment(models.Model):
     file_size = models.IntegerField()
     content_type = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'deal_delivery_attachments'
         ordering = ['created_at']
-    
+
     def __str__(self):
         return f"Delivery file {self.filename} for Deal {self.deal_id}"
 
 
 class Transaction(models.Model):
-    """Финансовая транзакция"""
     STATUS_CHOICES = [
         ('pending', 'Ожидает'),
         ('held', 'Захолдировано'),
@@ -413,10 +396,10 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     commission = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
+
     payment_provider = models.CharField(max_length=50, default='stub')
     external_payment_id = models.CharField(max_length=255, blank=True, null=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -426,7 +409,6 @@ class Transaction(models.Model):
 
 
 class Review(models.Model):
-    """Отзывы о заказе"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     deal = models.OneToOneField(Deal, on_delete=models.CASCADE, related_name='review')
 

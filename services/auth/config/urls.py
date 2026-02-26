@@ -4,8 +4,12 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+# Auth admin живёт по /auth-admin/ (Caddy проксирует /auth-admin* → auth:8001)
+# Но Django внутри слушает просто /auth-admin/
+admin.site.site_url = '/auth-admin/'
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('auth-admin/', admin.site.urls),
     path('api/auth/', include('apps.users.urls')),
 ]
 

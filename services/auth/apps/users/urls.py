@@ -1,11 +1,12 @@
+# services/auth/apps/users/urls.py
 from django.urls import path
 from .views import (
-    RegisterView, 
+    RegisterView,
     LoginView,
     LogoutView,
-    ProfileView, 
-    CheckBalanceView, 
-    BatchUsersView, 
+    ProfileView,
+    CheckBalanceView,
+    BatchUsersView,
     PublicProfileView,
     SubscriptionView,
     TelegramGenerateLinkView,
@@ -22,8 +23,9 @@ from .views import (
     ResetPasswordView,
     ChangePasswordView,
     DeleteAccountView,
+    InternalUserProfileView,
+    InternalSetUserActiveView,
 )
-from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -44,7 +46,10 @@ urlpatterns = [
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),
     path('users/<uuid:user_id>/', PublicProfileView.as_view(), name='public_profile'),
     path('subscription/', SubscriptionView.as_view(), name='subscription'),
-    path('internal/users/<uuid:user_id>/profile/', views.InternalUserProfileView.as_view(), name='internal-user-profile'),
+    # ─── Internal endpoints (защищены InternalServiceMiddleware) ──────────────
+    path('internal/users/<uuid:user_id>/profile/', InternalUserProfileView.as_view(), name='internal-user-profile'),
+    path('internal/users/<uuid:user_id>/set-active/', InternalSetUserActiveView.as_view(), name='internal-set-user-active'),
+    # ─── Telegram ─────────────────────────────────────────────────────────────
     path('telegram/generate-link/', TelegramGenerateLinkView.as_view(), name='telegram_generate_link'),
     path('telegram/verify-token/', TelegramVerifyTokenView.as_view(), name='telegram_verify_token'),
     path('telegram/disconnect/', TelegramDisconnectView.as_view(), name='telegram_disconnect'),
