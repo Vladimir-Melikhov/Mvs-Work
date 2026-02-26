@@ -188,7 +188,7 @@
       </div>
     </div>
 
-    <!-- Sidebar с адаптивной шириной -->
+    <!-- Sidebar -->
     <div class="w-80 lg:w-96 shrink-0 overflow-y-auto pr-2 scrollbar-thin">
       <div class="mb-4">
         <a 
@@ -581,16 +581,21 @@ const dealMessages = computed(() => {
   return messages.value.filter(m => m.message_type !== 'text')
 })
 
-// ✅ ЗАДАЧА 1: Сортировка заказов по дате создания (новые первые)
 const activeDeals = computed(() => {
-  return dealMessages.value
-    .map(m => m.deal_data)
-    .filter(d => d && d.deal_id)
-    .sort((a, b) => {
-      const dateA = new Date(a.created_at || 0)
-      const dateB = new Date(b.created_at || 0)
-      return dateB - dateA // Новые первые
-    })
+  // Дедупликация: для каждого deal_id берём последнее сообщение
+  const dealsMap = new Map()
+  for (const msg of dealMessages.value) {
+    const d = msg.deal_data
+    if (!d || !d.deal_id) continue
+    const existing = dealsMap.get(d.deal_id)
+    if (!existing || new Date(msg.created_at) > new Date(existing._msgCreatedAt)) {
+      dealsMap.set(d.deal_id, { ...d, _msgCreatedAt: msg.created_at })
+    }
+  }
+
+  return Array.from(dealsMap.values())
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map(({ _msgCreatedAt, ...deal }) => deal)
 })
 
 const groupedMessages = computed(() => {
@@ -646,8 +651,7 @@ const isMyMessage = (msg) => String(msg.sender_id) === String(auth.user.id)
 const formatTime = (isoString) => new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 const formatFileSize = (bytes) => {
-  if (bytes === undefined || bytes === null || isNaN(bytes)) return ''; 
-  
+  if (bytes === undefined || bytes === null || isNaN(bytes)) return ''
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
@@ -717,7 +721,7 @@ const getIconPath = (type) => {
 }
 
 const getStatusLabel = (status) => {
-  const labels = { 'pending': 'Ожидает оплаты', 'paid': 'В работе', 'delivered': 'Сдано', 'completed': 'Завершено', 'cancelled': 'Отменено' }
+  const labels = { 'pending': 'Ожидает оплаты', 'paid': 'В работе', 'delivered': 'Сдано', 'completed': 'Завершено', 'cancelled': 'Отменено', 'dispute': 'В споре' }
   return labels[status] || status
 }
 
@@ -897,7 +901,6 @@ const scrollToBottom = async (smooth = true) => {
 const markAsRead = async () => {
   try {
     await axios.post(`/api/chat/rooms/${roomId}/mark-read/`)
-    console.log('✅ Чат отмечен как прочитанный')
   } catch (error) {
     console.error('❌ Ошибка отметки прочитанного:', error)
   }
@@ -928,6 +931,39 @@ const fetchHistory = async () => {
   }
 }
 
+/**
+ * ✅ Обновление deal_data в messages реактивным способом (splice).
+ * Вызывается при получении события deal_card_updated по WebSocket.
+ * Обновляет все сообщения с matching deal_id — нет зависимости от message_id.
+ */
+const applyDealCardUpdate = (dealData) => {
+  if (!dealData || !dealData.deal_id) return
+
+  let updated = false
+
+  for (let i = 0; i < messages.value.length; i++) {
+    const msg = messages.value[i]
+    if (
+      msg.message_type !== 'text' &&
+      msg.deal_data &&
+      String(msg.deal_data.deal_id) === String(dealData.deal_id)
+    ) {
+      // splice гарантирует реактивность Vue 3
+      messages.value.splice(i, 1, {
+        ...msg,
+        deal_data: { ...dealData }
+      })
+      updated = true
+    }
+  }
+
+  if (!updated) {
+    // Сообщение ещё не в истории (race condition) — перезагружаем
+    console.warn('[WS] deal_card_updated: сообщение не найдено, перезагрузка истории')
+    fetchHistory()
+  }
+}
+
 const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
@@ -945,19 +981,26 @@ const connectWebSocket = () => {
   }
   
   socket.onmessage = async (event) => {
-    console.log('📨 Получено сообщение:', event.data)
     const data = JSON.parse(event.data)
+
     if (data.type === 'message') {
       const msg = data.data
       messages.value.push(msg)
-      
       await nextTick()
       scrollToBottom(true)
-      
       await markAsRead()
+
     } else if (data.type === 'message_updated') {
+      // Обновляем сообщение в истории чата через splice для реактивности
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
-      if (idx !== -1) messages.value[idx] = data.data
+      if (idx !== -1) {
+        messages.value.splice(idx, 1, data.data)
+      }
+
+    } else if (data.type === 'deal_card_updated') {
+      // ✅ Целевое обновление панели заказов — без перезагрузки всей истории
+      console.log('🔄 deal_card_updated получен:', data.deal_data?.deal_id, data.deal_data?.status)
+      applyDealCardUpdate(data.deal_data)
     }
   }
   
@@ -995,8 +1038,6 @@ const sendMessage = async () => {
       text: newMessage.value.trim(),
       attachments: uploadedFiles.map(f => f.id)
     }
-    
-    console.log('📤 Отправка сообщения:', messageData)
     
     socket.send(JSON.stringify(messageData))
     

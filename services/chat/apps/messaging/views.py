@@ -34,17 +34,13 @@ class RoomViewSet(viewsets.ViewSet):
         if file.size > max_size_mb * 1024 * 1024:
             raise ValueError(f'Файл превышает {max_size_mb}MB')
         
-        # MIME-type проверка
         file_head = file.read(2048)
         file.seek(0)
         
         mime = magic.from_buffer(file_head, mime=True)
         
-        # Разрешенные MIME-types (расширенный список)
         allowed_mimes = [
-            # Изображения
             'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-            # Документы
             'application/pdf',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -52,21 +48,14 @@ class RoomViewSet(viewsets.ViewSet):
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/vnd.ms-powerpoint',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            # Текстовые
             'text/plain', 'text/csv', 'text/html',
-            # Архивы
             'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
-            # Видео
             'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo',
-            # Аудио
             'audio/mpeg', 'audio/wav', 'audio/ogg',
-            # Код
             'application/json', 'application/xml',
-            # Общий бинарный (для неопределенных типов)
             'application/octet-stream'
         ]
         
-        # Для application/octet-stream проверяем расширение
         if mime == 'application/octet-stream':
             ext = os.path.splitext(file.name)[1].lower()
             safe_extensions = [
@@ -82,11 +71,10 @@ class RoomViewSet(viewsets.ViewSet):
         return True
 
     def list(self, request):
-        """Получить все комнаты пользователя с правильной сортировкой"""
         user_id = str(request.user.id)
         rooms = Room.objects.filter(
             members__contains=[user_id]
-        ).order_by('-updated_at')  # Сортировка по времени последнего сообщения
+        ).order_by('-updated_at')
         
         serializer = RoomSerializer(rooms, many=True, context={'request': request})
         
@@ -97,7 +85,6 @@ class RoomViewSet(viewsets.ViewSet):
         })
 
     def retrieve(self, request, pk=None):
-        """Получить конкретную комнату"""
         try:
             room = Room.objects.get(id=pk)
             user_id = str(request.user.id)
@@ -116,7 +103,6 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create_room', throttle_classes=[RoomCreationThrottle])
     def create_room(self, request):
-        """Создать комнату между двумя пользователями"""
         user1_id = str(request.user.id)
         user2_id = request.data.get('user2_id')
 
@@ -148,7 +134,6 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
-        """Получить историю сообщений комнаты"""
         try:
             room = Room.objects.get(id=pk)
             user_id = str(request.user.id)
@@ -169,7 +154,6 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):
-        """Отметить все сообщения как прочитанные"""
         try:
             room = Room.objects.get(id=pk)
             user_id = str(request.user.id)
@@ -177,11 +161,9 @@ class RoomViewSet(viewsets.ViewSet):
             if user_id not in room.members:
                 return Response({'error': 'Нет доступа'}, status=403)
             
-            # Получаем последнее сообщение в комнате
             last_message = room.messages.last()
             
             if last_message:
-                # Обновляем или создаем запись о прочтении
                 ReadReceipt.objects.update_or_create(
                     room=room,
                     user_id=user_id,
@@ -211,6 +193,8 @@ class RoomViewSet(viewsets.ViewSet):
             update_message_id = request.data.get('update_message_id')
             attachments_data = request.data.get('attachments', [])
             
+            channel_layer = get_channel_layer()
+
             if update_message_id:
                 try:
                     message = Message.objects.get(id=update_message_id, room=room)
@@ -219,15 +203,29 @@ class RoomViewSet(viewsets.ViewSet):
                     message.message_type = message_type
                     message.deal_data = deal_data
                     message.save()
-                    
-                    channel_layer = get_channel_layer()
+
+                    serialized = self._serialize_message(message, request)
+
+                    # Событие обновления самого сообщения (для истории чата)
                     async_to_sync(channel_layer.group_send)(
                         f'chat_{pk}',
                         {
                             'type': 'message_updated',
-                            'message': self._serialize_message(message, request)
+                            'message': serialized
                         }
                     )
+
+                    # ✅ Отдельное событие для панели заказов — гарантирует
+                    # реактивное обновление activeDeals на фронте
+                    if deal_data and deal_data.get('deal_id'):
+                        async_to_sync(channel_layer.group_send)(
+                            f'chat_{pk}',
+                            {
+                                'type': 'deal_card_updated',
+                                'deal_data': deal_data,
+                                'message_id': str(message.id),
+                            }
+                        )
                     
                     return Response({
                         'status': 'success',
@@ -238,6 +236,7 @@ class RoomViewSet(viewsets.ViewSet):
                 except Message.DoesNotExist:
                     pass
             
+            # Создаём новое сообщение
             message = Message.objects.create(
                 room=room,
                 sender_id=sender_id,
@@ -257,17 +256,28 @@ class RoomViewSet(viewsets.ViewSet):
                         display_mode='attachment'
                     )
             
-            # ✅ ОТПРАВКА TELEGRAM УВЕДОМЛЕНИЯ О СИСТЕМНОМ СООБЩЕНИИ
             self._send_system_message_notification(message, sender_id, room.members)
+
+            serialized = self._serialize_message(message, request)
             
-            channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{pk}',
                 {
                     'type': 'chat_message',
-                    'message': self._serialize_message(message, request)
+                    'message': serialized
                 }
             )
+
+            # ✅ Для новых deal_card сообщений тоже шлём deal_card_updated
+            if deal_data and deal_data.get('deal_id') and message_type == 'deal_card':
+                async_to_sync(channel_layer.group_send)(
+                    f'chat_{pk}',
+                    {
+                        'type': 'deal_card_updated',
+                        'deal_data': deal_data,
+                        'message_id': str(message.id),
+                    }
+                )
             
             return Response({
                 'status': 'success',
@@ -281,24 +291,18 @@ class RoomViewSet(viewsets.ViewSet):
             return Response({'error': str(e)}, status=400)
 
     def _send_system_message_notification(self, message, sender_id, members):
-        """
-        Отправить Telegram уведомление о системном сообщении
-        """
         try:
             notification_service = TelegramNotificationService()
             success = notification_service.send_notification(message, sender_id, members)
-            
             if success:
                 print(f"[TELEGRAM] ✅ Системное уведомление отправлено")
             else:
                 print(f"[TELEGRAM] ℹ️ Системное уведомление не отправлено")
-                
         except Exception as e:
             print(f"[TELEGRAM] ⚠️ Ошибка отправки системного уведомления: {e}")
 
     @action(detail=False, methods=['post'], url_path='upload', throttle_classes=[FileUploadThrottle])
     def upload_files(self, request):
-        """Для изображений со сжатием (display_mode = 'inline')"""
         try:
             files = request.FILES.getlist('files')
             if not files:
@@ -348,7 +352,6 @@ class RoomViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload-raw-files', throttle_classes=[FileUploadThrottle])
     def upload_raw_files(self, request):
-        """Для СЫРЫХ файлов БЕЗ обработки (display_mode = 'attachment')"""
         try:
             files = request.FILES.getlist('files')
             
@@ -417,7 +420,6 @@ class RoomViewSet(viewsets.ViewSet):
             }, status=400)
 
     def _serialize_message(self, message, request):
-        """Сериализация сообщения для WebSocket"""
         attachments = []
         for att in message.attachments.all():
             file_url = att.get_file_url()

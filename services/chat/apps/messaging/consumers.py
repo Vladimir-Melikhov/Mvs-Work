@@ -1,3 +1,4 @@
+# services/chat/apps/messaging/consumers.py
 import json
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -8,18 +9,16 @@ from .notification_service import TelegramNotificationService
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # 1. Проверка аутентификации
         user = self.scope.get('user')
         if not user or not user.is_authenticated:
             await self.close(code=4001)
             return
         
-        # 2. Проверка членства в чате
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         is_member = await self.check_room_membership(str(user.id), self.room_id)
         
         if not is_member:
-            await self.close(code=4003)  # Forbidden
+            await self.close(code=4003)
             return
         
         self.room_group_name = f'chat_{self.room_id}'
@@ -44,10 +43,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message_type = data.get('type', 'message')
 
         if message_type == 'message':
-            # Валидация: отправитель должен быть текущим пользователем
             sender_id = data.get('sender_id')
             if str(sender_id) != self.user_id:
-                return  # Игнорируем попытку отправить от чужого имени
+                return
             
             text = data.get('text', '')
             attachments = data.get('attachments', [])
@@ -60,7 +58,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 attachment_ids=attachments
             )
 
-            # Отправка Telegram уведомления
             await self.send_telegram_notification(message, self.user_id)
 
             await self.channel_layer.group_send(
@@ -72,22 +69,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def chat_message(self, event):
-        """Обработчик для отправки новых сообщений клиентам"""
+        """Новое сообщение"""
         await self.send(text_data=json.dumps({
             'type': 'message',
             'data': event['message']
         }))
     
     async def message_updated(self, event):
-        """Обработчик для обновления существующих сообщений"""
+        """Обновление существующего сообщения (история чата)"""
         await self.send(text_data=json.dumps({
             'type': 'message_updated',
             'data': event['message']
         }))
 
+    async def deal_card_updated(self, event):
+        """
+        ✅ Целевое обновление панели заказов.
+        Фронт обновляет activeDeals напрямую по deal_id — без перезагрузки истории.
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'deal_card_updated',
+            'deal_data': event['deal_data'],
+            'message_id': event.get('message_id'),
+        }))
+
     @database_sync_to_async
     def check_room_membership(self, user_id, room_id):
-        """Проверить, что пользователь - участник чата"""
         try:
             room = Room.objects.get(id=room_id)
             return str(user_id) in [str(m) for m in room.members]
@@ -96,7 +103,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, room_id, sender_id, text, message_type='text', deal_data=None, attachment_ids=None):
-        """Сохранить сообщение в БД и прикрепить файлы"""
         room = Room.objects.get(id=room_id)
         message = Message.objects.create(
             room=room,
@@ -119,7 +125,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def serialize_message(self, message):
-        """Сериализация сообщения для отправки"""
         attachments = []
         for att in message.attachments.all():
             file_url = att.get_file_url()
@@ -150,35 +155,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def get_room_members(self, message):
-        """Получить членов комнаты"""
         return message.room.members
     
     async def send_telegram_notification(self, message, sender_id):
-        """
-        Отправка Telegram уведомления через централизованный сервис
-        """
         try:
             print(f"[TELEGRAM] 🔔 Отправка уведомления о сообщении {message.id}")
-            
-            # Получаем участников комнаты
             members = await self.get_room_members(message)
-            
-            # Используем сервис уведомлений
             notification_service = TelegramNotificationService()
-            
-            # Отправляем синхронно (т.к. внутри уже requests)
             success = await self.run_in_executor(
                 notification_service.send_notification,
                 message,
                 sender_id,
                 members
             )
-            
             if success:
                 print(f"[TELEGRAM] ✅ Уведомление успешно отправлено")
             else:
                 print(f"[TELEGRAM] ⚠️ Уведомление не отправлено")
-            
         except Exception as e:
             print(f"[TELEGRAM] ⚠️ Ошибка отправки уведомления: {e}")
             import traceback
@@ -186,5 +179,4 @@ class ChatConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def run_in_executor(self, func, *args):
-        """Запустить синхронную функцию в executor"""
         return func(*args)
