@@ -43,9 +43,7 @@ export const useAuthStore = defineStore('auth', {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
           this.isInitialized = true
-          
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
-          
           return { success: true }
         } else {
           return { 
@@ -54,7 +52,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Registration error:', error)
         return { 
           success: false, 
           error: error.response?.data?.error || 'Registration failed' 
@@ -62,12 +59,11 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(email, password, recaptchaToken) {
+    async login(email, password) {
       try {
         const response = await axios.post('/api/auth/login/', {
           email,
-          password,
-          recaptcha_token: recaptchaToken
+          password
         }, {
           withCredentials: true
         })
@@ -76,9 +72,7 @@ export const useAuthStore = defineStore('auth', {
           this.accessToken = response.data.data.tokens.access
           this.user = response.data.data.user
           this.isInitialized = true
-          
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`
-          
           return { success: true }
         } else {
           return { 
@@ -87,42 +81,20 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Login error:', error)
-        
         if (error.response) {
-          const errorData = error.response.data
-          
           if (error.response.status === 401) {
-            return { 
-              success: false, 
-              error: 'Неверный email или пароль'
-            }
+            return { success: false, error: 'Неверный email или пароль' }
           } else if (error.response.status === 429) {
-            return { 
-              success: false, 
-              error: 'Слишком много попыток. Попробуйте позже.'
-            }
+            return { success: false, error: 'Слишком много попыток. Попробуйте позже.' }
           } else if (error.response.status === 400) {
-            return { 
-              success: false, 
-              error: errorData.error || 'Некорректные данные'
-            }
+            return { success: false, error: error.response.data.error || 'Некорректные данные' }
           } else {
-            return { 
-              success: false, 
-              error: 'Ошибка сервера. Попробуйте позже.'
-            }
+            return { success: false, error: 'Ошибка сервера. Попробуйте позже.' }
           }
         } else if (error.request) {
-          return { 
-            success: false, 
-            error: 'Нет соединения с сервером'
-          }
+          return { success: false, error: 'Нет соединения с сервером' }
         } else {
-          return { 
-            success: false, 
-            error: 'Ошибка входа. Проверьте данные и попробуйте снова.'
-          }
+          return { success: false, error: 'Ошибка входа. Проверьте данные и попробуйте снова.' }
         }
       }
     },
@@ -143,7 +115,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Update profile error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Update failed'
@@ -162,21 +133,15 @@ export const useAuthStore = defineStore('auth', {
           this.user = response.data.data
         }
       } catch (error) {
-        console.error('Failed to fetch profile:', error)
         throw error
       }
     },
 
     async refreshAccessToken() {
       try {
-        console.log('🔄 Refreshing token...')
-        console.log('📨 Cookies:', document.cookie)
-        
         const response = await axios.post('/api/auth/token/refresh/', {}, {
           withCredentials: true
         })
-        
-        console.log('✅ Refresh response:', response.data)
         
         if (response.data && response.data.access) {
           this.accessToken = response.data.access
@@ -184,10 +149,8 @@ export const useAuthStore = defineStore('auth', {
           return true
         }
         
-        console.warn('⚠️ No access token in response')
         return false
       } catch (error) {
-        console.error('❌ Token refresh failed:', error.response?.data || error.message)
         this.clearAuth()
         return false
       }
@@ -200,7 +163,6 @@ export const useAuthStore = defineStore('auth', {
           await this.fetchProfile()
         }
       } catch (error) {
-        console.error('Auth initialization failed:', error)
         this.clearAuth()
       } finally {
         this.isInitialized = true
@@ -225,7 +187,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Email verification error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Verification failed'
@@ -248,7 +209,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Resend verification error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Failed to resend code'
@@ -269,7 +229,7 @@ export const useAuthStore = defineStore('auth', {
           withCredentials: true
         })
       } catch (error) {
-        console.error('Logout error:', error)
+        // silent
       } finally {
         this.clearAuth()
         this.isInitialized = true
@@ -288,11 +248,8 @@ export const useAuthStore = defineStore('auth', {
         if (response.data.status === 'success') {
           this.clearAuth()
           this.isInitialized = true
-          
           await router.push('/login')
-          
           window.location.href = '/login'
-          
           return { success: true }
         } else {
           return {
@@ -301,7 +258,6 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.error('Delete account error:', error)
         return {
           success: false,
           error: error.response?.data?.error || 'Ошибка удаления аккаунта'

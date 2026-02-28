@@ -2,7 +2,7 @@
     admin off
 }
 
-:80 {
+mvs-work.ru, www.mvs-work.ru {
     # WebSocket для чата
     @websocket {
         header Connection *Upgrade*

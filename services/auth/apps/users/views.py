@@ -69,42 +69,6 @@ def log_login_attempt(email, ip_address, successful):
     )
 
 
-def verify_recaptcha(token):
-    """Проверка reCAPTCHA токена"""
-    secret_key = os.getenv('RECAPTCHA_SECRET_KEY')
-    
-    if not secret_key:
-        if settings.DEBUG:
-            return True
-        return False
-    
-    TEST_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
-    if secret_key == TEST_SECRET_KEY and settings.DEBUG:
-        print("⚠️ Используются тестовые ключи reCAPTCHA (только для разработки!)")
-        return True
-    
-    try:
-        response = requests.post(
-            'https://www.google.com/recaptcha/api/siteverify',
-            data={
-                'secret': secret_key,
-                'response': token
-            },
-            timeout=5
-        )
-        
-        result = response.json()
-        
-        if settings.DEBUG:
-            print(f"reCAPTCHA response: {result}")
-        
-        return result.get('success', False)
-    except Exception as e:
-        print(f"reCAPTCHA verification error: {e}")
-        if settings.DEBUG:
-            return True
-        return False
-
 
 def send_verification_email(user, code, verification_type='registration', new_email=None):
     """Отправка email с кодом подтверждения"""
@@ -314,15 +278,7 @@ class LoginView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         email = serializer.validated_data['email']
-        recaptcha_token = serializer.validated_data['recaptcha_token']
         ip_address = get_client_ip(request)
-        
-        if not verify_recaptcha(recaptcha_token):
-            return Response({
-                'status': 'error',
-                'error': 'reCAPTCHA проверка не пройдена',
-                'data': None
-            }, status=status.HTTP_400_BAD_REQUEST)
         
         if not check_login_attempts(email, ip_address):
             return Response({
@@ -366,7 +322,6 @@ class LoginView(APIView):
             
         except ValueError as e:
             log_login_attempt(email, ip_address, successful=False)
-            
             return Response({
                 'status': 'error',
                 'error': 'Неверный email или пароль',
@@ -374,7 +329,6 @@ class LoginView(APIView):
             }, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
             log_login_attempt(email, ip_address, successful=False)
-            
             return Response({
                 'status': 'error',
                 'error': 'Ошибка сервера. Попробуйте позже.',

@@ -29,8 +29,6 @@
             :disabled="isLoading"
           >
         </div>
-
-        <div ref="recaptchaContainer" class="flex justify-center"></div>
       </div>
 
       <div v-if="errorMessage" class="mt-4 p-3 rounded-2xl bg-red-50/80 text-red-500 text-xs font-bold text-center border border-red-100 w-full animate-fade-in">
@@ -57,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
 
@@ -65,43 +63,9 @@ const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
 const isLoading = ref(false)
-const recaptchaContainer = ref(null)
-let recaptchaWidgetId = null
 
 const auth = useAuthStore()
 const router = useRouter()
-
-const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
-
-const loadRecaptcha = () => {
-  return new Promise((resolve) => {
-    if (window.grecaptcha) {
-      resolve()
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit'
-    script.async = true
-    script.defer = true
-    script.onload = resolve
-    document.head.appendChild(script)
-  })
-}
-
-const renderRecaptcha = () => {
-  if (!recaptchaContainer.value) return
-
-  try {
-    recaptchaWidgetId = window.grecaptcha.render(recaptchaContainer.value, {
-      sitekey: RECAPTCHA_SITE_KEY,
-      size: 'normal',
-      theme: 'light'
-    })
-  } catch (error) {
-    console.error('reCAPTCHA render error:', error)
-  }
-}
 
 const handleLogin = async () => {
   errorMessage.value = ''
@@ -111,59 +75,23 @@ const handleLogin = async () => {
     return
   }
 
-  const recaptchaToken = window.grecaptcha?.getResponse(recaptchaWidgetId)
-  
-  if (!recaptchaToken) {
-    errorMessage.value = 'Пожалуйста, подтвердите, что вы не робот'
-    return
-  }
-
   isLoading.value = true
 
   try {
-    const res = await auth.login(email.value, password.value, recaptchaToken)
+    const res = await auth.login(email.value, password.value)
     
     if (res.success) {
       router.push('/')
     } else {
       errorMessage.value = res.error || 'Ошибка входа. Проверьте данные и попробуйте снова.'
-      if (window.grecaptcha && recaptchaWidgetId !== null) {
-        window.grecaptcha.reset(recaptchaWidgetId)
-      }
     }
   } catch (error) {
     console.error('Login error:', error)
     errorMessage.value = 'Произошла ошибка. Попробуйте снова.'
-    if (window.grecaptcha && recaptchaWidgetId !== null) {
-      window.grecaptcha.reset(recaptchaWidgetId)
-    }
   } finally {
     isLoading.value = false
   }
 }
-
-onMounted(async () => {
-  await loadRecaptcha()
-  
-  const checkRecaptcha = setInterval(() => {
-    if (window.grecaptcha && window.grecaptcha.render) {
-      clearInterval(checkRecaptcha)
-      renderRecaptcha()
-    }
-  }, 100)
-  
-  setTimeout(() => clearInterval(checkRecaptcha), 10000)
-})
-
-onBeforeUnmount(() => {
-  if (recaptchaWidgetId !== null && window.grecaptcha) {
-    try {
-      window.grecaptcha.reset(recaptchaWidgetId)
-    } catch (error) {
-      console.error('reCAPTCHA cleanup error:', error)
-    }
-  }
-})
 </script>
 
 <style scoped>
