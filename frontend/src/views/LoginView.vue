@@ -86,7 +86,6 @@ const handleLogin = async () => {
       errorMessage.value = res.error || 'Ошибка входа. Проверьте данные и попробуйте снова.'
     }
   } catch (error) {
-    console.error('Login error:', error)
     errorMessage.value = 'Произошла ошибка. Попробуйте снова.'
   } finally {
     isLoading.value = false

@@ -32,7 +32,7 @@
               type="text" 
               placeholder="Введите 6-значный код" 
               maxlength="6"
-              class="ios-input text-center text-2xl tracking-widest font-mono"
+              class="ios-input text-center"
               @keydown.enter="verifyCode"
               @input="code = code.replace(/[^0-9]/g, '')"
             >

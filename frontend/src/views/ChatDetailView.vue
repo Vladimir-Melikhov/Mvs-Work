@@ -266,8 +266,15 @@
   </div>
 
   <!-- MOBILE VERSION -->
-  <div class="md:hidden flex flex-col" style="height: 100vh; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f2f4f8;">
+  <!-- 
+    КЛЮЧЕВОЕ: только height: 100dvh (без 100vh fallback).
+    dvh = dynamic viewport height — автоматически сжимается когда появляется клавиатура.
+    position: fixed + inset 0 чтобы страница не скроллилась под клавиатурой.
+    Шапка (shrink-0) никогда не сжимается — только flex-1 область чата.
+  -->
+  <div class="md:hidden flex flex-col" style="height: 100dvh; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f2f4f8;">
     
+    <!-- Шапка — shrink-0, никогда не прячется при открытии клавиатуры -->
     <div class="glass px-3 py-2 rounded-b-[24px] flex items-center gap-2 border-b border-white/60 shadow-sm shrink-0">
       <button 
         @click="$router.push('/chats')" 
@@ -317,6 +324,7 @@
       </button>
     </div>
 
+    <!-- Помощь — shrink-0, не растягивается -->
     <div v-if="mobileShowHelp" class="p-3 shrink-0 space-y-2">
       <a 
         :href="supportLink" 
@@ -338,7 +346,13 @@
       <TelegramNotificationBanner />
     </div>
 
+    <!-- 
+      Основная область — flex-1 + min-h-0.
+      При появлении клавиатуры dvh уменьшается → этот блок сжимается.
+      Шапка (shrink-0) остаётся на месте. Инпут (shrink-0) прижимается к клавиатуре.
+    -->
     <div v-if="!mobileShowDeal" class="flex-1 flex flex-col min-h-0 px-2">
+      <!-- flex-1 + overflow-y-auto — сообщения скроллятся внутри, не вся страница -->
       <div 
         ref="mobileMessagesContainer"
         class="flex-1 glass rounded-[28px] p-3 overflow-y-auto my-2 border border-white/40"
@@ -429,6 +443,7 @@
         </template>
       </div>
 
+      <!-- shrink-0 — инпут не сжимается, прижат к низу / к клавиатуре -->
       <div class="glass p-1.5 rounded-[22px] flex items-center gap-1.5 border border-white/60 shadow-xl bg-white/40 backdrop-blur-xl shrink-0 mb-2">
         <label class="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/40 transition-all shrink-0" title="Изображение (сжатое)">
           <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -455,12 +470,14 @@
           >
         </label>
         
+        <!-- font-size: 16px — без зума на iOS, убран text-sm -->
         <input 
           v-model="newMessage" 
           @keydown.enter="sendMessage"
           type="text" 
           placeholder="Сообщение..." 
-          class="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-[#1a1a2e] placeholder-gray-500 font-medium text-sm min-w-0"
+          class="flex-1 bg-transparent border-none outline-none px-3 py-2.5 text-[#1a1a2e] placeholder-gray-500 font-medium min-w-0"
+          style="font-size: 16px;"
         >
         <button 
           @click="sendMessage"
@@ -734,18 +751,14 @@ const goToPartnerProfile = () => {
 
 const handleImageSelect = async (event) => {
   const files = Array.from(event.target.files)
-  
   if (files.length === 0) return
-  
   uploading.value = true
-  
   try {
     for (const file of files) {
       if (file.size > 20 * 1024 * 1024) {
         alert(`Файл ${file.name} слишком большой (макс 20MB)`)
         continue
       }
-      
       await compressAndSendImage(file)
     }
   } catch (error) {
@@ -760,41 +773,31 @@ const handleImageSelect = async (event) => {
 const compressAndSendImage = async (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    
     reader.onload = (e) => {
       const img = new Image()
-      
       img.onload = () => {
         try {
           const MAX_WIDTH = 1920
           const MAX_HEIGHT = 1080
-          
           let width = img.width
           let height = img.height
-          
           if (width > MAX_WIDTH || height > MAX_HEIGHT) {
             const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height)
             width = Math.floor(width * ratio)
             height = Math.floor(height * ratio)
           }
-          
           const canvas = document.createElement('canvas')
           canvas.width = width
           canvas.height = height
-          
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, width, height)
-          
           canvas.toBlob(async (blob) => {
             try {
               const formData = new FormData()
               formData.append('files', blob, file.name.replace(/\.[^/.]+$/, '.jpg'))
-              
               const response = await axios.post('/api/chat/rooms/upload/', formData)
-              
               if (response.data.status === 'success') {
                 const uploadedFiles = response.data.data.files
-                
                 if (socket && socket.readyState === WebSocket.OPEN) {
                   socket.send(JSON.stringify({
                     type: 'message',
@@ -804,7 +807,6 @@ const compressAndSendImage = async (file) => {
                   }))
                 }
               }
-              
               resolve()
             } catch (error) {
               reject(error)
@@ -814,11 +816,9 @@ const compressAndSendImage = async (file) => {
           reject(error)
         }
       }
-      
       img.onerror = () => reject(new Error('Не удалось загрузить изображение'))
       img.src = e.target.result
     }
-    
     reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
     reader.readAsDataURL(file)
   })
@@ -826,18 +826,14 @@ const compressAndSendImage = async (file) => {
 
 const handleFileSelect = (event) => {
   const files = Array.from(event.target.files)
-  
   if (files.length === 0) return
-  
   for (const file of files) {
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
       continue
     }
-    
     selectedFiles.value.push(file)
   }
-  
   event.target.value = ''
 }
 
@@ -847,20 +843,14 @@ const removeFile = (index) => {
 
 const uploadRawFiles = async () => {
   if (selectedFiles.value.length === 0) return []
-  
   const formData = new FormData()
-  
   selectedFiles.value.forEach(file => {
     formData.append('files', file)
   })
-  
   try {
     const response = await axios.post('/api/chat/rooms/upload-raw-files/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
-    
     if (response.data.status === 'success') {
       return response.data.data.files
     }
@@ -868,13 +858,11 @@ const uploadRawFiles = async () => {
     console.error('❌ [RAW] Ошибка загрузки:', error.response?.data)
     throw new Error(error.response?.data?.error || 'Ошибка загрузки файлов')
   }
-  
   return []
 }
 
 const scrollToBottom = async (smooth = true) => {
   await nextTick()
-  
   if (messagesContainer.value) {
     setTimeout(() => {
       if (messagesContainer.value) {
@@ -885,7 +873,6 @@ const scrollToBottom = async (smooth = true) => {
       }
     }, 200)
   }
-  
   if (mobileMessagesContainer.value) {
     setTimeout(() => {
       if (mobileMessagesContainer.value) {
@@ -921,7 +908,6 @@ const fetchHistory = async () => {
   try {
     const res = await axios.get(`/api/chat/rooms/${roomId}/messages/`)
     messages.value = res.data.data
-    
     await nextTick()
     setTimeout(() => scrollToBottom(false), 250)
   } catch (e) { 
@@ -938,9 +924,7 @@ const fetchHistory = async () => {
  */
 const applyDealCardUpdate = (dealData) => {
   if (!dealData || !dealData.deal_id) return
-
   let updated = false
-
   for (let i = 0; i < messages.value.length; i++) {
     const msg = messages.value[i]
     if (
@@ -949,14 +933,10 @@ const applyDealCardUpdate = (dealData) => {
       String(msg.deal_data.deal_id) === String(dealData.deal_id)
     ) {
       // splice гарантирует реактивность Vue 3
-      messages.value.splice(i, 1, {
-        ...msg,
-        deal_data: { ...dealData }
-      })
+      messages.value.splice(i, 1, { ...msg, deal_data: { ...dealData } })
       updated = true
     }
   }
-
   if (!updated) {
     // Сообщение ещё не в истории (race condition) — перезагружаем
     console.warn('[WS] deal_card_updated: сообщение не найдено, перезагрузка истории')
@@ -968,11 +948,8 @@ const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
   const token = auth.accessToken || localStorage.getItem('access_token')
-  
   const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${roomId}/?token=${token}`
-  
   console.log('🔌 Подключение к WebSocket:', wsUrl)
-  
   socket = new WebSocket(wsUrl)
   
   socket.onopen = () => {
@@ -982,21 +959,18 @@ const connectWebSocket = () => {
   
   socket.onmessage = async (event) => {
     const data = JSON.parse(event.data)
-
     if (data.type === 'message') {
       const msg = data.data
       messages.value.push(msg)
       await nextTick()
       scrollToBottom(true)
       await markAsRead()
-
     } else if (data.type === 'message_updated') {
       // Обновляем сообщение в истории чата через splice для реактивности
       const idx = messages.value.findIndex(m => String(m.id) === String(data.data.id))
       if (idx !== -1) {
         messages.value.splice(idx, 1, data.data)
       }
-
     } else if (data.type === 'deal_card_updated') {
       // ✅ Целевое обновление панели заказов — без перезагрузки всей истории
       console.log('🔄 deal_card_updated получен:', data.deal_data?.deal_id, data.deal_data?.status)
@@ -1011,7 +985,6 @@ const connectWebSocket = () => {
   socket.onclose = (event) => {
     console.log('🔌 WebSocket закрыт:', event.code, event.reason)
     isConnected.value = false
-    
     setTimeout(() => {
       if (!isConnected.value) {
         console.log('🔄 Попытка переподключения...')
@@ -1044,8 +1017,8 @@ const sendMessage = async () => {
     newMessage.value = ''
     selectedFiles.value = []
     
-    await nextTick()
-    setTimeout(() => scrollToBottom(true), 200)
+    // Скролл без await nextTick и без setTimeout — чтобы не было подвисания и прыжка страницы
+    scrollToBottom(true)
   } catch (error) {
     console.error('❌ Ошибка отправки:', error)
     alert('Ошибка отправки: ' + error.message)
@@ -1068,7 +1041,6 @@ onMounted(async () => {
   await fetchHistory()
   connectWebSocket()
   await markAsRead()
-  
   setTimeout(() => scrollToBottom(false), 300)
 })
 

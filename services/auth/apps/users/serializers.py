@@ -129,4 +129,3 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
-    recaptcha_token = serializers.CharField(write_only=True, required=True)
