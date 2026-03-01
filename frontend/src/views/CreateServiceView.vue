@@ -1,4 +1,3 @@
-<!-- frontend/src/views/CreateServiceView.vue -->
 <template>
   <div class="min-h-screen pt-4 md:pt-12 pb-20 px-3 md:px-4 flex justify-center animate-fade-in">
     <div class="w-full max-w-2xl glass p-4 md:p-10 rounded-[32px] md:rounded-[40px] relative">
@@ -15,7 +14,7 @@
       <div class="space-y-4 md:space-y-6">
         
         <div>
-          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
             Название услуги <span class="text-[#7000ff]">*</span>
           </label>
           <input 
@@ -29,7 +28,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
            <div>
-            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
               Категория <span class="text-[#7000ff]">*</span>
             </label>
             <select 
@@ -46,7 +45,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
               Подкатегория
             </label>
             <select 
@@ -64,7 +63,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
-            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
               Мин. цена (₽) <span class="text-[#7000ff]">*</span>
             </label>
             <input 
@@ -78,7 +77,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
             Описание <span class="text-[#7000ff]">*</span>
           </label>
           <textarea 
@@ -90,7 +89,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-2">
             Изображения услуги (до 5 шт, первое - обложка)
           </label>
           
@@ -167,7 +166,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-2">
             Теги (для поиска)
           </label>
           <div class="bg-white/10 p-2 rounded-2xl border border-white/20 flex flex-wrap gap-2 min-h-[60px] shadow-inner">

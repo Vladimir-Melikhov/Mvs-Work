@@ -240,7 +240,11 @@ const categories = [
   { label: 'Разработка', value: 'development' },
   { label: 'Тексты', value: 'writing' },
   { label: 'Маркетинг', value: 'marketing' },
-  { label: 'Видео', value: 'video' },
+  { label: 'Видео и анимация', value: 'video' },
+  { label: 'Фото', value: 'photo' },
+  { label: 'Бизнес', value: 'business' },
+  { label: 'Аудио', value: 'audio' },
+  { label: 'Юридические услуги', value: 'legal' },
 ]
 
 const currentSubcategories = computed(() => {

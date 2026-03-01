@@ -1,12 +1,12 @@
 <template>
   <div class="reviews-section">
-    <div class="flex items-center justify-between mb-6 px-2">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 px-2 gap-y-4">
       <h3 class="text-xl font-bold text-[#1a1a2e]">Отзывы</h3>
       
       <div v-if="reviews.length > 0" class="flex items-center gap-3">
         <select 
           v-model="sortBy" 
-          class="text-xs px-2 py-1 rounded-lg bg-white/20 border border-white/30 text-[#1a1a2e] font-bold cursor-pointer hover:bg-white/30 transition-all"
+          class="text-xs px-2 py-1 rounded-lg bg-white/20 border border-white/30 text-[#1a1a2e] font-bold cursor-pointer hover:bg-white/30 transition-all outline-none"
         >
           <option value="newest">Новые</option>
           <option value="oldest">Старые</option>
@@ -179,14 +179,12 @@ const currentPage = ref(1)
 const itemsPerPage = 3
 const sortBy = ref('newest')
 
-// Расчет среднего рейтинга
 const averageRating = computed(() => {
   if (reviews.value.length === 0) return 0
   const sum = reviews.value.reduce((acc, r) => acc + Number(r.rating), 0)
   return sum / reviews.value.length
 })
 
-// Сортированные отзывы
 const sortedReviews = computed(() => {
   const reviewsCopy = [...reviews.value]
   
@@ -204,7 +202,6 @@ const sortedReviews = computed(() => {
   }
 })
 
-// Логика пагинации
 const totalPages = computed(() => Math.ceil(sortedReviews.value.length / itemsPerPage))
 
 const paginatedReviews = computed(() => {
@@ -234,14 +231,12 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// Переход в профиль пользователя
 const goToUser = (userId) => {
   if (userId) {
     router.push(`/users/${userId}`)
   }
 }
 
-// Загрузка отзывов и данных о пользователях
 const fetchReviews = async () => {
   loading.value = true
   try {
@@ -282,7 +277,6 @@ const fetchReviews = async () => {
         reviews.value = rawReviews
       }
       
-      // Уведомляем родителя о загрузке рейтинга
       emit('reviews-loaded', {
         averageRating: averageRating.value,
         totalReviews: reviews.value.length
@@ -324,7 +318,6 @@ onMounted(() => {
   }
 }
 
-/* Эффект наведения для автора */
 .group\/author:hover .group-hover\/author\:ring-2 {
   --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);

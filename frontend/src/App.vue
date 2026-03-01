@@ -3,7 +3,7 @@
   <div class="app">
     <TopNav v-if="!isMobile" />
     <BottomNav v-if="isMobile" />
-    <main class="main-content" :class="{ 'onboarding-page': isOnboardingPage }">
+    <main class="main-content" :class="{ 'onboarding-page': isOnboardingPage, 'chat-page': isChatDetailPage }">
       <router-view />
     </main>
     
@@ -24,6 +24,8 @@ const authStore = useAuthStore()
 const isMobile = ref(false)
 
 const isChatPage = computed(() => route.path.startsWith('/chats'))
+// Страница конкретного чата (не список чатов)
+const isChatDetailPage = computed(() => /^\/chats\/.+/.test(route.path))
 const isOnboardingPage = computed(() => route.path === '/onboarding')
 
 const checkMobile = () => {
@@ -43,7 +45,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ✅ ЗАДАЧА 4: Уменьшение отступа сверху для десктопа и планшетов */
 .main-content {
   max-width: 1200px;
   margin: 110px auto 20px; 
@@ -69,6 +70,13 @@ onUnmounted(() => {
     margin-top: 20px;
     margin-bottom: 100px;
     padding: 0;
+  }
+
+  /* На странице чата — обнуляем все отступы и padding чтобы fixed layout работал корректно */
+  .main-content.chat-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
   }
 }
 </style>
