@@ -470,8 +470,10 @@
           >
         </label>
         
+        <!-- ПАТЧ 2: ref="mobileInput" добавлен для восстановления фокуса после отправки -->
         <!-- font-size: 16px — без зума на iOS, убран text-sm -->
         <input 
+          ref="mobileInput"
           v-model="newMessage" 
           @keydown.enter="sendMessage"
           type="text" 
@@ -581,6 +583,9 @@ const mobileShowHelp = ref(false)
 const expandedDealIndex = ref(0)
 const selectedFiles = ref([])
 const uploading = ref(false)
+
+// ПАТЧ 1: ref для мобильного инпута — нужен для восстановления фокуса после отправки
+const mobileInput = ref(null)
 
 let socket = null
 const roomId = route.params.id
@@ -861,8 +866,11 @@ const uploadRawFiles = async () => {
   return []
 }
 
+// ПАТЧ 3: scrollToBottom — десктоп через setTimeout(200), мобайл через requestAnimationFrame без smooth
+// requestAnimationFrame + behavior: 'auto' = мгновенный скролл без блокировки лейаута при закрытии клавиатуры
 const scrollToBottom = async (smooth = true) => {
   await nextTick()
+  // Десктоп — оставляем задержку и smooth как было
   if (messagesContainer.value) {
     setTimeout(() => {
       if (messagesContainer.value) {
@@ -873,15 +881,16 @@ const scrollToBottom = async (smooth = true) => {
       }
     }, 200)
   }
+  // Мобайл — без задержки, без smooth, чтобы не было фриза при закрытии клавиатуры
   if (mobileMessagesContainer.value) {
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (mobileMessagesContainer.value) {
         mobileMessagesContainer.value.scrollTo({
           top: mobileMessagesContainer.value.scrollHeight,
-          behavior: smooth ? 'smooth' : 'auto'
+          behavior: 'auto'
         })
       }
-    }, 200)
+    })
   }
 }
 
@@ -994,6 +1003,7 @@ const connectWebSocket = () => {
   }
 }
 
+// ПАТЧ 4: sendMessage — мобайл скроллит без smooth + восстанавливает фокус на инпуте
 const sendMessage = async () => {
   if ((!newMessage.value.trim() && selectedFiles.value.length === 0) || !isConnected.value || uploading.value) return
   
@@ -1017,8 +1027,14 @@ const sendMessage = async () => {
     newMessage.value = ''
     selectedFiles.value = []
     
-    // Скролл без await nextTick и без setTimeout — чтобы не было подвисания и прыжка страницы
-    scrollToBottom(true)
+    const isMobile = window.innerWidth < 768
+    // Мобайл — без smooth, чтобы не было фриза при закрытии клавиатуры
+    scrollToBottom(!isMobile)
+
+    // Восстанавливаем фокус на инпуте — клавиатура остаётся открытой
+    if (isMobile && mobileInput.value) {
+      mobileInput.value.focus()
+    }
   } catch (error) {
     console.error('❌ Ошибка отправки:', error)
     alert('Ошибка отправки: ' + error.message)
@@ -1029,10 +1045,12 @@ const sendMessage = async () => {
 
 const refreshMessages = () => fetchHistory()
 
+// ПАТЧ 5: watch — мобайл скроллит без smooth (аналогично sendMessage)
 watch(() => messages.value.length, async () => {
   if (messages.value.length > 0) {
     await nextTick()
-    scrollToBottom(true)
+    const isMobile = window.innerWidth < 768
+    scrollToBottom(!isMobile)
   }
 })
 
