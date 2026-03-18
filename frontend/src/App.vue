@@ -7,7 +7,9 @@
       <router-view />
     </main>
     
+    <AppFooter v-if="!isChatPage && !isOnboardingPage" />
     <SupportButton v-if="!isChatPage" />
+    <CookieBanner />
   </div>
 </template>
 
@@ -18,13 +20,14 @@ import { useAuthStore } from './stores/authStore'
 import TopNav from './components/TopNav.vue'
 import BottomNav from './components/BottomNav.vue'
 import SupportButton from './components/SupportButton.vue'
+import AppFooter from './components/AppFooter.vue'
+import CookieBanner from './components/CookieBanner.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const isMobile = ref(false)
 
 const isChatPage = computed(() => route.path.startsWith('/chats'))
-// Страница конкретного чата (не список чатов)
 const isChatDetailPage = computed(() => /^\/chats\/.+/.test(route.path))
 const isOnboardingPage = computed(() => route.path === '/onboarding')
 
@@ -35,7 +38,6 @@ const checkMobile = () => {
 onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  
   await authStore.initAuth()
 })
 
@@ -62,7 +64,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .main-content {
     margin-top: 20px; 
-    margin-bottom: 100px;
+    margin-bottom: 120px;
     padding: 0 8px;
   }
   
@@ -72,7 +74,6 @@ onUnmounted(() => {
     padding: 0;
   }
 
-  /* На странице чата — обнуляем все отступы и padding чтобы fixed layout работал корректно */
   .main-content.chat-page {
     margin: 0 !important;
     padding: 0 !important;

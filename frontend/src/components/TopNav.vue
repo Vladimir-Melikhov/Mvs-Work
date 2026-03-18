@@ -8,7 +8,7 @@
           Mvs
         </span>
         <span class="text-3xl font-black text-[#1a1a2e] tracking-tighter transform scale-x-125 origin-left hover:opacity-80 transition-opacity">
-          Work
+          Работа
         </span>
       </router-link>
 

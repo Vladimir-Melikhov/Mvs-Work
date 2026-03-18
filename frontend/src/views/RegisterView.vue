@@ -47,23 +47,61 @@
           type="password" 
           placeholder="Повторите пароль" 
           class="ios-input"
-          :class="{'border-red-400 bg-red-50/50': password && confirmPassword && password !== confirmPassword}"
+          :class="{'border-2 border-red-400 bg-red-50/50': password && confirmPassword && password !== confirmPassword}"
         >
       </div>
 
-      <div class="w-full mt-4">
+      <!-- Согласие с документами -->
+      <div class="w-full mt-5 space-y-3">
         <label class="flex items-start gap-3 cursor-pointer">
-          <input 
-            type="checkbox" 
-            v-model="agreedToPolicy" 
-            class="mt-1 w-5 h-5 rounded border-gray-300 text-[#7000ff] focus:ring-[#7000ff]"
-          >
-          <span class="text-sm text-gray-600">
-            Я согласен с 
-            <button @click.prevent="showPrivacyPolicy = true" class="text-[#7000ff] font-semibold hover:underline">
-              политикой конфиденциальности
-            </button>
+          <div class="mt-0.5 shrink-0">
+            <input 
+              type="checkbox" 
+              v-model="agreedToPrivacy"
+              class="w-5 h-5 rounded border-gray-300 text-[#7000ff] focus:ring-[#7000ff] cursor-pointer"
+            >
+          </div>
+          <span class="text-sm text-gray-600 leading-snug">
+            Я ознакомлен(а) с
+            <a 
+              href="/docs/privacy-policy.pdf" 
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-[#7000ff] font-semibold hover:underline inline-flex items-center gap-1"
+              @click.stop
+            >
+              Политикой конфиденциальности
+              <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </a>
             и даю согласие на обработку персональных данных
+          </span>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer">
+          <div class="mt-0.5 shrink-0">
+            <input 
+              type="checkbox" 
+              v-model="agreedToTerms"
+              class="w-5 h-5 rounded border-gray-300 text-[#7000ff] focus:ring-[#7000ff] cursor-pointer"
+            >
+          </div>
+          <span class="text-sm text-gray-600 leading-snug">
+            Я принимаю
+            <a 
+              href="/docs/terms-of-service.pdf" 
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-[#7000ff] font-semibold hover:underline inline-flex items-center gap-1"
+              @click.stop
+            >
+              Пользовательское соглашение
+              <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </a>
+            платформы mvs-work.ru
           </span>
         </label>
       </div>
@@ -74,8 +112,8 @@
       
       <button 
         @click="handleRegister" 
-        :disabled="isLoading || !agreedToPolicy"
-        class="ios-button mt-8"
+        :disabled="isLoading || !agreedToPrivacy || !agreedToTerms"
+        class="ios-button mt-6"
       >
         {{ isLoading ? 'Создаем аккаунт...' : 'Создать аккаунт' }}
       </button>
@@ -85,12 +123,6 @@
         <router-link to="/login" class="text-[#7000ff] font-bold hover:opacity-70 transition-opacity">Войти</router-link>
       </p>
     </div>
-    
-    <PrivacyPolicyModal 
-      :show="showPrivacyPolicy" 
-      @close="showPrivacyPolicy = false"
-      @accept="handlePolicyAccept"
-    />
   </div>
 </template>
 
@@ -98,7 +130,6 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useRouter } from 'vue-router'
-import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 
 const email = ref('')
 const password = ref('')
@@ -106,20 +137,15 @@ const confirmPassword = ref('')
 const role = ref('client')
 const errorMessage = ref('')
 const isLoading = ref(false)
-const agreedToPolicy = ref(false)
-const showPrivacyPolicy = ref(false)
+const agreedToPrivacy = ref(false)
+const agreedToTerms = ref(false)
 
 const auth = useAuthStore()
 const router = useRouter()
 
-const handlePolicyAccept = () => {
-  agreedToPolicy.value = true
-  showPrivacyPolicy.value = false
-}
-
 const handleRegister = async () => {
-  if (!agreedToPolicy.value) {
-    errorMessage.value = "Необходимо согласие на обработку персональных данных"
+  if (!agreedToPrivacy.value || !agreedToTerms.value) {
+    errorMessage.value = "Необходимо принять Политику конфиденциальности и Пользовательское соглашение"
     return
   }
 

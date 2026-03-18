@@ -21,54 +21,27 @@ const router = createRouter({
       path: '/',
       redirect: '/search'
     },
+    // ── Публичные страницы (без авторизации) ──────────────────────────────────
     {
       path: '/search',
       name: 'search',
       component: SearchView,
-      meta: { requiresAuth: false, requiresEmailVerification: false }
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
     },
     {
       path: '/services/:id',
       name: 'service-detail',
       component: ServiceDetailView,
-      meta: { requiresAuth: false, requiresEmailVerification: false }
-    },
-    {
-      path: '/create-service',
-      name: 'create-service',
-      component: CreateServiceView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
-    },
-    {
-      path: '/my-services/edit/:id',
-      name: 'edit-service',
-      component: CreateServiceView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
-    },
-    {
-      path: '/chats',
-      name: 'chats',
-      component: ChatsView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
-    },
-    {
-      path: '/chats/:id', 
-      name: 'chat-detail',
-      component: ChatDetailView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
-    },
-    {
-      path: '/profile',
-      name: 'profile',
-      component: ProfileView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
     },
     {
       path: '/users/:id',
       name: 'public-profile',
       component: PublicProfileView,
-      meta: { requiresAuth: true, requiresEmailVerification: true }
+      // ✅ ИСПРАВЛЕНО: публичный профиль доступен без авторизации
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
     },
+    // ── Страницы только для гостей ────────────────────────────────────────────
     {
       path: '/login',
       name: 'login',
@@ -93,6 +66,37 @@ const router = createRouter({
       component: ResetPasswordView,
       meta: { requiresGuest: true }
     },
+    // ── Защищённые страницы (нужна авторизация) ───────────────────────────────
+    {
+      path: '/create-service',
+      name: 'create-service',
+      component: CreateServiceView,
+      meta: { requiresAuth: true, requiresEmailVerification: true }
+    },
+    {
+      path: '/my-services/edit/:id',
+      name: 'edit-service',
+      component: CreateServiceView,
+      meta: { requiresAuth: true, requiresEmailVerification: true }
+    },
+    {
+      path: '/chats',
+      name: 'chats',
+      component: ChatsView,
+      meta: { requiresAuth: true, requiresEmailVerification: true }
+    },
+    {
+      path: '/chats/:id',
+      name: 'chat-detail',
+      component: ChatDetailView,
+      meta: { requiresAuth: true, requiresEmailVerification: true }
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: ProfileView,
+      meta: { requiresAuth: true, requiresEmailVerification: true }
+    },
     {
       path: '/verify-email',
       name: 'verify-email',
@@ -110,78 +114,73 @@ const router = createRouter({
     if (savedPosition) {
       return savedPosition
     }
-    
     if (to.hash) {
-      return {
-        el: to.hash,
-        behavior: 'smooth'
-      }
+      return { el: to.hash, behavior: 'smooth' }
     }
-    
     return { top: 0 }
   }
 })
 
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
-  
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
-  const requiresEmailVerification = to.matched.some(record => record.meta.requiresEmailVerification)
 
-  // Публичные страницы (search, service-detail) - пропускаем без проверки
+  const requiresAuth = to.meta.requiresAuth === true
+  const requiresGuest = to.meta.requiresGuest === true
+  const requiresEmailVerification = to.meta.requiresEmailVerification === true
+
+  // ── 1. Полностью публичные страницы — пропускаем без любых проверок ─────────
+  // Это: /search, /services/:id, /users/:id
   if (!requiresAuth && !requiresGuest) {
     return next()
   }
 
-  // Проверяем токен только на защищенных страницах
+  // ── 2. Инициализируем auth если нужно ────────────────────────────────────────
   if (!auth.isInitialized) {
     if (requiresGuest) {
+      // Для гостевых страниц не ждём initAuth — просто помечаем инициализированным
       auth.isInitialized = true
-      return next()
+    } else {
+      // Для защищённых страниц — нужно знать статус авторизации
+      await auth.initAuth()
     }
-    
-    await auth.initAuth()
   }
 
   const isAuthenticated = auth.isAuthenticated
 
-  // Редирект неавторизованных с защищенных страниц
-  if (!isAuthenticated && requiresAuth) {
+  // ── 3. Защищённые страницы — редирект неавторизованных на /login ─────────────
+  if (requiresAuth && !isAuthenticated) {
     return next('/login')
   }
 
-  // Редирект авторизованных с гостевых страниц
-  if (isAuthenticated && requiresGuest) {
+  // ── 4. Гостевые страницы — редирект авторизованных на главную ────────────────
+  if (requiresGuest && isAuthenticated) {
     return next('/')
   }
-
-  // Проверка подтверждения email
+   
+  // ── 5. Проверка подтверждения email ──────────────────────────────────────────
   if (isAuthenticated && auth.user) {
     const emailVerified = auth.user.email_verified
-    
-    // Если email не подтвержден и страница требует подтверждения
+
     if (!emailVerified && requiresEmailVerification) {
       if (to.name !== 'verify-email') {
         return next('/verify-email')
       }
     }
-    
-    // Если email подтвержден и пользователь на странице верификации
+
     if (emailVerified && to.name === 'verify-email') {
       return next('/')
     }
   }
 
-  // Проверка заполненности профиля для worker
+  // ── 6. Проверка заполненности профиля воркера ─────────────────────────────────
   if (isAuthenticated && auth.user && auth.user.email_verified) {
     const isWorker = auth.user.role === 'worker'
     const isProfileIncomplete = isWorker && (!auth.user.profile?.skills || auth.user.profile.skills.length === 0)
-    
+
     if (isProfileIncomplete && to.name !== 'onboarding') {
       return next('/onboarding')
     }
-    
+
     if (!isProfileIncomplete && to.name === 'onboarding') {
       return next('/')
     }

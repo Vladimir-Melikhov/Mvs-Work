@@ -3,7 +3,7 @@
   <div class="min-h-screen pt-4 pb-24 md:pb-20">
     <div class="text-center mb-8 md:mb-12 px-4">
       <h1 class="text-2xl md:text-4xl font-bold text-[#1a1a2e] mb-4 md:mb-6 tracking-tight leading-tight">
-        Поиск идеального<br class="md:hidden"> исполнителя + AI
+        Поиск идеального<br class="md:hidden"> исполнителя + ИИ
       </h1>
       
       <div class="max-w-2xl mx-auto relative">
