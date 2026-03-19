@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q, Count, Avg
 from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import Service, ServiceImage, Deal, Review, DealDeliveryAttachment, Favorite
 from .serializers import (
     ServiceSerializer,
@@ -17,6 +18,7 @@ from .serializers import (
     CompleteDealSerializer,
     FavoriteSerializer
 )
+from .profanity_filter import check_fields as profanity_check
 from django.conf import settings
 from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .services import AIService
@@ -24,6 +26,64 @@ from .deal_service import DealService
 import os
 import requests
 import magic
+
+
+# ---------------------------------------------------------------------------
+# Вспомогательная функция: проверка полей на запрещённые слова
+# ---------------------------------------------------------------------------
+
+def _check_profanity_in_service_data(data: dict) -> Response | None:
+    """
+    Проверяет поля title, description, ai_template и tags на запрещённые слова.
+    Если нарушения найдены — возвращает готовый Response с ошибкой 400.
+    Если всё чисто — возвращает None.
+    """
+    from .profanity_filter import find_forbidden
+
+    fields_to_check = {}
+    if data.get('title'):
+        fields_to_check['title'] = data['title']
+    if data.get('description'):
+        fields_to_check['description'] = data['description']
+    if data.get('ai_template'):
+        fields_to_check['ai_template'] = data['ai_template']
+
+    violations = profanity_check(**fields_to_check) if fields_to_check else {}
+
+    # Теги приходят как JSON-строка или список — проверяем каждый тег отдельно
+    tags_raw = data.get('tags')
+    if tags_raw:
+        import json
+        try:
+            tags = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
+            if isinstance(tags, list):
+                bad_tags = [t for t in tags if isinstance(t, str) and find_forbidden(t)]
+                if bad_tags:
+                    violations['tags'] = bad_tags
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not violations:
+        return None
+
+    field_labels = {
+        'title': 'Название',
+        'description': 'Описание',
+        'ai_template': 'Требования к заказчику',
+        'tags': 'Теги',
+    }
+    errors = {}
+    for field, hits in violations.items():
+        label = field_labels.get(field, field)
+        if field == 'tags':
+            errors[field] = f'Поле «{label}» содержит недопустимые слова: {", ".join(hits)}.'
+        else:
+            errors[field] = f'Поле «{label}» содержит недопустимые слова.'
+
+    return Response(
+        {'status': 'error', 'error': errors, 'data': None},
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -39,13 +99,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Service.objects.all()
-        
+
         if self.action == 'list':
             owner_id = self.request.query_params.get('owner_id')
-            
+
             if owner_id:
                 queryset = queryset.filter(owner_id=owner_id)
-                
                 if not self.request.user.is_authenticated or str(self.request.user.id) != str(owner_id):
                     queryset = queryset.filter(is_active=True)
             else:
@@ -56,7 +115,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if cats_param:
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
-        
+
         # Фильтрация по подкатегориям
         subcats_param = self.request.query_params.get('subcategories') or self.request.query_params.get('subcategory')
         if subcats_param:
@@ -67,30 +126,27 @@ class ServiceViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
-                Q(title__icontains=search) | 
+                Q(title__icontains=search) |
                 Q(description__icontains=search) |
                 Q(tags__contains=[search])
             )
 
         # Сортировка
         sort_by = self.request.query_params.get('sort', '-created_at')
-        
+
         if sort_by == 'price_asc':
             queryset = queryset.order_by('price')
         elif sort_by == 'price_desc':
             queryset = queryset.order_by('-price')
         elif sort_by == 'popular':
-            # Сортировка по популярности (количество избранного)
             queryset = queryset.annotate(
                 favorites_count=Count('favorited_by')
             ).order_by('-favorites_count', '-created_at')
         elif sort_by == 'rating':
-            # Сортировка по рейтингу владельца
             queryset = queryset.annotate(
-                avg_rating=Avg('owner_id')  # Требует дополнительной логики
-            ).order_by('-created_at')  # Временно по дате
+                avg_rating=Avg('owner_id')
+            ).order_by('-created_at')
         else:
-            # По умолчанию - новые первые
             queryset = queryset.order_by('-created_at')
 
         return queryset
@@ -103,15 +159,15 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, pk=None):
         try:
             service = self.get_object()
-            
+
             if not service.is_active:
                 if not request.user.is_authenticated or str(request.user.id) != str(service.owner_id):
                     return Response({
-                        'status': 'error', 
-                        'error': 'Это объявление неактивно', 
+                        'status': 'error',
+                        'error': 'Это объявление неактивно',
                         'data': None
                     }, status=403)
-            
+
             serializer = self.get_serializer(service)
             return Response({'status': 'success', 'data': serializer.data, 'error': None})
         except Service.DoesNotExist:
@@ -121,14 +177,14 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def get_subcategories(self, request):
         """Получить список всех подкатегорий для всех категорий"""
         subcategories_data = {}
-        
+
         for category_value, category_label in Service.CATEGORY_CHOICES:
             subcats = Service.SUBCATEGORY_CHOICES.get(category_value, [])
             subcategories_data[category_value] = [
-                {'value': subcat[0], 'label': subcat[1]} 
+                {'value': subcat[0], 'label': subcat[1]}
                 for subcat in subcats
             ]
-        
+
         return Response({
             'status': 'success',
             'data': subcategories_data,
@@ -139,49 +195,51 @@ class ServiceViewSet(viewsets.ModelViewSet):
         """Валидация изображения с MIME-type проверкой"""
         if image_file.size > 5 * 1024 * 1024:
             raise ValueError('Размер файла превышает 5MB')
-        
+
         ext = os.path.splitext(image_file.name)[1][1:].lower()
         allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
-        
+
         if ext not in allowed_extensions:
             raise ValueError(f'Недопустимое расширение: {ext}')
-        
-        # MIME-type проверка
+
         file_head = image_file.read(2048)
         image_file.seek(0)
-        
+
         mime = magic.from_buffer(file_head, mime=True)
         allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-        
+
         if mime not in allowed_mimes:
             raise ValueError(f'Недопустимый MIME-type: {mime}')
-        
+
         return True
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Создание нового объявления с учетом выбора пользователя"""
-        
+        """Создание нового объявления"""
+
         if request.user.role != 'worker':
             return Response({
                 'status': 'error',
                 'error': 'Создавать объявления могут только исполнители',
                 'data': None
             }, status=403)
-        
-        # ✅ ИСПРАВЛЕНО: Читаем выбор пользователя
+
+        # ── Проверка на запрещённые слова ────────────────────────────────
+        profanity_error = _check_profanity_in_service_data(request.data)
+        if profanity_error:
+            return profanity_error
+
+        # ── Проверка подписки ─────────────────────────────────────────────
         user_wants_active = request.data.get('is_active')
         if isinstance(user_wants_active, str):
             user_wants_active = user_wants_active.lower() in ('true', '1', 'yes')
         else:
             user_wants_active = bool(user_wants_active)
-        
-        # ✅ ИСПРАВЛЕНО: Только если пользователь хочет активировать - проверяем подписку
+
         final_is_active = False
         if user_wants_active:
             has_subscription = self._check_subscription(request.user.id)
             if not has_subscription:
-                # Возвращаем ошибку, что нужна подписка
                 return Response({
                     'status': 'error',
                     'error': 'Для публикации объявления требуется активная подписка',
@@ -189,15 +247,15 @@ class ServiceViewSet(viewsets.ModelViewSet):
                     'require_subscription': True
                 }, status=403)
             final_is_active = True
-        
+
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # Валидация подкатегории при создании
+        # Валидация подкатегории
         category = serializer.validated_data.get('category')
         subcategory = serializer.validated_data.get('subcategory')
-        
+
         if subcategory:
             valid_subcategories = [choice[0] for choice in Service.SUBCATEGORY_CHOICES.get(category, [])]
             if subcategory not in valid_subcategories:
@@ -207,42 +265,47 @@ class ServiceViewSet(viewsets.ModelViewSet):
                     'data': None
                 }, status=400)
 
-        service = serializer.save(
-            owner_id=request.user.id,
-            owner_name=request.data.get('owner_name', 'Фрилансер'),
-            owner_avatar=request.data.get('owner_avatar', ''),
-            is_active=final_is_active
-        )
-        
-        # Валидация и сохранение изображений
+        try:
+            service = serializer.save(
+                owner_id=request.user.id,
+                owner_name=request.data.get('owner_name', 'Фрилансер'),
+                owner_avatar=request.data.get('owner_avatar', ''),
+                is_active=final_is_active
+            )
+        except DjangoValidationError as e:
+            # Перехватываем ValidationError из model.clean() (дополнительный слой защиты)
+            return Response({
+                'status': 'error',
+                'error': e.message_dict if hasattr(e, 'message_dict') else str(e),
+                'data': None
+            }, status=400)
+
+        # Сохраняем изображения
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
                 image_file = request.FILES[image_key]
-                
                 try:
                     self._validate_image_file(image_file)
-                    
                     ServiceImage.objects.create(
                         service=service,
                         image=image_file,
                         order=i
                     )
                 except ValueError as e:
-                    # Пропускаем невалидные файлы
                     print(f"Ошибка валидации изображения {i}: {e}")
                     continue
-        
+
         response_data = ServiceSerializer(service, context={'request': request}).data
-        
+
         if not final_is_active:
             return Response({
-                'status': 'success', 
-                'data': response_data, 
+                'status': 'success',
+                'data': response_data,
                 'error': None,
                 'message': 'Объявление создано в неактивном статусе.'
             }, status=201)
-        
+
         return Response({'status': 'success', 'data': response_data, 'error': None}, status=201)
 
     @transaction.atomic
@@ -251,16 +314,21 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
+        # ── Проверка на запрещённые слова ────────────────────────────────
+        profanity_error = _check_profanity_in_service_data(request.data)
+        if profanity_error:
+            return profanity_error
+
+        # ── Проверка подписки при активации ──────────────────────────────
         final_is_active = instance.is_active
-        
+
         if 'is_active' in request.data:
             requested_active = request.data.get('is_active')
             if isinstance(requested_active, str):
                 requested_active = requested_active.lower() in ('true', '1', 'yes')
-            
+
             if requested_active and request.user.role == 'worker':
                 has_subscription = self._check_subscription(request.user.id)
-                
                 if not has_subscription:
                     return Response({
                         'status': 'error',
@@ -268,7 +336,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
                         'data': None,
                         'require_subscription': True
                     }, status=403)
-                
                 final_is_active = True
             else:
                 final_is_active = requested_active
@@ -277,10 +344,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # Валидация подкатегории при обновлении
+        # Валидация подкатегории
         category = serializer.validated_data.get('category', instance.category)
         subcategory = serializer.validated_data.get('subcategory')
-        
+
         if subcategory:
             valid_subcategories = [choice[0] for choice in Service.SUBCATEGORY_CHOICES.get(category, [])]
             if subcategory not in valid_subcategories:
@@ -290,19 +357,23 @@ class ServiceViewSet(viewsets.ModelViewSet):
                     'data': None
                 }, status=400)
 
-        service = serializer.save(is_active=final_is_active)
-        
-        # Валидация и обновление изображений
+        try:
+            service = serializer.save(is_active=final_is_active)
+        except DjangoValidationError as e:
+            return Response({
+                'status': 'error',
+                'error': e.message_dict if hasattr(e, 'message_dict') else str(e),
+                'data': None
+            }, status=400)
+
+        # Обновляем изображения
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
                 image_file = request.FILES[image_key]
-                
                 try:
                     self._validate_image_file(image_file)
-                    
                     ServiceImage.objects.filter(service=instance, order=i).delete()
-                    
                     ServiceImage.objects.create(
                         service=service,
                         image=image_file,
@@ -330,10 +401,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
             service = self.get_object()
             if str(service.owner_id) != str(request.user.id):
                 return Response({'status': 'error', 'error': 'Нет прав'}, status=403)
-            
+
             image = ServiceImage.objects.get(id=image_id, service=service)
             image.delete()
-            
+
             return Response({'status': 'success', 'message': 'Изображение удалено'})
         except ServiceImage.DoesNotExist:
             return Response({'status': 'error', 'error': 'Изображение не найдено'}, status=404)
@@ -360,22 +431,22 @@ class ServiceViewSet(viewsets.ModelViewSet):
         try:
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
-            
+
             subscription_url = 'http://auth:8001/api/auth/subscription/'
-            
+
             response = requests.get(
                 subscription_url,
                 headers={'Authorization': f'Bearer {token}'},
                 timeout=5
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 subscription_is_active = data.get('data', {}).get('is_active', False)
                 return bool(subscription_is_active)
-            
+
             return False
-            
+
         except Exception:
             return False
 
@@ -389,9 +460,9 @@ class FavoriteViewSet(viewsets.ViewSet):
         favorites = Favorite.objects.filter(
             user_id=request.user.id
         ).select_related('service').order_by('-created_at')
-        
+
         serializer = FavoriteSerializer(favorites, many=True, context={'request': request})
-        
+
         return Response({
             'status': 'success',
             'data': serializer.data,
@@ -401,14 +472,14 @@ class FavoriteViewSet(viewsets.ViewSet):
     def create(self, request):
         """POST /api/market/favorites/ - добавить в избранное"""
         service_id = request.data.get('service_id')
-        
+
         if not service_id:
             return Response({
                 'status': 'error',
                 'error': 'service_id обязателен',
                 'data': None
             }, status=400)
-        
+
         try:
             service = Service.objects.get(id=service_id)
         except Service.DoesNotExist:
@@ -417,20 +488,19 @@ class FavoriteViewSet(viewsets.ViewSet):
                 'error': 'Услуга не найдена',
                 'data': None
             }, status=404)
-        
-        # Проверяем, не добавлено ли уже
+
         favorite, created = Favorite.objects.get_or_create(
             user_id=request.user.id,
             service=service
         )
-        
+
         if not created:
             return Response({
                 'status': 'success',
                 'data': FavoriteSerializer(favorite, context={'request': request}).data,
                 'message': 'Уже в избранном'
             })
-        
+
         return Response({
             'status': 'success',
             'data': FavoriteSerializer(favorite, context={'request': request}).data,
@@ -444,14 +514,14 @@ class FavoriteViewSet(viewsets.ViewSet):
                 id=pk,
                 user_id=request.user.id
             )
-            
+
             favorite.delete()
-            
+
             return Response({
                 'status': 'success',
                 'message': 'Удалено из избранного'
             })
-            
+
         except Favorite.DoesNotExist:
             return Response({
                 'status': 'error',
@@ -461,16 +531,16 @@ class FavoriteViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='toggle')
     def toggle(self, request):
-        """POST /api/market/favorites/toggle/ - переключить избранное (add/remove)"""
+        """POST /api/market/favorites/toggle/ - переключить избранное"""
         service_id = request.data.get('service_id')
-        
+
         if not service_id:
             return Response({
                 'status': 'error',
                 'error': 'service_id обязателен',
                 'data': None
             }, status=400)
-        
+
         try:
             service = Service.objects.get(id=service_id)
         except Service.DoesNotExist:
@@ -479,14 +549,13 @@ class FavoriteViewSet(viewsets.ViewSet):
                 'error': 'Услуга не найдена',
                 'data': None
             }, status=404)
-        
+
         favorite = Favorite.objects.filter(
             user_id=request.user.id,
             service=service
         ).first()
-        
+
         if favorite:
-            # Удаляем
             favorite.delete()
             return Response({
                 'status': 'success',
@@ -497,7 +566,6 @@ class FavoriteViewSet(viewsets.ViewSet):
                 'message': 'Удалено из избранного'
             })
         else:
-            # Добавляем
             favorite = Favorite.objects.create(
                 user_id=request.user.id,
                 service=service
@@ -545,7 +613,7 @@ class DealViewSet(viewsets.ViewSet):
     def by_chat(self, request, chat_room_id=None):
         """Получить все заказы для чата"""
         user_id = str(request.user.id)
-        
+
         deals = Deal.objects.filter(
             chat_room_id=chat_room_id
         ).filter(
@@ -577,13 +645,13 @@ class DealViewSet(viewsets.ViewSet):
             members = chat_data['data']['members']
 
             current_user_id = str(request.user.id)
-            
+
             other_member_id = None
             for member_id in members:
                 if str(member_id) != current_user_id:
                     other_member_id = str(member_id)
                     break
-            
+
             if not other_member_id:
                 return Response({'error': 'Не найден второй участник чата'}, status=400)
 
@@ -642,7 +710,7 @@ class DealViewSet(viewsets.ViewSet):
         """Оплатить заказ"""
         try:
             deal = Deal.objects.get(id=pk)
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
@@ -665,12 +733,12 @@ class DealViewSet(viewsets.ViewSet):
         try:
             deal = Deal.objects.get(id=pk)
             delivery_message = request.data.get('delivery_message', '')
-        
+
             files = request.FILES.getlist('files')
             for file in files:
                 if file.size > 20 * 1024 * 1024:
                     return Response({'error': f'Файл {file.name} слишком большой (макс 20MB)'}, status=400)
-            
+
                 DealDeliveryAttachment.objects.create(
                     deal=deal,
                     file=file,
@@ -723,7 +791,7 @@ class DealViewSet(viewsets.ViewSet):
         """Завершить заказ с отзывом"""
         try:
             deal = Deal.objects.get(id=pk)
-            
+
             serializer = CompleteDealSerializer(data=request.data)
             if not serializer.is_valid():
                 return Response({'error': serializer.errors}, status=400)
@@ -756,7 +824,7 @@ class DealViewSet(viewsets.ViewSet):
         try:
             deal = Deal.objects.get(id=pk)
             reason = request.data.get('reason', 'Не указана')
-            
+
             auth_header = request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
 
@@ -943,21 +1011,20 @@ class UpdateOwnerAvatarView(APIView):
         """Обновить owner_avatar и owner_name во всех объявлениях пользователя"""
         owner_id = request.data.get('owner_id')
         owner_avatar = request.data.get('owner_avatar', '')
-        owner_name = request.data.get('owner_name')  # ✅ ДОБАВЛЕНО
-        
+        owner_name = request.data.get('owner_name')
+
         if not owner_id:
             return Response({'error': 'owner_id обязателен'}, status=400)
-        
+
         if str(request.user.id) != str(owner_id):
             return Response({'error': 'Нет прав'}, status=403)
-        
-        # ✅ ИСПРАВЛЕНО: Обновляем и аватар, и имя
+
         update_fields = {'owner_avatar': owner_avatar}
         if owner_name:
             update_fields['owner_name'] = owner_name
-        
+
         count = Service.objects.filter(owner_id=owner_id).update(**update_fields)
-        
+
         return Response({
             'status': 'success',
             'data': {'updated_count': count},

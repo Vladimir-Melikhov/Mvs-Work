@@ -47,7 +47,7 @@ class Service(models.Model):
         ('video', 'Видео и анимация'),
         ('audio', 'Аудио'),
         ('business', 'Бизнес'),
-        ('photo', 'Фото'), 
+        ('photo', 'Фото'),
         ('legal', 'Юридические услуги'),
         ('other', 'Другое'),
     ]
@@ -111,7 +111,7 @@ class Service(models.Model):
             ('hr', 'HR'),
             ('ecommerce', 'Маркетплейсы'),
         ],
-        'photo': [ 
+        'photo': [
             ('retouch', 'Ретушь и обработка'),
             ('product_photo', 'Предметная съемка'),
             ('portrait', 'Портретная съемка'),
@@ -189,16 +189,64 @@ class Service(models.Model):
     def __str__(self) -> str:
         return self.title
 
+    def _validate_no_profanity(self):
+        """
+        Проверяет поля title, description, ai_template и tags на запрещённые слова.
+        Вызывается из clean() и не зависит от HTTP-слоя.
+        """
+        from .profanity_filter import check_fields, find_forbidden
+
+        fields_to_check = {
+            'title': self.title or '',
+            'description': self.description or '',
+        }
+        if self.ai_template:
+            fields_to_check['ai_template'] = self.ai_template
+
+        violations = check_fields(**fields_to_check)
+
+        # Проверяем каждый тег отдельно
+        if self.tags and isinstance(self.tags, list):
+            bad_tags = [t for t in self.tags if isinstance(t, str) and find_forbidden(t)]
+            if bad_tags:
+                violations['tags'] = bad_tags
+
+        if violations:
+            field_labels = {
+                'title': 'Название',
+                'description': 'Описание',
+                'ai_template': 'Требования к заказчику',
+                'tags': 'Теги',
+            }
+            errors = {}
+            for field, hits in violations.items():
+                label = field_labels.get(field, field)
+                if field == 'tags':
+                    errors[field] = ValidationError(
+                        f'Поле «{label}» содержит недопустимые слова: {", ".join(hits)}.'
+                    )
+                else:
+                    errors[field] = ValidationError(
+                        f'Поле «{label}» содержит недопустимые слова.'
+                    )
+            raise ValidationError(errors)
+
     def clean(self):
         super().clean()
 
-        if self.tags:
-            validate_tags(self.tags)
+        # Проверка на запрещённые слова
+        self._validate_no_profanity()
 
+        # Валидация подкатегории
         if self.subcategory:
-            valid_subcategories = [choice[0] for choice in self.SUBCATEGORY_CHOICES.get(self.category, [])]
+            valid_subcategories = [
+                choice[0]
+                for choice in self.SUBCATEGORY_CHOICES.get(self.category, [])
+            ]
             if self.subcategory not in valid_subcategories:
-                raise ValidationError(f'Недопустимая подкатегория для категории {self.category}')
+                raise ValidationError(
+                    f'Недопустимая подкатегория для категории {self.category}'
+                )
 
         ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h3', 'h4', 'a']
         ALLOWED_ATTRS = {'a': ['href', 'title']}
@@ -284,7 +332,6 @@ class Deal(models.Model):
     revision_count = models.IntegerField(default=0)
     max_revisions = models.IntegerField(default=2)
 
-    # Флаг "работа была сдана хотя бы раз"
     was_delivered = models.BooleanField(
         default=False,
         help_text="Была ли работа хотя бы раз сдана (для контроля отмены)"
@@ -298,7 +345,6 @@ class Deal(models.Model):
     dispute_worker_defense = models.TextField(blank=True, help_text="Защита исполнителя")
     dispute_created_at = models.DateTimeField(null=True, blank=True, help_text="Когда открыт спор")
     dispute_resolved_at = models.DateTimeField(null=True, blank=True, help_text="Когда разрешен спор")
-    # default='' важен для фильтра dispute_winner='' в admin
     dispute_winner = models.CharField(
         max_length=10,
         blank=True,
