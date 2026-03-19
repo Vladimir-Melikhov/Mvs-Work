@@ -53,15 +53,10 @@
             {{ statusLabel }}
           </div>
           <div class="text-lg font-bold text-[#1a1a2e] truncate">{{ dealData.title }}</div>
-          <!-- Бейдж типа сделки -->
-          <div class="flex items-center gap-1 mt-0.5">
-            <span 
-              class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              :class="dealData.is_escrow 
-                ? 'bg-[#7000ff]/10 text-[#7000ff]' 
-                : 'bg-gray-100 text-gray-500'"
-            >
-              {{ dealData.is_escrow ? '🛡️ Безопасная сделка' : '⚡ Без эскроу' }}
+          <!-- Бейдж безопасной сделки — только для эскроу -->
+          <div v-if="dealData.is_escrow" class="flex items-center gap-1 mt-0.5">
+            <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#7000ff]/10 text-[#7000ff]">
+              Безопасная сделка
             </span>
           </div>
         </div>
@@ -80,6 +75,42 @@
               <span class="text-gray-600">Стоимость работы:</span>
               <span class="font-bold">{{ parseInt(dealData.price) }}₽</span>
             </div>
+          </div>
+        </div>
+
+        <!-- ── ПЕРЕКЛЮЧАТЕЛЬ ТИПА СДЕЛКИ (только для клиента в статусе pending) ──
+             Галочка — локальный UI-стейт, НЕ шлёт запросы сама по себе.
+             Сервер узнаёт о выборе только через кнопки «Оплатить» / «Начать сделку». ── -->
+        <div 
+          v-if="showEscrowToggle"
+          class="shrink-0"
+        >
+          <div class="rounded-xl border-2 p-4 transition-all"
+            :class="localIsEscrow
+              ? 'bg-[#7000ff]/5 border-[#7000ff]/30'
+              : 'bg-gray-50 border-gray-200'"
+          >
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input 
+                type="checkbox" 
+                v-model="localIsEscrow"
+                class="mt-0.5 w-5 h-5 text-[#7000ff] rounded border-gray-300 focus:ring-2 focus:ring-[#7000ff]/20 shrink-0"
+              >
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-[#1a1a2e] mb-1 flex items-center gap-2 flex-wrap">
+                  <svg class="w-4 h-4" :class="localIsEscrow ? 'text-[#7000ff]' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>Безопасная сделка</span>
+                </div>
+                <div class="text-xs text-gray-600 break-words">
+                  {{ localIsEscrow 
+                    ? 'Средства хранятся у нас до завершения работы — максимальная защита' 
+                    : 'Оплата по договорённости, упрощённый процесс без споров и доработок' }}
+                </div>
+              </div>
+            </label>
+
           </div>
         </div>
 
@@ -137,8 +168,8 @@
           </div>
         </div>
 
-        <!-- Доработки -->
-        <div v-if="dealData.revision_count > 0" class="shrink-0">
+        <!-- Доработки (только для эскроу) -->
+        <div v-if="dealData.is_escrow && dealData.revision_count > 0" class="shrink-0">
           <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm">
             <span class="font-bold text-purple-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
           </div>
@@ -196,12 +227,56 @@
             Изменить цену
           </button>
 
-          <!-- ── НЕЭСКРОУ: принять заказ (воркер) ────────────────────────── -->
+          <!-- ── КЛИЕНТ: Оплатить — pending + галочка включена (эскроу) ──── -->
+          <button 
+            v-if="showPayButton"
+            @click="payDeal"
+            :disabled="loading"
+            class="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          >
+            <span v-if="loading" class="flex items-center justify-center gap-2">
+              <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Обработка...
+            </span>
+            <span v-else class="flex flex-col items-center gap-1">
+              <span class="text-base font-bold">Оплатить заказ</span>
+              <span class="text-xs font-normal opacity-90">Перед оплатой уточните цену у исполнителя</span>
+            </span>
+          </button>
+
+          <!-- ── КЛИЕНТ: Начать сделку — pending + галочка снята (неэскроу) ──
+               Нажатие шлёт POST /client-start/ → сервер: is_escrow=false, status=accepted.
+               После этого status уже не pending → галочка сама блокируется. ── -->
+          <button 
+            v-if="showClientStartButton"
+            @click="clientStart"
+            :disabled="loading"
+            class="w-full bg-[#12002b] hover:bg-[#0a001a] text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          >
+            <span v-if="loading" class="flex items-center justify-center gap-2">
+              <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Обработка...
+            </span>
+            <span v-else class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Начать сделку
+            </span>
+          </button>
+
+          <!-- ── ВОРКЕР: Принять заказ — только после client-start (status=accepted, !is_escrow) ── -->
           <button 
             v-if="showWorkerAcceptButton"
             @click="workerAccept"
             :disabled="loading"
-            class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+            class="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
           >
             <span v-if="loading" class="flex items-center justify-center gap-2">
               <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
@@ -221,66 +296,46 @@
           <!-- ── НЕЭСКРОУ: уведомление для клиента (статус accepted) ─────── -->
           <div 
             v-if="showClientAcceptedInfo"
-            class="bg-emerald-50 border border-emerald-200 rounded-xl p-4"
+            class="bg-violet-50 border border-violet-200 rounded-xl p-4"
           >
             <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-violet-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <div class="text-sm text-emerald-800">
+              <div class="text-sm text-violet-800">
                 <div class="font-bold mb-1">Исполнитель приступил к работе</div>
-                <div>Вы можете оплатить заказ прямо сейчас или дождаться результата.</div>
+                <div>Ожидайте результата.</div>
               </div>
             </div>
           </div>
 
-          <!-- Оплатить (клиент) — эскроу: только pending / неэскроу: pending или accepted -->
-          <button 
-            v-if="showPayButton"
-            @click="payDeal"
-            :disabled="loading"
-            class="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-          >
-            <span v-if="loading" class="flex items-center justify-center gap-2">
-              <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Обработка...
-            </span>
-            <span v-else class="flex flex-col items-center gap-1">
-              <span class="text-base font-bold">Оплатить заказ</span>
-              <span v-if="dealData.is_escrow" class="text-xs font-normal opacity-90">Перед оплатой уточните цену у исполнителя</span>
-            </span>
-          </button>
-
           <!-- Сдать работу (воркер) -->
           <div v-if="showDeliverButton" class="space-y-1">
+            <div 
+              v-if="!dealData.is_escrow"
+              class="text-center text-xs text-amber-600 font-medium px-2"
+            >
+              Мы не рекомендуем сдавать работу до получения оплаты
+            </div>
             <button 
               @click="showDeliveryModal = true"
               class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
             >
               Сдать работу
             </button>
-            <!-- Предупреждение для неэскроу: работа сдаётся до оплаты -->
-            <div 
-              v-if="!dealData.is_escrow && dealData.status === 'accepted'"
-              class="text-center text-xs text-amber-600 font-medium px-2"
-            >
-              ⚠️ Мы не рекомендуем сдавать работу до получения оплаты
-            </div>
+            <!-- Предупреждение для неэскроу -->
           </div>
 
-          <!-- Принять работу (клиент, delivered) -->
+          <!-- Принять работу (клиент, delivered) — для неэскроу упрощённое завершение -->
           <button 
             v-if="showCompleteButton"
             @click="showCompletionModal = true"
             class="w-full bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
           >
-            Принять работу и завершить
+            {{ dealData.is_escrow ? 'Принять работу и завершить' : 'Принять и оставить отзыв' }}
           </button>
 
-          <!-- Запросить доработку -->
+          <!-- Запросить доработку (только эскроу) -->
           <button 
             v-if="showRevisionButton"
             @click="showRevisionModal = true"
@@ -289,7 +344,7 @@
             Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
           </button>
 
-          <!-- Открыть спор -->
+          <!-- Открыть спор (только эскроу) -->
           <button 
             v-if="showOpenDisputeButton"
             @click="showDisputeModal = true"
@@ -301,7 +356,7 @@
             Открыть спор
           </button>
 
-          <!-- Вернуть деньги (воркер в споре) -->
+          <!-- Вернуть деньги (воркер в споре, только эскроу) -->
           <button 
             v-if="showWorkerRefundButton"
             @click="workerRefund"
@@ -312,7 +367,7 @@
             <span v-else>Вернуть деньги</span>
           </button>
 
-          <!-- Оспорить (воркер в споре) -->
+          <!-- Оспорить (воркер в споре, только эскроу) -->
           <button 
             v-if="showWorkerDefendButton"
             @click="showDefenseModal = true"
@@ -321,7 +376,7 @@
             Оспорить
           </button>
 
-          <!-- Отменить заказ -->
+          <!-- Отменить заказ (только pending или accepted до сдачи) -->
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"
@@ -363,7 +418,7 @@
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Сдать работу</h3>
           <!-- Предупреждение для неэскроу -->
-          <div v-if="!dealData.is_escrow && dealData.status === 'accepted'" class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+          <div v-if="!dealData.is_escrow" class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
             <div class="font-bold mb-1">⚠️ Внимание</div>
             <div>Мы не рекомендуем сдавать работу до получения оплаты. Продолжайте на свой страх и риск.</div>
           </div>
@@ -413,8 +468,14 @@
       <!-- Завершение с отзывом -->
       <div v-if="showCompletionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
-          <h3 class="text-xl font-bold mb-4">Принять работу?</h3>
-          <p class="text-sm text-gray-600 mb-6">После принятия деньги будут переведены исполнителю.</p>
+          <h3 class="text-xl font-bold mb-4">
+            {{ dealData.is_escrow ? 'Принять работу?' : 'Принять и оставить отзыв?' }}
+          </h3>
+          <p class="text-sm text-gray-600 mb-6">
+            {{ dealData.is_escrow 
+              ? 'После принятия деньги будут переведены исполнителю.' 
+              : 'Подтвердите завершение заказа и оставьте отзыв.' }}
+          </p>
           <div class="mb-6">
             <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Оценка работы</label>
             <div class="flex gap-3 justify-center">
@@ -443,12 +504,14 @@
           ></textarea>
           <div class="flex gap-3">
             <button @click="showCompletionModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
-            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-violet-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Принять</button>
+            <button @click="completeDeal" :disabled="loading || rating === 0" class="flex-1 bg-violet-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">
+              {{ dealData.is_escrow ? 'Принять' : 'Завершить' }}
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- Доработка -->
+      <!-- Доработка (только эскроу) -->
       <div v-if="showRevisionModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Запросить доработку</h3>
@@ -466,7 +529,7 @@
         </div>
       </div>
 
-      <!-- Открыть спор -->
+      <!-- Открыть спор (только эскроу) -->
       <div v-if="showDisputeModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-2 text-fuchsia-600">Открыть спор</h3>
@@ -484,7 +547,7 @@
         </div>
       </div>
 
-      <!-- Защита исполнителя -->
+      <!-- Защита исполнителя (только эскроу) -->
       <div v-if="showDefenseModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-2 text-indigo-600">Оспорить претензию</h3>
@@ -525,6 +588,7 @@
 </template>
 
 <script setup>
+// ── watch убран: галочка больше ничего не шлёт на сервер сама по себе ────────
 import { ref, computed } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
@@ -539,6 +603,10 @@ const emit = defineEmits(['deal-action'])
 
 const auth = useAuthStore()
 const loading = ref(false)
+
+// Локальное состояние галочки — только UI.
+// Сервер узнаёт о выборе исключительно через кнопки «Оплатить» / «Начать сделку».
+const localIsEscrow = ref(props.dealData.is_escrow ?? true)
 
 const dealId = computed(() => {
   return props.dealData.id || 
@@ -571,12 +639,17 @@ const deliveryFiles = ref([])
 const isClient = computed(() => String(auth.user.id) === String(props.dealData.client_id))
 const isWorker = computed(() => String(auth.user.id) === String(props.dealData.worker_id))
 
+// Переключатель виден только клиенту в статусе pending
+const showEscrowToggle = computed(() => {
+  return isClient.value && props.dealData.status === 'pending'
+})
+
 // ── Стили статуса ────────────────────────────────────────────────────────────
 
 const borderColor = computed(() => {
   const colors = {
     'pending': 'border-violet-200',
-    'accepted': 'border-emerald-200',
+    'accepted': 'border-violet-300',
     'paid': 'border-purple-300',
     'delivered': 'border-indigo-300',
     'dispute': 'border-fuchsia-300',
@@ -589,7 +662,7 @@ const borderColor = computed(() => {
 const statusIconBg = computed(() => {
   const bgs = {
     'pending': 'bg-gradient-to-br from-violet-400 to-violet-600',
-    'accepted': 'bg-gradient-to-br from-emerald-400 to-teal-600',
+    'accepted': 'bg-gradient-to-br from-violet-500 to-purple-600',
     'paid': 'bg-gradient-to-br from-purple-500 to-violet-600',
     'delivered': 'bg-gradient-to-br from-indigo-500 to-purple-600',
     'dispute': 'bg-gradient-to-br from-fuchsia-500 to-pink-600',
@@ -611,13 +684,13 @@ const statusLabel = computed(() => {
   }
 
   const labels = {
-    'pending': 'Ожидает оплаты',
-    'accepted': 'Принят исполнителем',
+    'pending': 'Ожидает',
+    'accepted': 'В работе',
     'paid': 'В работе',
     'delivered': 'На проверке',
     'dispute': 'В споре',
-    'completed': 'Завершен',
-    'cancelled': 'Отменен',
+    'completed': 'Завершён',
+    'cancelled': 'Отменён',
   }
   return labels[props.dealData.status] || props.dealData.status
 })
@@ -625,7 +698,7 @@ const statusLabel = computed(() => {
 const statusTextColor = computed(() => {
   const colors = {
     'pending': 'text-violet-600',
-    'accepted': 'text-emerald-600',
+    'accepted': 'text-violet-600',
     'paid': 'text-purple-600',
     'delivered': 'text-indigo-600',
     'dispute': 'text-fuchsia-600',
@@ -637,18 +710,27 @@ const statusTextColor = computed(() => {
 
 // ── Видимость кнопок ─────────────────────────────────────────────────────────
 
-// НЕЭСКРОУ: кнопка "Принять заказ" для воркера
+// Оплатить: клиент + pending + галочка включена (эскроу)
+const showPayButton = computed(() => {
+  return isClient.value && props.dealData.status === 'pending' && localIsEscrow.value
+})
+
+// Начать сделку: клиент + pending + галочка снята (неэскроу)
+// После нажатия сервер ставит is_escrow=false и status=accepted → статус уже
+// не pending → showEscrowToggle=false → галочка исчезает, откатить нельзя.
+const showClientStartButton = computed(() => {
+  return isClient.value && props.dealData.status === 'pending' && !localIsEscrow.value
+})
+
+// Принять заказ: воркер — только когда сервер вернул can_worker_accept=true
+// (это значит клиент уже нажал «Начать», status=accepted, is_escrow=false)
 const showWorkerAcceptButton = computed(() => {
   return isWorker.value && props.dealData.can_worker_accept
 })
 
-// НЕЭСКРОУ: уведомление для клиента что исполнитель принял
+// Инфо для клиента: воркер принял и работает
 const showClientAcceptedInfo = computed(() => {
   return isClient.value && !props.dealData.is_escrow && props.dealData.status === 'accepted'
-})
-
-const showPayButton = computed(() => {
-  return isClient.value && props.dealData.can_pay
 })
 
 const showDeliverButton = computed(() => {
@@ -659,8 +741,9 @@ const showCompleteButton = computed(() => {
   return isClient.value && props.dealData.can_complete
 })
 
+// Доработки — только эскроу
 const showRevisionButton = computed(() => {
-  return isClient.value && props.dealData.can_request_revision
+  return isClient.value && props.dealData.can_request_revision && props.dealData.is_escrow
 })
 
 const showCancelButton = computed(() => {
@@ -671,19 +754,35 @@ const showUpdatePriceButton = computed(() => {
   return isWorker.value && props.dealData.can_update_price
 })
 
+// Спор — только эскроу
 const showOpenDisputeButton = computed(() => {
-  return isClient.value && props.dealData.can_open_dispute
+  return isClient.value && props.dealData.can_open_dispute && props.dealData.is_escrow
 })
 
+// Возврат / защита — только эскроу
 const showWorkerRefundButton = computed(() => {
-  return isWorker.value && props.dealData.can_worker_refund
+  return isWorker.value && props.dealData.can_worker_refund && props.dealData.is_escrow
 })
 
 const showWorkerDefendButton = computed(() => {
-  return isWorker.value && props.dealData.can_worker_defend
+  return isWorker.value && props.dealData.can_worker_defend && props.dealData.is_escrow
 })
 
 // ── Действия ─────────────────────────────────────────────────────────────────
+
+// Клиент запускает неэскроу-сделку.
+// Сервер: deal.is_escrow=False, deal.status='accepted', шлёт карточку воркеру.
+const clientStart = async () => {
+  loading.value = true
+  try {
+    await axios.post(`/api/market/deals/${dealId.value}/client-start/`)
+    emit('deal-action')
+  } catch (e) {
+    alert('Ошибка: ' + (e.response?.data?.error || e.message))
+  } finally {
+    loading.value = false
+  }
+}
 
 const updatePrice = async () => {
   loading.value = true
@@ -700,7 +799,7 @@ const updatePrice = async () => {
   }
 }
 
-// НЕЭСКРОУ: принятие заказа воркером
+// НЕЭСКРОУ: воркер принимает заказ после client-start
 const workerAccept = async () => {
   loading.value = true
   try {

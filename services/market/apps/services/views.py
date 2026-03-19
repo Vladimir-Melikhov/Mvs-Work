@@ -20,9 +20,8 @@ from .serializers import (
 )
 from .profanity_filter import check_fields as profanity_check
 from django.conf import settings
-from .services import AIService
+from .services import AIService, DealService
 from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
-from .deal_service import DealService
 import os
 import requests
 import magic
@@ -33,11 +32,6 @@ import magic
 # ---------------------------------------------------------------------------
 
 def _check_profanity_in_service_data(data: dict) -> Response | None:
-    """
-    Проверяет поля title, description, ai_template и tags на запрещённые слова.
-    Если нарушения найдены — возвращает готовый Response с ошибкой 400.
-    Если всё чисто — возвращает None.
-    """
     from .profanity_filter import find_forbidden
 
     fields_to_check = {}
@@ -50,7 +44,6 @@ def _check_profanity_in_service_data(data: dict) -> Response | None:
 
     violations = profanity_check(**fields_to_check) if fields_to_check else {}
 
-    # Теги приходят как JSON-строка или список — проверяем каждый тег отдельно
     tags_raw = data.get('tags')
     if tags_raw:
         import json
@@ -110,19 +103,16 @@ class ServiceViewSet(viewsets.ModelViewSet):
             else:
                 queryset = queryset.filter(is_active=True)
 
-        # Фильтрация по категориям
         cats_param = self.request.query_params.get('categories') or self.request.query_params.get('category')
         if cats_param:
             cat_list = cats_param.split(',')
             queryset = queryset.filter(category__in=cat_list)
 
-        # Фильтрация по подкатегориям
         subcats_param = self.request.query_params.get('subcategories') or self.request.query_params.get('subcategory')
         if subcats_param:
             subcat_list = subcats_param.split(',')
             queryset = queryset.filter(subcategory__in=subcat_list)
 
-        # Поиск
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -131,7 +121,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 Q(tags__contains=[search])
             )
 
-        # Сортировка
         sort_by = self.request.query_params.get('sort', '-created_at')
 
         if sort_by == 'price_asc':
@@ -175,7 +164,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='subcategories')
     def get_subcategories(self, request):
-        """Получить список всех подкатегорий для всех категорий"""
         subcategories_data = {}
 
         for category_value, category_label in Service.CATEGORY_CHOICES:
@@ -192,7 +180,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         })
 
     def _validate_image_file(self, image_file):
-        """Валидация изображения с MIME-type проверкой"""
         if image_file.size > 5 * 1024 * 1024:
             raise ValueError('Размер файла превышает 5MB')
 
@@ -215,8 +202,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Создание нового объявления"""
-
         if request.user.role != 'worker':
             return Response({
                 'status': 'error',
@@ -224,12 +209,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'data': None
             }, status=403)
 
-        # ── Проверка на запрещённые слова ────────────────────────────────
         profanity_error = _check_profanity_in_service_data(request.data)
         if profanity_error:
             return profanity_error
 
-        # ── Проверка подписки ─────────────────────────────────────────────
         user_wants_active = request.data.get('is_active')
         if isinstance(user_wants_active, str):
             user_wants_active = user_wants_active.lower() in ('true', '1', 'yes')
@@ -252,7 +235,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # Валидация подкатегории
         category = serializer.validated_data.get('category')
         subcategory = serializer.validated_data.get('subcategory')
 
@@ -273,14 +255,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 is_active=final_is_active
             )
         except DjangoValidationError as e:
-            # Перехватываем ValidationError из model.clean() (дополнительный слой защиты)
             return Response({
                 'status': 'error',
                 'error': e.message_dict if hasattr(e, 'message_dict') else str(e),
                 'data': None
             }, status=400)
 
-        # Сохраняем изображения
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
@@ -314,12 +294,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if str(instance.owner_id) != str(request.user.id):
             return Response({'status': 'error', 'error': 'Нет прав', 'data': None}, status=403)
 
-        # ── Проверка на запрещённые слова ────────────────────────────────
         profanity_error = _check_profanity_in_service_data(request.data)
         if profanity_error:
             return profanity_error
 
-        # ── Проверка подписки при активации ──────────────────────────────
         final_is_active = instance.is_active
 
         if 'is_active' in request.data:
@@ -344,7 +322,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response({'status': 'error', 'error': serializer.errors, 'data': None}, status=400)
 
-        # Валидация подкатегории
         category = serializer.validated_data.get('category', instance.category)
         subcategory = serializer.validated_data.get('subcategory')
 
@@ -366,7 +343,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'data': None
             }, status=400)
 
-        # Обновляем изображения
         for i in range(5):
             image_key = f'image_{i}'
             if image_key in request.FILES:
@@ -396,7 +372,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path='delete-image/(?P<image_id>[^/.]+)')
     def delete_image(self, request, pk=None, image_id=None):
-        """Удалить конкретное изображение услуги"""
         try:
             service = self.get_object()
             if str(service.owner_id) != str(request.user.id):
@@ -411,7 +386,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='deactivate-all')
     def deactivate_all(self, request):
-        """Деактивировать все объявления воркера (вызывается при истечении подписки)"""
         if request.user.role != 'worker':
             return Response({'status': 'error', 'error': 'Только для воркеров'}, status=403)
 
@@ -427,7 +401,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         })
 
     def _check_subscription(self, user_id):
-        """Проверка активной подписки через Auth Service"""
         try:
             auth_header = self.request.headers.get('Authorization', '')
             token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
@@ -452,11 +425,9 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
 
 class FavoriteViewSet(viewsets.ViewSet):
-    """Управление избранными услугами"""
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """GET /api/market/favorites/ - получить избранное пользователя"""
         favorites = Favorite.objects.filter(
             user_id=request.user.id
         ).select_related('service').order_by('-created_at')
@@ -470,7 +441,6 @@ class FavoriteViewSet(viewsets.ViewSet):
         })
 
     def create(self, request):
-        """POST /api/market/favorites/ - добавить в избранное"""
         service_id = request.data.get('service_id')
 
         if not service_id:
@@ -508,7 +478,6 @@ class FavoriteViewSet(viewsets.ViewSet):
         }, status=201)
 
     def destroy(self, request, pk=None):
-        """DELETE /api/market/favorites/{id}/ - удалить из избранного"""
         try:
             favorite = Favorite.objects.get(
                 id=pk,
@@ -531,7 +500,6 @@ class FavoriteViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='toggle')
     def toggle(self, request):
-        """POST /api/market/favorites/toggle/ - переключить избранное"""
         service_id = request.data.get('service_id')
 
         if not service_id:
@@ -586,7 +554,6 @@ class DealViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """Получить все заказы пользователя"""
         user_id = request.user.id
         deals = Deal.objects.filter(
             Q(client_id=user_id) | Q(worker_id=user_id)
@@ -596,7 +563,6 @@ class DealViewSet(viewsets.ViewSet):
         return Response({'status': 'success', 'data': serializer.data})
 
     def retrieve(self, request, pk=None):
-        """Получить конкретный заказ"""
         try:
             deal = Deal.objects.get(id=pk)
             user_id = str(request.user.id)
@@ -611,7 +577,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='by-chat/(?P<chat_room_id>[^/.]+)')
     def by_chat(self, request, chat_room_id=None):
-        """Получить все заказы для чата"""
         user_id = str(request.user.id)
 
         deals = Deal.objects.filter(
@@ -625,7 +590,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create', throttle_classes=[DealCreationThrottle])
     def create_deal(self, request):
-        """Создать новый заказ"""
         serializer = CreateDealSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors}, status=400)
@@ -658,6 +622,9 @@ class DealViewSet(viewsets.ViewSet):
             client_id = current_user_id
             worker_id = other_member_id
 
+            # is_escrow передаётся из запроса (default=True из CreateDealSerializer)
+            is_escrow = serializer.validated_data.get('is_escrow', True)
+
             deal = DealService.create_deal(
                 chat_room_id=serializer.validated_data['chat_room_id'],
                 client_id=client_id,
@@ -665,13 +632,14 @@ class DealViewSet(viewsets.ViewSet):
                 title=serializer.validated_data['title'],
                 description=serializer.validated_data['description'],
                 price=serializer.validated_data['price'],
-                auth_token=token
+                auth_token=token,
+                is_escrow=is_escrow,
             )
 
             return Response({
                 'status': 'success',
                 'data': DealSerializer(deal).data,
-                'message': 'Заказ создан. Ожидает оплаты.'
+                'message': 'Заказ создан.'
             })
 
         except ValueError as e:
@@ -679,9 +647,47 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
+    # ── ЭНДПОИНТ: клиент запускает неэскроу-сделку ───────────────────────────
+    # Галочка в UI — просто локальный стейт. Сервер узнаёт о выборе только здесь.
+    # После вызова: deal.is_escrow=False, deal.status='accepted'.
+    # Воркер видит кнопку «Принять заказ» (can_worker_accept=True).
+    # Откатить нельзя — статус уже не pending, галочка в UI исчезает.
+
+    @action(detail=True, methods=['post'], url_path='client-start')
+    def client_start(self, request, pk=None):
+        """
+        Клиент запускает неэскроу-сделку.
+        Выставляет is_escrow=False и переводит статус pending → accepted.
+        """
+        try:
+            deal = Deal.objects.get(id=pk)
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+
+        if str(request.user.id) != str(deal.client_id):
+            return Response({'error': 'Только клиент может запустить сделку'}, status=403)
+
+        if deal.status != 'pending':
+            return Response({'error': 'Сделку можно запустить только из статуса pending'}, status=400)
+
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+        deal.is_escrow = False
+        deal.status = 'accepted'
+        deal.save(update_fields=['is_escrow', 'status'])
+
+        # Отправляем обновлённую карточку обоим участникам
+        DealService._send_deal_card(deal, str(request.user.id), 'client_started', token)
+
+        return Response({
+            'status': 'success',
+            'data': DealSerializer(deal).data,
+            'message': 'Сделка начата. Ожидайте подтверждения исполнителя.'
+        })
+
     @action(detail=True, methods=['patch'], url_path='update-price')
     def update_price(self, request, pk=None):
-        """Изменить цену заказа"""
         try:
             deal = Deal.objects.get(id=pk)
             new_price = request.data.get('price')
@@ -707,7 +713,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='pay', throttle_classes=[DealPaymentThrottle])
     def pay(self, request, pk=None):
-        """Оплатить заказ"""
         try:
             deal = Deal.objects.get(id=pk)
 
@@ -727,9 +732,30 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
+    @action(detail=True, methods=['post'], url_path='worker-accept')
+    def worker_accept(self, request, pk=None):
+        """Исполнитель принимает неэскроу-заказ (после client-start)"""
+        try:
+            deal = Deal.objects.get(id=pk)
+
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+            deal = DealService.worker_accept(deal, str(request.user.id), token)
+
+            return Response({
+                'status': 'success',
+                'data': DealSerializer(deal).data,
+                'message': 'Заказ принят!'
+            })
+
+        except Deal.DoesNotExist:
+            return Response({'error': 'Заказ не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
     @action(detail=True, methods=['post'], url_path='deliver', throttle_classes=[FileUploadThrottle])
     def deliver(self, request, pk=None):
-        """Сдать работу с файлами"""
         try:
             deal = Deal.objects.get(id=pk)
             delivery_message = request.data.get('delivery_message', '')
@@ -765,7 +791,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='revision')
     def revision(self, request, pk=None):
-        """Запросить доработку"""
         try:
             deal = Deal.objects.get(id=pk)
             revision_reason = request.data.get('revision_reason', '')
@@ -788,7 +813,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
-        """Завершить заказ с отзывом"""
         try:
             deal = Deal.objects.get(id=pk)
 
@@ -820,7 +844,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
-        """Отменить заказ"""
         try:
             deal = Deal.objects.get(id=pk)
             reason = request.data.get('reason', 'Не указана')
@@ -843,7 +866,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='generate-tz', throttle_classes=[AIGenerationThrottle])
     def generate_tz(self, request):
-        """AI-генерация ТЗ"""
         service_id = request.data.get('service_id')
         raw_requirements = request.data.get('raw_requirements')
 
@@ -874,7 +896,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='open-dispute')
     def open_dispute(self, request, pk=None):
-        """Открыть спор"""
         try:
             deal = Deal.objects.get(id=pk)
             dispute_reason = request.data.get('dispute_reason', '')
@@ -900,7 +921,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='worker-refund')
     def worker_refund(self, request, pk=None):
-        """Исполнитель возвращает деньги"""
         try:
             deal = Deal.objects.get(id=pk)
 
@@ -922,7 +942,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='worker-defend')
     def worker_defend(self, request, pk=None):
-        """Исполнитель оспаривает претензию"""
         try:
             deal = Deal.objects.get(id=pk)
             defense_text = request.data.get('defense_text', '')
@@ -948,7 +967,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='admin-resolve')
     def admin_resolve(self, request, pk=None):
-        """Администратор разрешает спор"""
         try:
             deal = Deal.objects.get(id=pk)
             winner = request.data.get('winner')
@@ -975,7 +993,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='pending-disputes')
     def pending_disputes(self, request):
-        """Получить все активные споры"""
         disputes = Deal.objects.filter(
             status='dispute',
             dispute_worker_defense__isnull=False,
@@ -990,25 +1007,21 @@ class DealViewSet(viewsets.ViewSet):
 
 
 class ReviewViewSet(viewsets.ReadOnlyModelViewSet):
-    """Просмотр отзывов"""
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['get'], url_path='by-worker/(?P<worker_id>[^/.]+)')
     def by_worker(self, request, worker_id=None):
-        """Получить все отзывы исполнителя"""
         reviews = Review.objects.filter(reviewee_id=worker_id).order_by('-created_at')
         serializer = self.get_serializer(reviews, many=True)
         return Response({'status': 'success', 'data': serializer.data})
 
 
 class UpdateOwnerAvatarView(APIView):
-    """Обновление аватара и имени владельца во всех его объявлениях"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """Обновить owner_avatar и owner_name во всех объявлениях пользователя"""
         owner_id = request.data.get('owner_id')
         owner_avatar = request.data.get('owner_avatar', '')
         owner_name = request.data.get('owner_name')

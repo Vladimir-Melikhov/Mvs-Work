@@ -121,7 +121,7 @@
         <p class="text-sm md:text-base text-gray-600">Генерируем структурированное техническое задание...</p>
       </div>
 
-      <!-- Шаг 3: проверка ТЗ + выбор типа сделки -->
+      <!-- Шаг 3: проверка ТЗ (без выбора типа сделки — это делается в чате) -->
       <div v-if="step === 3">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-12 h-12 rounded-full bg-green-50 border border-green-100 flex items-center justify-center text-green-600">
@@ -175,44 +175,6 @@
           ></textarea>
         </div>
 
-        <!-- Выбор типа сделки -->
-        <div class="mb-6">
-          <label class="flex items-start gap-3 p-4 rounded-xl cursor-pointer border-2 transition-all"
-            :class="isEscrow
-              ? 'bg-[#7000ff]/5 border-[#7000ff]/30 hover:bg-[#7000ff]/10'
-              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'"
-          >
-            <input 
-              type="checkbox" 
-              v-model="isEscrow" 
-              class="mt-0.5 w-5 h-5 text-[#7000ff] rounded border-gray-300 focus:ring-2 focus:ring-[#7000ff]/20 shrink-0"
-            >
-            <div class="flex-1 min-w-0">
-              <div class="font-bold text-[#1a1a2e] mb-1 flex items-center gap-2 flex-wrap">
-                <svg class="w-4 h-4" :class="isEscrow ? 'text-[#7000ff]' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span>Безопасная сделка</span>
-                <span class="text-xs font-normal text-gray-500">(Банк может взимать комиссию)</span>
-              </div>
-              <div class="text-xs text-gray-600 break-words">
-                Средства хранятся у нас до завершения работы — максимальная защита для обеих сторон
-              </div>
-            </div>
-          </label>
-
-          <!-- Предупреждение когда безопасная сделка выключена -->
-          <div v-if="!isEscrow" class="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-            <div class="font-bold mb-1 flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Без безопасной сделки:
-            </div>
-            <div>Исполнитель сначала принимает заказ и может приступить к работе. Оплата — по договорённости. Мы не гарантируем защиту средств.</div>
-          </div>
-        </div>
-
         <!-- Предупреждение -->
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <div class="flex items-start gap-3">
@@ -223,7 +185,7 @@
             </div>
             <div class="text-sm text-amber-800 flex-1 min-w-0">
               <div class="font-bold mb-1">Важно:</div>
-              <div class="break-words">Внимательно проверьте ТЗ перед подтверждением. После создания заказа изменить условия будет нельзя.</div>
+              <div class="break-words">Внимательно проверьте ТЗ перед подтверждением. Вид сделки (с оплатой или без) вы выберете прямо в чате после создания заказа.</div>
             </div>
           </div>
         </div>
@@ -241,18 +203,14 @@
           <button 
             @click="createOrder" 
             :disabled="creating"
-            class="w-full sm:flex-1 text-white py-3 rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            :class="isEscrow ? 'bg-[#7000ff] hover:bg-[#5500cc] shadow-[#7000ff]/20' : 'bg-[#1a1a2e] hover:bg-black shadow-black/20'"
+            class="w-full sm:flex-1 bg-[#7000ff] hover:bg-[#5500cc] text-white py-3 rounded-xl shadow-lg shadow-[#7000ff]/20 hover:shadow-xl hover:scale-[1.01] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <span v-if="creating" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             <span v-else class="flex items-center gap-2">
-              <svg v-if="isEscrow" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
-              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {{ isEscrow ? 'Создать заказ' : 'Начать сделку' }}
+              Создать заказ
             </span>
           </button>
         </div>
@@ -280,7 +238,6 @@ const generatedTz = ref('')
 const editableTz = ref('')
 const editing = ref(false)
 const useAI = ref(true)
-const isEscrow = ref(true)
 const loading = ref(false)
 const creating = ref(false)
 
@@ -354,12 +311,14 @@ const createOrder = async () => {
     
     const chatRoomId = chatRes.data.data.id
 
+    // Создаём заказ с is_escrow=true по умолчанию.
+    // Пользователь сможет переключить режим прямо в карточке сделки в чате.
     await axios.post('/api/market/deals/create/', {
       chat_room_id: chatRoomId,
       title: props.service.title,
       description: editableTz.value,
       price: props.service.price,
-      is_escrow: isEscrow.value,
+      is_escrow: true,
     })
     
     emit('close')
