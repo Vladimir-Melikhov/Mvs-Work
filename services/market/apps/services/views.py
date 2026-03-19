@@ -20,8 +20,8 @@ from .serializers import (
 )
 from .profanity_filter import check_fields as profanity_check
 from django.conf import settings
-from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .services import AIService
+from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
 from .deal_service import DealService
 import os
 import requests

@@ -6,14 +6,13 @@ from .models import Service, ServiceImage, Deal, DealDeliveryAttachment, Transac
 
 class ServiceImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = ServiceImage
         fields = ['id', 'image', 'image_url', 'order', 'created_at']
         read_only_fields = ['id', 'created_at', 'image_url']
-    
+
     def get_image_url(self, obj):
-        """Формирует полный URL для изображения"""
         if not obj.image:
             return None
         return obj.image.url
@@ -25,64 +24,54 @@ class ServiceSerializer(serializers.ModelSerializer):
     images = ServiceImageSerializer(many=True, read_only=True)
     subcategory_display = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Service
         fields = [
-            'id', 'title', 'description', 'price', 
+            'id', 'title', 'description', 'price',
             'owner_id', 'owner_name', 'owner_avatar', 'owner_rating',
             'ai_template', 'category', 'subcategory', 'subcategory_display',
             'tags', 'created_at', 'updated_at', 'images', 'is_active',
             'is_favorited',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner_id', 'images', 'subcategory_display', 'is_favorited']
-    
+
     def get_owner_avatar(self, obj):
         if not obj.owner_avatar:
             return None
-        
         if obj.owner_avatar.startswith('http://') or obj.owner_avatar.startswith('https://'):
             return obj.owner_avatar
-        
         avatar_path = obj.owner_avatar.lstrip('/media/')
         return f'/media/{avatar_path}'
-    
+
     def get_owner_rating(self, obj):
-        """Получить средний рейтинг владельца услуги"""
         from django.db.models import Avg
-        
         avg_rating = Review.objects.filter(
             reviewee_id=obj.owner_id
         ).aggregate(avg=Avg('rating'))['avg']
-        
         if avg_rating is None:
             return 0
-        
         return round(float(avg_rating), 1)
-    
+
     def get_subcategory_display(self, obj):
-        """Возвращает читаемое название подкатегории"""
         if not obj.subcategory:
             return None
-        
         subcategories = Service.SUBCATEGORY_CHOICES.get(obj.category, [])
         for value, label in subcategories:
             if value == obj.subcategory:
                 return label
         return None
-    
+
     def get_is_favorited(self, obj):
-        """Проверяет, добавлена ли услуга в избранное текущим пользователем"""
         request = self.context.get('request')
         if not request or not hasattr(request, 'user') or not request.user.is_authenticated:
             return False
-        
         return Favorite.objects.filter(user_id=request.user.id, service=obj).exists()
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
     service = ServiceSerializer(read_only=True)
-    
+
     class Meta:
         model = Favorite
         fields = ['id', 'service', 'created_at']
@@ -91,12 +80,12 @@ class FavoriteSerializer(serializers.ModelSerializer):
 
 class DealDeliveryAttachmentSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = DealDeliveryAttachment
         fields = ['id', 'filename', 'file_size', 'content_type', 'url', 'created_at']
         read_only_fields = ['id', 'created_at', 'url']
-    
+
     def get_url(self, obj):
         if not obj.file:
             return None
@@ -122,11 +111,16 @@ class DealSerializer(serializers.ModelSerializer):
     transactions = TransactionSerializer(many=True, read_only=True)
     review = ReviewSerializer(read_only=True)
     delivery_attachments = DealDeliveryAttachmentSerializer(many=True, read_only=True)
+
+    # Эскроу-флоу
     can_open_dispute = serializers.ReadOnlyField()
     can_worker_refund = serializers.ReadOnlyField()
     can_worker_defend = serializers.ReadOnlyField()
     is_dispute_pending_admin = serializers.ReadOnlyField()
-    
+
+    # Неэскроу-флоу
+    can_worker_accept = serializers.ReadOnlyField()
+
     status_display = serializers.SerializerMethodField()
     dispute_result = serializers.SerializerMethodField()
 
@@ -135,6 +129,7 @@ class DealSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'chat_room_id', 'client_id', 'worker_id',
             'service', 'title', 'description', 'price',
+            'is_escrow',
             'status', 'revision_count', 'max_revisions',
             'delivery_message', 'completion_message', 'cancellation_reason',
             'delivery_attachments',
@@ -142,24 +137,26 @@ class DealSerializer(serializers.ModelSerializer):
             'transactions', 'review',
             'can_pay', 'can_deliver', 'can_request_revision', 'can_complete', 'can_cancel',
             'can_open_dispute', 'can_worker_refund', 'can_worker_defend', 'is_dispute_pending_admin',
-            'dispute_client_reason', 'dispute_worker_defense', 
+            'can_worker_accept',
+            'dispute_client_reason', 'dispute_worker_defense',
             'dispute_created_at', 'dispute_resolved_at', 'dispute_winner',
             'status_display', 'dispute_result',
         ]
-        read_only_fields = ['id', 'chat_room_id', 'created_at', 'delivery_attachments']
+        read_only_fields = ['id', 'chat_room_id', 'created_at', 'delivery_attachments', 'is_escrow']
 
     def get_status_display(self, obj):
         status_map = {
             'pending': 'Ожидает оплаты',
+            'accepted': 'Исполнитель принял заказ',
             'paid': 'В работе',
             'delivered': 'На проверке',
             'dispute': 'В споре',
             'completed': 'Завершён',
             'cancelled': 'Отменён',
         }
-        
+
         base_status = status_map.get(obj.status, obj.status)
-        
+
         if obj.dispute_winner:
             if obj.dispute_winner == 'client':
                 if obj.status == 'cancelled':
@@ -169,13 +166,13 @@ class DealSerializer(serializers.ModelSerializer):
                 if obj.status == 'completed':
                     return 'Завершён (спор - победа исполнителя)'
                 return f'{base_status} (спор - победа исполнителя)'
-        
+
         return base_status
-    
+
     def get_dispute_result(self, obj):
         if not obj.dispute_winner:
             return None
-        
+
         return {
             'winner': obj.dispute_winner,
             'winner_text': 'клиента' if obj.dispute_winner == 'client' else 'исполнителя',
@@ -189,6 +186,7 @@ class CreateDealSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     description = serializers.CharField()
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    is_escrow = serializers.BooleanField(default=True)
 
 
 class CompleteDealSerializer(serializers.Serializer):

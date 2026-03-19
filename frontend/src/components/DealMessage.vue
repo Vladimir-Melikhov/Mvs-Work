@@ -1,3 +1,4 @@
+<!-- frontend/src/components/DealMessage.vue -->
 <template>
   <div 
     :class="sidebarMode ? '' : 'deal-card-wrapper w-full flex justify-center my-6 px-4'"
@@ -12,23 +13,34 @@
       ]"
     >
       
+      <!-- Заголовок -->
       <div class="flex items-center gap-3 mb-4 shrink-0">
         <div class="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shrink-0" :class="statusIconBg">
+          <!-- pending -->
           <svg v-if="dealData.status === 'pending'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
+          <!-- accepted (неэскроу: принят исполнителем) -->
+          <svg v-else-if="dealData.status === 'accepted'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <!-- paid -->
           <svg v-else-if="dealData.status === 'paid'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
+          <!-- delivered -->
           <svg v-else-if="dealData.status === 'delivered'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
+          <!-- dispute -->
           <svg v-else-if="dealData.status === 'dispute'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
+          <!-- completed -->
           <svg v-else-if="dealData.status === 'completed'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
           </svg>
+          <!-- cancelled -->
           <svg v-else-if="dealData.status === 'cancelled'" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -41,6 +53,17 @@
             {{ statusLabel }}
           </div>
           <div class="text-lg font-bold text-[#1a1a2e] truncate">{{ dealData.title }}</div>
+          <!-- Бейдж типа сделки -->
+          <div class="flex items-center gap-1 mt-0.5">
+            <span 
+              class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+              :class="dealData.is_escrow 
+                ? 'bg-[#7000ff]/10 text-[#7000ff]' 
+                : 'bg-gray-100 text-gray-500'"
+            >
+              {{ dealData.is_escrow ? '🛡️ Безопасная сделка' : '⚡ Без эскроу' }}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -50,6 +73,7 @@
           : 'space-y-4'"
       >
 
+        <!-- Финансы -->
         <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-4 border border-purple-200 shrink-0">
           <div class="space-y-1 text-sm">
             <div class="flex justify-between">
@@ -59,7 +83,7 @@
           </div>
         </div>
 
-        <!-- ✅ РЕЗУЛЬТАТ СПОРА (если есть) -->
+        <!-- Результат спора -->
         <div v-if="dealData.dispute_result" class="shrink-0">
           <div 
             :class="[
@@ -80,7 +104,7 @@
           </div>
         </div>
 
-        <!-- ✅ ИНФОРМАЦИЯ О СПОРЕ -->
+        <!-- Информация о споре -->
         <div v-if="dealData.status === 'dispute'" class="shrink-0">
           <div class="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mb-3">
             <div class="text-xs font-bold text-fuchsia-800 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -113,12 +137,14 @@
           </div>
         </div>
 
+        <!-- Доработки -->
         <div v-if="dealData.revision_count > 0" class="shrink-0">
           <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm">
             <span class="font-bold text-purple-800">Доработки: {{ dealData.revision_count }}/{{ dealData.max_revisions }}</span>
           </div>
         </div>
 
+        <!-- Результат работы (delivered) -->
         <div v-if="dealData.status === 'delivered' && dealData.delivery_message" class="shrink-0">
           <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
             <div class="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Результат работы</div>
@@ -126,7 +152,7 @@
           </div>
         </div>
         
-        <!-- ✅ ОБНОВЛЕННЫЙ БЛОК: Только ссылки на файлы, без превью изображений -->
+        <!-- Вложения -->
         <div v-if="dealData.delivery_attachments && dealData.delivery_attachments.length > 0" class="shrink-0">
           <div class="bg-violet-50 border border-violet-200 rounded-xl p-4">
             <div class="text-xs font-bold text-violet-800 uppercase tracking-wider mb-2">Прикрепленные файлы</div>
@@ -150,6 +176,7 @@
           </div>
         </div>
         
+        <!-- Завершён -->
         <div v-if="dealData.status === 'completed' && dealData.delivery_message" class="shrink-0">
           <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
             <div class="text-xs font-bold text-purple-800 uppercase tracking-wider mb-2">Работа завершена</div>
@@ -157,9 +184,10 @@
           </div>
         </div>
 
-        <!-- ✅ КНОПКИ ДЕЙСТВИЙ -->
+        <!-- ──────────────── КНОПКИ ДЕЙСТВИЙ ──────────────────────────────── -->
         <div class="space-y-2 pb-2" :class="sidebarMode ? '' : 'mt-auto'">
 
+          <!-- Изменить цену (воркер, pending) -->
           <button 
             v-if="showUpdatePriceButton"
             @click="showPriceModal = true"
@@ -168,33 +196,82 @@
             Изменить цену
           </button>
 
+          <!-- ── НЕЭСКРОУ: принять заказ (воркер) ────────────────────────── -->
           <button 
-  v-if="showPayButton"
-  @click="payDeal"
-  :disabled="loading"
-  class="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
->
-  <span v-if="loading" class="flex items-center justify-center gap-2">
-    <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    Обработка...
-  </span>
-  <span v-else class="flex flex-col items-center gap-1">
-    <span class="text-base font-bold">Оплатить заказ</span>
-    <span class="text-xs font-normal opacity-90">Перед оплатой уточните цену у исполнителя</span>
-  </span>
-</button>
-
-          <button 
-            v-if="showDeliverButton"
-            @click="showDeliveryModal = true"
-            class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            v-if="showWorkerAcceptButton"
+            @click="workerAccept"
+            :disabled="loading"
+            class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
           >
-            Сдать работу
+            <span v-if="loading" class="flex items-center justify-center gap-2">
+              <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Обработка...
+            </span>
+            <span v-else class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Принять заказ
+            </span>
           </button>
 
+          <!-- ── НЕЭСКРОУ: уведомление для клиента (статус accepted) ─────── -->
+          <div 
+            v-if="showClientAcceptedInfo"
+            class="bg-emerald-50 border border-emerald-200 rounded-xl p-4"
+          >
+            <div class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <div class="text-sm text-emerald-800">
+                <div class="font-bold mb-1">Исполнитель приступил к работе</div>
+                <div>Вы можете оплатить заказ прямо сейчас или дождаться результата.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Оплатить (клиент) — эскроу: только pending / неэскроу: pending или accepted -->
+          <button 
+            v-if="showPayButton"
+            @click="payDeal"
+            :disabled="loading"
+            class="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          >
+            <span v-if="loading" class="flex items-center justify-center gap-2">
+              <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Обработка...
+            </span>
+            <span v-else class="flex flex-col items-center gap-1">
+              <span class="text-base font-bold">Оплатить заказ</span>
+              <span v-if="dealData.is_escrow" class="text-xs font-normal opacity-90">Перед оплатой уточните цену у исполнителя</span>
+            </span>
+          </button>
+
+          <!-- Сдать работу (воркер) -->
+          <div v-if="showDeliverButton" class="space-y-1">
+            <button 
+              @click="showDeliveryModal = true"
+              class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            >
+              Сдать работу
+            </button>
+            <!-- Предупреждение для неэскроу: работа сдаётся до оплаты -->
+            <div 
+              v-if="!dealData.is_escrow && dealData.status === 'accepted'"
+              class="text-center text-xs text-amber-600 font-medium px-2"
+            >
+              ⚠️ Мы не рекомендуем сдавать работу до получения оплаты
+            </div>
+          </div>
+
+          <!-- Принять работу (клиент, delivered) -->
           <button 
             v-if="showCompleteButton"
             @click="showCompletionModal = true"
@@ -203,6 +280,7 @@
             Принять работу и завершить
           </button>
 
+          <!-- Запросить доработку -->
           <button 
             v-if="showRevisionButton"
             @click="showRevisionModal = true"
@@ -211,7 +289,7 @@
             Запросить доработку ({{ dealData.revision_count }}/{{ dealData.max_revisions }})
           </button>
 
-          <!-- ✅ НОВАЯ КНОПКА: ОТКРЫТЬ СПОР (только для клиента после сдачи работы) -->
+          <!-- Открыть спор -->
           <button 
             v-if="showOpenDisputeButton"
             @click="showDisputeModal = true"
@@ -223,7 +301,7 @@
             Открыть спор
           </button>
 
-          <!-- ✅ КНОПКИ ДЛЯ ИСПОЛНИТЕЛЯ В СПОРЕ -->
+          <!-- Вернуть деньги (воркер в споре) -->
           <button 
             v-if="showWorkerRefundButton"
             @click="workerRefund"
@@ -234,6 +312,7 @@
             <span v-else>Вернуть деньги</span>
           </button>
 
+          <!-- Оспорить (воркер в споре) -->
           <button 
             v-if="showWorkerDefendButton"
             @click="showDefenseModal = true"
@@ -242,6 +321,7 @@
             Оспорить
           </button>
 
+          <!-- Отменить заказ -->
           <button 
             v-if="showCancelButton"
             @click="showCancelModal = true"
@@ -261,7 +341,6 @@
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Изменить цену</h3>
           <p class="text-sm text-gray-600 mb-4">Клиент получит уведомление о новой цене.</p>
-          
           <div class="mb-4">
             <label class="block text-sm font-bold mb-2">Новая цена (₽)</label>
             <input 
@@ -272,7 +351,6 @@
               placeholder="Введите новую цену..."
             >
           </div>
-          
           <div class="flex gap-3">
             <button @click="showPriceModal = false; newPrice = parseInt(dealData.price)" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
             <button @click="updatePrice" :disabled="loading || !newPrice || newPrice <= 0" class="flex-1 bg-purple-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Изменить</button>
@@ -284,6 +362,11 @@
       <div v-if="showDeliveryModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4">Сдать работу</h3>
+          <!-- Предупреждение для неэскроу -->
+          <div v-if="!dealData.is_escrow && dealData.status === 'accepted'" class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+            <div class="font-bold mb-1">⚠️ Внимание</div>
+            <div>Мы не рекомендуем сдавать работу до получения оплаты. Продолжайте на свой страх и риск.</div>
+          </div>
           <textarea 
             v-model="deliveryMessage" 
             rows="4"
@@ -291,36 +374,35 @@
             placeholder="Опишите что сделано, добавьте ссылки на результат..."
           ></textarea>
           <div class="mb-4">
-  <label class="block text-sm font-bold mb-2">Прикрепить файлы (необязательно)</label>
-  <label class="cursor-pointer">
-    <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-500 transition-all text-center">
-      <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-      </svg>
-      <span class="text-sm text-gray-600">Нажмите для выбора файлов</span>
-    </div>
-    <input 
-      type="file" 
-      multiple
-      @change="handleDeliveryFileSelect"
-      class="hidden"
-    >
-  </label>
-  
-  <div v-if="deliveryFiles.length > 0" class="mt-3 space-y-2">
-    <div 
-      v-for="(file, idx) in deliveryFiles" 
-      :key="idx"
-      class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg"
-    >
-      <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      <span class="flex-1 text-sm truncate">{{ file.name }}</span>
-      <button @click="removeDeliveryFile(idx)" class="text-fuchsia-500 hover:text-fuchsia-700">×</button>
-    </div>
-  </div>
-</div>
+            <label class="block text-sm font-bold mb-2">Прикрепить файлы (необязательно)</label>
+            <label class="cursor-pointer">
+              <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-500 transition-all text-center">
+                <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span class="text-sm text-gray-600">Нажмите для выбора файлов</span>
+              </div>
+              <input 
+                type="file" 
+                multiple
+                @change="handleDeliveryFileSelect"
+                class="hidden"
+              >
+            </label>
+            <div v-if="deliveryFiles.length > 0" class="mt-3 space-y-2">
+              <div 
+                v-for="(file, idx) in deliveryFiles" 
+                :key="idx"
+                class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg"
+              >
+                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span class="flex-1 text-sm truncate">{{ file.name }}</span>
+                <button @click="removeDeliveryFile(idx)" class="text-fuchsia-500 hover:text-fuchsia-700">×</button>
+              </div>
+            </div>
+          </div>
           <div class="flex gap-3">
             <button @click="showDeliveryModal = false" class="flex-1 border-2 py-2 rounded-lg text-sm font-bold">Отмена</button>
             <button @click="deliverWork" :disabled="!deliveryMessage.trim() || loading" class="flex-1 bg-indigo-500 text-white py-2 rounded-lg font-bold disabled:opacity-50 text-sm">Сдать</button>
@@ -333,7 +415,6 @@
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center">
           <h3 class="text-xl font-bold mb-4">Принять работу?</h3>
           <p class="text-sm text-gray-600 mb-6">После принятия деньги будут переведены исполнителю.</p>
-          
           <div class="mb-6">
             <label class="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Оценка работы</label>
             <div class="flex gap-3 justify-center">
@@ -354,7 +435,6 @@
               </button>
             </div>
           </div>
-          
           <textarea 
             v-model="completionMessage" 
             rows="3"
@@ -386,7 +466,7 @@
         </div>
       </div>
 
-      <!-- ✅ МОДАЛЬНОЕ ОКНО: ОТКРЫТЬ СПОР -->
+      <!-- Открыть спор -->
       <div v-if="showDisputeModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-2 text-fuchsia-600">Открыть спор</h3>
@@ -404,7 +484,7 @@
         </div>
       </div>
 
-      <!-- ✅ МОДАЛЬНОЕ ОКНО: ЗАЩИТА ИСПОЛНИТЕЛЯ -->
+      <!-- Защита исполнителя -->
       <div v-if="showDefenseModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-2 text-indigo-600">Оспорить претензию</h3>
@@ -460,7 +540,6 @@ const emit = defineEmits(['deal-action'])
 const auth = useAuthStore()
 const loading = ref(false)
 
-// ✅ ИСПРАВЛЕНИЕ: Правильно определяем ID заказа
 const dealId = computed(() => {
   return props.dealData.id || 
          props.dealData.deal_id || 
@@ -477,7 +556,7 @@ const showPriceModal = ref(false)
 const showDisputeModal = ref(false)
 const showDefenseModal = ref(false)
 
-// Сообщения
+// Поля ввода
 const deliveryMessage = ref('')
 const completionMessage = ref('')
 const revisionReason = ref('')
@@ -486,15 +565,18 @@ const rating = ref(0)
 const newPrice = ref(parseInt(props.dealData.price))
 const disputeReason = ref('')
 const defenseText = ref('')
+const deliveryFiles = ref([])
 
-// Проверки роли
+// Роли
 const isClient = computed(() => String(auth.user.id) === String(props.dealData.client_id))
 const isWorker = computed(() => String(auth.user.id) === String(props.dealData.worker_id))
 
-// Стили статуса
+// ── Стили статуса ────────────────────────────────────────────────────────────
+
 const borderColor = computed(() => {
   const colors = {
     'pending': 'border-violet-200',
+    'accepted': 'border-emerald-200',
     'paid': 'border-purple-300',
     'delivered': 'border-indigo-300',
     'dispute': 'border-fuchsia-300',
@@ -507,6 +589,7 @@ const borderColor = computed(() => {
 const statusIconBg = computed(() => {
   const bgs = {
     'pending': 'bg-gradient-to-br from-violet-400 to-violet-600',
+    'accepted': 'bg-gradient-to-br from-emerald-400 to-teal-600',
     'paid': 'bg-gradient-to-br from-purple-500 to-violet-600',
     'delivered': 'bg-gradient-to-br from-indigo-500 to-purple-600',
     'dispute': 'bg-gradient-to-br from-fuchsia-500 to-pink-600',
@@ -517,7 +600,6 @@ const statusIconBg = computed(() => {
 })
 
 const statusLabel = computed(() => {
-  // ✅ Если есть результат спора - показываем его
   if (props.dealData.dispute_result) {
     const winner = props.dealData.dispute_result.winner_text
     if (props.dealData.status === 'cancelled') {
@@ -527,10 +609,10 @@ const statusLabel = computed(() => {
       return `Завершён (спор - победа ${winner})`
     }
   }
-  
-  // Обычные статусы
+
   const labels = {
     'pending': 'Ожидает оплаты',
+    'accepted': 'Принят исполнителем',
     'paid': 'В работе',
     'delivered': 'На проверке',
     'dispute': 'В споре',
@@ -543,6 +625,7 @@ const statusLabel = computed(() => {
 const statusTextColor = computed(() => {
   const colors = {
     'pending': 'text-violet-600',
+    'accepted': 'text-emerald-600',
     'paid': 'text-purple-600',
     'delivered': 'text-indigo-600',
     'dispute': 'text-fuchsia-600',
@@ -552,7 +635,18 @@ const statusTextColor = computed(() => {
   return colors[props.dealData.status] || 'text-gray-600'
 })
 
-// Показываем кнопки
+// ── Видимость кнопок ─────────────────────────────────────────────────────────
+
+// НЕЭСКРОУ: кнопка "Принять заказ" для воркера
+const showWorkerAcceptButton = computed(() => {
+  return isWorker.value && props.dealData.can_worker_accept
+})
+
+// НЕЭСКРОУ: уведомление для клиента что исполнитель принял
+const showClientAcceptedInfo = computed(() => {
+  return isClient.value && !props.dealData.is_escrow && props.dealData.status === 'accepted'
+})
+
 const showPayButton = computed(() => {
   return isClient.value && props.dealData.can_pay
 })
@@ -589,7 +683,8 @@ const showWorkerDefendButton = computed(() => {
   return isWorker.value && props.dealData.can_worker_defend
 })
 
-// ДЕЙСТВИЯ
+// ── Действия ─────────────────────────────────────────────────────────────────
+
 const updatePrice = async () => {
   loading.value = true
   try {
@@ -605,9 +700,22 @@ const updatePrice = async () => {
   }
 }
 
+// НЕЭСКРОУ: принятие заказа воркером
+const workerAccept = async () => {
+  loading.value = true
+  try {
+    await axios.post(`/api/market/deals/${dealId.value}/worker-accept/`)
+    emit('deal-action')
+  } catch (e) {
+    alert('Ошибка: ' + (e.response?.data?.error || e.message))
+  } finally {
+    loading.value = false
+  }
+}
+
 const payDeal = async () => {
   if (!confirm(`Оплатить заказ на сумму ${parseInt(props.dealData.price)}₽?`)) return
-  
+
   loading.value = true
   try {
     await axios.post(`/api/market/deals/${dealId.value}/pay/`)
@@ -624,17 +732,17 @@ const deliverWork = async () => {
   try {
     const formData = new FormData()
     formData.append('delivery_message', deliveryMessage.value)
-    
+
     deliveryFiles.value.forEach(file => {
       formData.append('files', file)
     })
-    
+
     await axios.post(`/api/market/deals/${dealId.value}/deliver/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
-    
+
     showDeliveryModal.value = false
     deliveryMessage.value = ''
     deliveryFiles.value = []
@@ -651,7 +759,7 @@ const completeDeal = async () => {
     alert('Пожалуйста, поставьте оценку')
     return
   }
-  
+
   loading.value = true
   try {
     await axios.post(`/api/market/deals/${dealId.value}/complete/`, {
@@ -668,11 +776,10 @@ const completeDeal = async () => {
     loading.value = false
   }
 }
-const deliveryFiles = ref([])
 
 const handleDeliveryFileSelect = (event) => {
   const files = Array.from(event.target.files)
-  
+
   const validFiles = files.filter(file => {
     if (file.size > 20 * 1024 * 1024) {
       alert(`Файл ${file.name} слишком большой (макс 20MB)`)
@@ -680,7 +787,7 @@ const handleDeliveryFileSelect = (event) => {
     }
     return true
   })
-  
+
   deliveryFiles.value.push(...validFiles)
   event.target.value = ''
 }
@@ -723,7 +830,7 @@ const openDispute = async () => {
 
 const workerRefund = async () => {
   if (!confirm('Вернуть деньги клиенту? Это действие нельзя отменить.')) return
-  
+
   loading.value = true
   try {
     await axios.post(`/api/market/deals/${dealId.value}/worker-refund/`)

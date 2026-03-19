@@ -3,14 +3,15 @@
     
     <nav class="w-full max-w-[1200px] h-[70px] bg-white/10 backdrop-blur-3xl border border-white/20 rounded-full flex items-center px-8 justify-between shadow-lg shadow-black/5 transition-all hover:bg-white/20">
       
-      <router-link to="/" class="flex flex-col items-start leading-none group select-none">
-        <span class="text-[19px] font-medium text-[#1a1a2e] ml-[0px] mb-[-4px] opacity-80 group-hover:opacity-100 transition-opacity">
-          Mvs
-        </span>
-        <span class="text-3xl font-black text-[#1a1a2e] tracking-tighter transform scale-x-125 origin-left hover:opacity-80 transition-opacity">
-          Работа
-        </span>
-      </router-link>
+<router-link to="/" class="flex flex-col items-start leading-none group select-none">
+  <span class="text-[19px] font-black text-[#1a1a2e] tracking-tighter transform scale-x-125 origin-left mb-[-6px] opacity-80 group-hover:opacity-100 transition-all">
+    Мвс
+  </span>
+  
+  <span class="text-3xl font-black text-[#1a1a2e] tracking-tighter transform scale-x-125 origin-left hover:opacity-80 transition-opacity">
+    Работа
+  </span>
+</router-link>
 
       <div class="flex items-center gap-2">
         <router-link 

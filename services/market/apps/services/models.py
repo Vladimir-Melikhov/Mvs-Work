@@ -7,20 +7,15 @@ import bleach
 
 
 def validate_tags(value):
-    """Валидация тегов - должен быть список строк"""
     if not isinstance(value, list):
         raise ValidationError('Tags должны быть списком')
-
     if len(value) > 20:
         raise ValidationError('Максимум 20 тегов')
-
     for tag in value:
         if not isinstance(tag, str):
             raise ValidationError('Каждый тег должен быть строкой')
-
         if len(tag) > 50:
             raise ValidationError('Тег не может быть длиннее 50 символов')
-
         dangerous = ['--', '/*', '*/', 'drop', 'select', 'insert', 'update', 'delete', 'union', 'exec', 'script']
         if any(pattern in tag.lower() for pattern in dangerous):
             raise ValidationError('Тег содержит недопустимые символы')
@@ -190,10 +185,6 @@ class Service(models.Model):
         return self.title
 
     def _validate_no_profanity(self):
-        """
-        Проверяет поля title, description, ai_template и tags на запрещённые слова.
-        Вызывается из clean() и не зависит от HTTP-слоя.
-        """
         from .profanity_filter import check_fields, find_forbidden
 
         fields_to_check = {
@@ -205,7 +196,6 @@ class Service(models.Model):
 
         violations = check_fields(**fields_to_check)
 
-        # Проверяем каждый тег отдельно
         if self.tags and isinstance(self.tags, list):
             bad_tags = [t for t in self.tags if isinstance(t, str) and find_forbidden(t)]
             if bad_tags:
@@ -233,11 +223,8 @@ class Service(models.Model):
 
     def clean(self):
         super().clean()
-
-        # Проверка на запрещённые слова
         self._validate_no_profanity()
 
-        # Валидация подкатегории
         if self.subcategory:
             valid_subcategories = [
                 choice[0]
@@ -310,6 +297,7 @@ class Favorite(models.Model):
 class Deal(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Ожидает оплаты'),
+        ('accepted', 'Принят исполнителем (без эскроу)'),
         ('paid', 'Оплачен, в работе'),
         ('delivered', 'Сдан на проверку'),
         ('dispute', 'В споре'),
@@ -326,6 +314,12 @@ class Deal(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(help_text="Техническое задание")
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # ── Режим сделки ──────────────────────────────────────────────────────────
+    is_escrow = models.BooleanField(
+        default=True,
+        help_text="Безопасная сделка (с холдированием средств)"
+    )
 
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
 
@@ -372,7 +366,7 @@ class Deal(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['client_id', 'worker_id'],
-                condition=models.Q(status__in=['pending', 'paid', 'delivered', 'dispute']),
+                condition=models.Q(status__in=['pending', 'accepted', 'paid', 'delivered', 'dispute']),
                 name='unique_active_deal_per_pair'
             )
         ]
@@ -382,15 +376,24 @@ class Deal(models.Model):
 
     @property
     def is_active(self) -> bool:
-        return self.status in ['pending', 'paid', 'delivered', 'dispute']
+        return self.status in ['pending', 'accepted', 'paid', 'delivered', 'dispute']
+
+    # ── Эскроу-флоу ───────────────────────────────────────────────────────────
 
     @property
     def can_pay(self) -> bool:
-        return self.status == 'pending'
+        """Заказчик может оплатить: только эскроу + статус pending/accepted"""
+        if self.is_escrow:
+            return self.status == 'pending'
+        # Неэскроу: можно оплатить после принятия исполнителем
+        return self.status == 'accepted'
 
     @property
     def can_deliver(self) -> bool:
-        return self.status == 'paid'
+        if self.is_escrow:
+            return self.status == 'paid'
+        # Неэскроу: можно сдать после принятия или после оплаты
+        return self.status in ['accepted', 'paid']
 
     @property
     def can_request_revision(self) -> bool:
@@ -402,7 +405,10 @@ class Deal(models.Model):
 
     @property
     def can_cancel(self) -> bool:
-        return self.status in ['pending', 'paid'] and not self.was_delivered
+        if self.is_escrow:
+            return self.status in ['pending', 'paid'] and not self.was_delivered
+        # Неэскроу: можно отменить до сдачи работы
+        return self.status in ['pending', 'accepted', 'paid'] and not self.was_delivered
 
     @property
     def can_update_price(self) -> bool:
@@ -423,6 +429,13 @@ class Deal(models.Model):
     @property
     def is_dispute_pending_admin(self) -> bool:
         return self.status == 'dispute' and bool(self.dispute_worker_defense) and not self.dispute_winner
+
+    # ── Неэскроу-флоу ─────────────────────────────────────────────────────────
+
+    @property
+    def can_worker_accept(self) -> bool:
+        """Исполнитель может принять неэскроу-заказ"""
+        return not self.is_escrow and self.status == 'pending'
 
 
 class DealDeliveryAttachment(models.Model):
