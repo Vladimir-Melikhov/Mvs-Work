@@ -66,7 +66,6 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email: str, password: str, **extra_fields):
-        """Создание суперпользователя через manage.py createsuperuser"""
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
@@ -80,7 +79,6 @@ class UserManager(BaseUserManager):
 
         user = self.create_user(email, password, **extra_fields)
 
-        # Создаём профиль и кошелёк для суперюзера если их нет
         Profile.objects.get_or_create(user=user)
         Wallet.objects.get_or_create(user=user)
 
@@ -160,16 +158,13 @@ class EmailVerification(models.Model):
 
     @staticmethod
     def generate_code():
-        """Генерация 6-значного кода"""
         return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
     def is_valid(self):
-        """Проверка валидности кода"""
         return not self.used and timezone.now() < self.expires_at
 
     @classmethod
     def create_for_user(cls, user, verification_type='registration', new_email=None):
-        """Создать новый код для пользователя"""
         cls.objects.filter(
             user=user,
             used=False,
@@ -355,8 +350,41 @@ class SubscriptionPayment(models.Model):
     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=Subscription.SUBSCRIPTION_PRICE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    payment_provider = models.CharField(max_length=50, default='stub')
+    payment_provider = models.CharField(max_length=50, default='tochka')
+    # paymentLinkId — наш внутренний UUID заказа
     external_payment_id = models.CharField(max_length=255, blank=True, null=True)
+
+    # ─── Поля Точка Банка ───────────────────────────────────────────────────
+    # operationId — возвращается при создании, нужен для GET /status
+    tochka_operation_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='ID операции в системе Точка Банка (operationId)'
+    )
+    # consumerId — ID покупателя в Точке для повторных списаний с сохранённой картой
+    tochka_consumer_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='ID покупателя в системе Точка Банка (consumerId)'
+    )
+    # Ссылка на страницу оплаты — отдаётся пользователю
+    payment_link = models.URLField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        help_text='Ссылка на страницу оплаты Точка Банк'
+    )
+    # Последний статус от Точки (Active / Inactive / Cancelled / Pending / Created)
+    tochka_status = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Статус подписки в системе Точки'
+    )
+    # ────────────────────────────────────────────────────────────────────────
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

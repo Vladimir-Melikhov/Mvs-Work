@@ -9,6 +9,7 @@ from .views import (
     BatchUsersView,
     PublicProfileView,
     SubscriptionView,
+    TochkaSubscriptionStatusView,
     TelegramGenerateLinkView,
     TelegramVerifyTokenView,
     TelegramDisconnectView,
@@ -45,10 +46,18 @@ urlpatterns = [
     path('check-balance/', CheckBalanceView.as_view(), name='check_balance'),
     path('users/batch/', BatchUsersView.as_view(), name='users_batch'),
     path('users/<uuid:user_id>/', PublicProfileView.as_view(), name='public_profile'),
+
+    # ─── Подписка ────────────────────────────────────────────────────────────
+    # GET  — текущий статус подписки
+    # POST — создать платёж, получить ссылку на оплату в Точке
     path('subscription/', SubscriptionView.as_view(), name='subscription'),
-    # ─── Internal endpoints (защищены InternalServiceMiddleware) ──────────────
+    # GET  — проверить статус оплаты в Точке (вызывается после редиректа с оплаты)
+    path('subscription/check-status/', TochkaSubscriptionStatusView.as_view(), name='subscription_check_status'),
+
+    # ─── Internal endpoints (защищены InternalServiceMiddleware) ─────────────
     path('internal/users/<uuid:user_id>/profile/', InternalUserProfileView.as_view(), name='internal-user-profile'),
     path('internal/users/<uuid:user_id>/set-active/', InternalSetUserActiveView.as_view(), name='internal-set-user-active'),
+
     # ─── Telegram ─────────────────────────────────────────────────────────────
     path('telegram/generate-link/', TelegramGenerateLinkView.as_view(), name='telegram_generate_link'),
     path('telegram/verify-token/', TelegramVerifyTokenView.as_view(), name='telegram_verify_token'),
