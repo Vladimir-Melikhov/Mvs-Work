@@ -5,16 +5,12 @@
     <div class="ios-glass-card relative w-full max-w-[400px] p-8 flex flex-col items-center overflow-hidden">
       <div class="absolute -top-24 -right-24 w-48 h-48 bg-[#7000ff]/10 blur-[60px] rounded-full"></div>
 
-      <button 
-        @click="$emit('close')" 
-        class="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-black/5 hover:bg-black/10 transition-colors"
-      >
+      <button @click="$emit('close')" class="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-black/5 hover:bg-black/10 transition-colors">
         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
 
-      <!-- Шаг 1: Предложение подписки -->
       <template v-if="step === 'offer'">
         <div class="w-16 h-16 ios-icon-lens mb-6 flex items-center justify-center">
           <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,7 +47,6 @@
         <p class="mt-4 text-[10px] text-gray-400 font-medium">Отмена в любое время в настройках профиля</p>
       </template>
 
-      <!-- Шаг 2: Ожидание оплаты -->
       <template v-else-if="step === 'waiting'">
         <div class="w-16 h-16 ios-icon-lens mb-6 flex items-center justify-center">
           <svg class="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
@@ -69,7 +64,6 @@
         <a
           :href="paymentLink"
           target="_blank"
-          rel="noopener noreferrer"
           class="w-full mb-4 text-center py-3 rounded-2xl text-sm font-bold text-[#7000ff] border-2 border-[#7000ff]/30 hover:bg-[#7000ff]/5 transition-all block"
         >
           Открыть страницу оплаты снова
@@ -86,7 +80,6 @@
         </button>
       </template>
 
-      <!-- Шаг 3: Успех -->
       <template v-else-if="step === 'success'">
         <div class="w-16 h-16 ios-icon-lens mb-6 flex items-center justify-center">
           <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,18 +123,12 @@ const subscribe = async () => {
     loading.value = true
     checkError.value = ''
 
-    // Открываем вкладку СРАЗУ в обработчике клика — до await
-    // Иначе браузер блокирует window.open как popup
-    const paymentWindow = window.open('', '_blank', 'noopener,noreferrer')
-
     const response = await axios.post('/api/auth/subscription/')
 
     if (response.data.status === 'success') {
       const data = response.data.data
 
       if (!data.payment_link) {
-        // Подписка уже активна
-        if (paymentWindow) paymentWindow.close()
         step.value = 'success'
         emit('subscribed')
         return
@@ -149,10 +136,8 @@ const subscribe = async () => {
 
       paymentLink.value = data.payment_link
 
-      // Направляем уже открытую вкладку на страницу оплаты
-      if (paymentWindow) {
-        paymentWindow.location.href = data.payment_link
-      }
+      // Открываем страницу оплаты напрямую — без промежуточного about:blank
+      window.open(data.payment_link, '_blank')
 
       step.value = 'waiting'
     }
@@ -200,17 +185,13 @@ const checkPaymentStatus = async () => {
   border-left: 1px solid rgba(255, 255, 255, 0.4);
   border-right: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 
-    0 40px 80px rgba(0, 0, 0, 0.1), 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
 }
 
 .ios-inset-box {
   background: rgba(0, 0, 0, 0.02);
   border-radius: 32px;
-  box-shadow: 
-    inset 0 2px 8px rgba(0, 0, 0, 0.04),
-    0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .ios-icon-lens {
@@ -229,9 +210,7 @@ const checkPaymentStatus = async () => {
   color: white;
   background: #1a1a2e;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 
-    0 15px 30px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -253,13 +232,7 @@ const checkPaymentStatus = async () => {
 }
 
 @keyframes ios-appear {
-  from { 
-    opacity: 0; 
-    transform: scale(0.9) translateY(20px);
-  }
-  to { 
-    opacity: 1; 
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>
