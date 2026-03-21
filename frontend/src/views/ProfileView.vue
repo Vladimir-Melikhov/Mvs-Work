@@ -899,6 +899,24 @@ const handleLogout = () => {
 onMounted(async () => { 
   await auth.fetchProfile() 
   fetchMyServices()
+
+  const urlParams = new URLSearchParams(window.location.search)
+  const subscriptionParam = urlParams.get('subscription')
+
+  if (subscriptionParam === 'success' && isWorker.value) {
+    window.history.replaceState({}, '', window.location.pathname)
+    try {
+      const res = await axios.get('/api/auth/subscription/check-status/')
+      if (res.data?.data?.tochka_status === 'Active' || res.data?.data?.subscription?.is_active) {
+        await auth.fetchProfile()
+      }
+    } catch (e) {
+      console.error('Auto check-status failed:', e)
+    }
+  } else if (subscriptionParam === 'fail') {
+    window.history.replaceState({}, '', window.location.pathname)
+    alert('Оплата не прошла. Попробуйте ещё раз.')
+  }
 })
 </script>
 
