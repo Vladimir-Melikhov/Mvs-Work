@@ -51,7 +51,7 @@
         <p class="mt-4 text-[10px] text-gray-400 font-medium">Отмена в любое время в настройках профиля</p>
       </template>
 
-      <!-- Шаг 2: Ожидание оплаты (ссылка открыта в новой вкладке) -->
+      <!-- Шаг 2: Ожидание оплаты -->
       <template v-else-if="step === 'waiting'">
         <div class="w-16 h-16 ios-icon-lens mb-6 flex items-center justify-center">
           <svg class="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
@@ -70,7 +70,7 @@
           :href="paymentLink"
           target="_blank"
           rel="noopener noreferrer"
-          class="w-full mb-4 text-center py-3 rounded-2xl text-sm font-bold text-[#7000ff] border-2 border-[#7000ff]/30 hover:bg-[#7000ff]/5 transition-all"
+          class="w-full mb-4 text-center py-3 rounded-2xl text-sm font-bold text-[#7000ff] border-2 border-[#7000ff]/30 hover:bg-[#7000ff]/5 transition-all block"
         >
           Открыть страницу оплаты снова
         </a>
@@ -113,7 +113,7 @@ import axios from 'axios'
 
 const emit = defineEmits(['close', 'subscribed'])
 
-const step = ref('offer')       // 'offer' | 'waiting' | 'success'
+const step = ref('offer')
 const loading = ref(false)
 const checking = ref(false)
 const paymentLink = ref('')
@@ -125,22 +125,23 @@ const features = [
   'Дешевле стакана кофе'
 ]
 
-/**
- * Шаг 1: Создаём платёж в Точка Банке, получаем ссылку.
- * Открываем ссылку в новой вкладке и переходим в режим ожидания.
- */
 const subscribe = async () => {
   try {
     loading.value = true
     checkError.value = ''
+
+    // Открываем вкладку СРАЗУ в обработчике клика — до await
+    // Иначе браузер блокирует window.open как popup
+    const paymentWindow = window.open('', '_blank', 'noopener,noreferrer')
 
     const response = await axios.post('/api/auth/subscription/')
 
     if (response.data.status === 'success') {
       const data = response.data.data
 
-      // Подписка уже активна (например пришёл повторный запрос)
       if (!data.payment_link) {
+        // Подписка уже активна
+        if (paymentWindow) paymentWindow.close()
         step.value = 'success'
         emit('subscribed')
         return
@@ -148,8 +149,10 @@ const subscribe = async () => {
 
       paymentLink.value = data.payment_link
 
-      // Открываем страницу оплаты Точки в новой вкладке
-      window.open(data.payment_link, '_blank', 'noopener,noreferrer')
+      // Направляем уже открытую вкладку на страницу оплаты
+      if (paymentWindow) {
+        paymentWindow.location.href = data.payment_link
+      }
 
       step.value = 'waiting'
     }
@@ -161,10 +164,6 @@ const subscribe = async () => {
   }
 }
 
-/**
- * Шаг 2: Пользователь говорит что оплатил — запрашиваем статус у Точки.
- * Точка отвечает: Active → активируем подписку, иначе — сообщение что ещё не оплачено.
- */
 const checkPaymentStatus = async () => {
   try {
     checking.value = true

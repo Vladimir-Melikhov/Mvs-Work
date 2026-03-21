@@ -1,4 +1,12 @@
 # services/auth/apps/users/tochka_service.py
+"""
+Сервис интеграции с интернет-эквайрингом Точка Банка.
+
+customerCode — код ИП/юрлица в системе Точки (НЕ физлица).
+Получается через GET /uapi/open-banking/v1.0/customers,
+берём запись с customerType="Business".
+Хранится в .env как TOCHKA_CUSTOMER_CODE.
+"""
 import os
 import json
 import http.client
@@ -23,7 +31,6 @@ class TochkaPaymentService:
 
     def __init__(self):
         self.token = os.getenv("TOCHKA_JWT_TOKEN", "")
-        # customerCode ИП/юрлица — из .env
         self.customer_code = os.getenv("TOCHKA_CUSTOMER_CODE", "")
         self.merchant_id = os.getenv("TOCHKA_MERCHANT_ID", "")
         self.frontend_url = os.getenv("FRONTEND_URL", "https://mvs-work.ru")
@@ -45,19 +52,15 @@ class TochkaPaymentService:
     def _make_request(self, method: str, path: str, payload: Optional[Dict] = None) -> Dict[str, Any]:
         conn = http.client.HTTPSConnection(TOCHKA_HOST, timeout=15)
         body = json.dumps(payload) if payload else ""
-
         try:
             conn.request(method, path, body, self._get_headers())
             res = conn.getresponse()
             raw = res.read().decode("utf-8")
             logger.debug("[Tochka] %s %s → %s: %s", method, path, res.status, raw[:500])
-
             if res.status not in (200, 201):
                 logger.error("[Tochka] HTTP %s: %s", res.status, raw[:500])
                 raise TochkaAPIError(f"Точка API вернул HTTP {res.status}: {raw[:300]}")
-
             return json.loads(raw)
-
         except json.JSONDecodeError as e:
             raise TochkaAPIError(f"Ошибка парсинга ответа Точки: {e}")
         except OSError as e:
@@ -78,12 +81,13 @@ class TochkaPaymentService:
                 "failRedirectUrl": f"{self.frontend_url}/profile?subscription=fail",
                 "saveCard": True,
                 "paymentLinkId": payment_link_id,
+                "taxSystemCode": os.getenv("TOCHKA_TAX_SYSTEM", "osn"),
                 "Options": {
-                    "trancheCount": 120,
+                    "trancheCount": 84,
                     "period": "Month",
                 },
                 "Client": {
-                    "Email": user_email,
+                    "email": user_email,
                 },
                 "Items": [
                     {
@@ -101,12 +105,9 @@ class TochkaPaymentService:
         if self.merchant_id:
             payload["Data"]["merchantId"] = self.merchant_id
 
-        logger.info(
-            "[Tochka] Создаём подписку. customerCode=%s email=%s paymentLinkId=%s",
-            self.customer_code, user_email, payment_link_id
-        )
+        logger.info("[Tochka] Создаём подписку. customerCode=%s email=%s", self.customer_code, user_email)
 
-        response = self._make_request("POST", f"{TOCHKA_BASE_PATH}/subscriptions", payload)
+        response = self._make_request("POST", f"{TOCHKA_BASE_PATH}/subscriptions_with_receipt", payload)
 
         data = response.get("Data", {})
         payment_link = data.get("paymentLink")
