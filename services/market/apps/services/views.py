@@ -1044,7 +1044,6 @@ class UpdateOwnerAvatarView(APIView):
             'message': f'Обновлено объявлений: {count}'
         })
 
-# В services/market/apps/services/views.py добавь этот класс:
 
 class InternalDeactivateServicesView(APIView):
     authentication_classes = []
@@ -1064,3 +1063,23 @@ class InternalDeactivateServicesView(APIView):
             'status': 'success',
             'data': {'deactivated_count': count}
         })
+
+    def post(self, request):
+        owner_id = request.data.get('owner_id')
+        owner_ids = request.data.get('owner_ids')
+
+        if owner_ids:
+            count = Service.objects.filter(
+                owner_id__in=owner_ids,
+                is_active=True
+            ).update(is_active=False)
+        elif owner_id:
+            count = Service.objects.filter(
+                owner_id=owner_id,
+                is_active=True
+            ).update(is_active=False)
+        else:
+            return Response({'error': 'owner_id или owner_ids обязателен'}, status=400)
+
+        return Response({'status': 'success', 'data': {'deactivated_count': count}})
+
