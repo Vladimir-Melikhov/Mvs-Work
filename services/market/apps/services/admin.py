@@ -263,9 +263,40 @@ class DealAdmin(admin.ModelAdmin):
         # ТЗ
         sections.append(f'<div style="border:2px solid #e5e7eb;padding:12px;border-radius:8px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:6px">📝 Техническое задание</div><div style="color:#4b5563;white-space:pre-wrap;max-height:150px;overflow-y:auto">{obj.description}</div></div>')
 
-        # Результат работы
-        if obj.delivery_message:
-            sections.append(f'<div style="border:2px solid #10b981;padding:12px;border-radius:8px;margin-bottom:12px"><div style="font-weight:700;color:#059669;margin-bottom:6px">📦 Результат работы</div><div style="white-space:pre-wrap;max-height:120px;overflow-y:auto">{obj.delivery_message}</div></div>')
+        # Результат работы + прикреплённые файлы
+        delivery_text = obj.delivery_message or ''
+        attachments = obj.delivery_attachments.all()
+        has_delivery = bool(delivery_text) or attachments.exists()
+
+        if has_delivery:
+            attachments_html = ''
+            if attachments.exists():
+                attachments_html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #d1fae5"><div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">📎 Прикреплённые файлы</div>'
+                for att in attachments:
+                    if att.file:
+                        file_url = att.file.url
+                        file_size_kb = round(att.file_size / 1024, 1)
+                        attachments_html += (
+                            f'<div style="margin-bottom:6px">'
+                            f'<a href="{file_url}" target="_blank" download="{att.filename}" '
+                            f'style="display:inline-flex;align-items:center;gap:8px;padding:7px 14px;'
+                            f'background:#f0fdf4;border:1px solid #86efac;border-radius:8px;'
+                            f'color:#15803d;text-decoration:none;font-size:12px;font-weight:600;'
+                            f'transition:background 0.2s;">'
+                            f'⬇️ {att.filename}'
+                            f'<span style="color:#6b7280;font-weight:400;">({file_size_kb} KB)</span>'
+                            f'</a>'
+                            f'</div>'
+                        )
+                attachments_html += '</div>'
+
+            sections.append(
+                f'<div style="border:2px solid #10b981;padding:12px;border-radius:8px;margin-bottom:12px">'
+                f'<div style="font-weight:700;color:#059669;margin-bottom:6px">📦 Результат работы</div>'
+                f'<div style="white-space:pre-wrap;max-height:120px;overflow-y:auto;color:#1a1a2e">{delivery_text}</div>'
+                f'{attachments_html}'
+                f'</div>'
+            )
 
         # Претензия
         sections.append(f'<div style="background:#fee2e2;border:2px solid #fca5a5;padding:12px;border-radius:8px;margin-bottom:12px"><div style="font-weight:700;color:#dc2626;margin-bottom:6px">👤 Претензия клиента</div><div style="color:#7f1d1d;white-space:pre-wrap">{obj.dispute_client_reason or "—"}</div></div>')

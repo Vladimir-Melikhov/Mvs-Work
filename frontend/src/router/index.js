@@ -13,6 +13,9 @@ import ChatDetailView from '../views/ChatDetailView.vue'
 import VerifyEmailView from '../views/VerifyEmailView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
+import Error404View from '../views/Error404View.vue'
+import Error500View from '../views/Error500View.vue'
+import Error403View from '../views/Error403View.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -38,7 +41,6 @@ const router = createRouter({
       path: '/users/:id',
       name: 'public-profile',
       component: PublicProfileView,
-      // ✅ ИСПРАВЛЕНО: публичный профиль доступен без авторизации
       meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
     },
     // ── Страницы только для гостей ────────────────────────────────────────────
@@ -108,7 +110,27 @@ const router = createRouter({
       name: 'onboarding',
       component: OnboardingView,
       meta: { requiresAuth: true, requiresEmailVerification: true }
-    }
+    },
+    // ── Страницы ошибок ───────────────────────────────────────────────────────
+    {
+      path: '/403',
+      name: 'error-403',
+      component: Error403View,
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
+    },
+    {
+      path: '/500',
+      name: 'error-500',
+      component: Error500View,
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
+    },
+    // ── Catch-all 404 ─────────────────────────────────────────────────────────
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'error-404',
+      component: Error404View,
+      meta: { requiresAuth: false, requiresGuest: false, requiresEmailVerification: false }
+    },
   ],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
@@ -129,7 +151,6 @@ router.beforeEach(async (to, from, next) => {
   const requiresEmailVerification = to.meta.requiresEmailVerification === true
 
   // ── 1. Полностью публичные страницы — пропускаем без любых проверок ─────────
-  // Это: /search, /services/:id, /users/:id
   if (!requiresAuth && !requiresGuest) {
     return next()
   }
@@ -137,10 +158,8 @@ router.beforeEach(async (to, from, next) => {
   // ── 2. Инициализируем auth если нужно ────────────────────────────────────────
   if (!auth.isInitialized) {
     if (requiresGuest) {
-      // Для гостевых страниц не ждём initAuth — просто помечаем инициализированным
       auth.isInitialized = true
     } else {
-      // Для защищённых страниц — нужно знать статус авторизации
       await auth.initAuth()
     }
   }
@@ -156,7 +175,7 @@ router.beforeEach(async (to, from, next) => {
   if (requiresGuest && isAuthenticated) {
     return next('/')
   }
-   
+
   // ── 5. Проверка подтверждения email ──────────────────────────────────────────
   if (isAuthenticated && auth.user) {
     const emailVerified = auth.user.email_verified

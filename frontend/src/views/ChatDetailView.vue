@@ -743,7 +743,7 @@ const getIconPath = (type) => {
 }
 
 const getStatusLabel = (status) => {
-  const labels = { 'pending': 'Ожидает оплаты', 'paid': 'В работе', 'delivered': 'Сдано', 'completed': 'Завершено', 'cancelled': 'Отменено', 'dispute': 'В споре' }
+  const labels = { 'pending': 'Ожидает оплаты', 'accepted': 'В работе', 'paid': 'В работе', 'delivered': 'Сдано', 'completed': 'Завершено', 'cancelled': 'Отменено', 'dispute': 'В споре' }
   return labels[status] || status
 }
 

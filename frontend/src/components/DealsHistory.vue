@@ -152,7 +152,7 @@ const getRoleBadge = (deal) => String(auth.user.id) === String(deal.client_id)
   : 'bg-purple-50/50 text-purple-700 border border-purple-100/20'
 
 const getStatusText = (status) => ({
-  pending: 'Ожидает оплаты', paid: 'В работе', delivered: 'Сдано на проверку', completed: 'Завершена', cancelled: 'Отменена'
+  pending: 'Ожидает оплаты', 'accepted': 'В работе', paid: 'В работе', delivered: 'Сдано на проверку', completed: 'Завершена', cancelled: 'Отменена'
 }[status] || status)
 
 const getPriceColor = (status) => {
