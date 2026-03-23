@@ -21,7 +21,13 @@ from .serializers import (
 from .profanity_filter import check_fields as profanity_check
 from django.conf import settings
 from .services import AIService, DealService
-from .throttling import AIGenerationThrottle, DealCreationThrottle, FileUploadThrottle, DealPaymentThrottle
+from .throttling import (
+    AIGenerationThrottle,
+    DealCreationThrottle,
+    FileUploadThrottle,
+    DealPaymentThrottle,
+    ServiceCreationThrottle,
+)
 import os
 import requests
 import magic
@@ -89,6 +95,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'get_subcategories']:
             return [AllowAny()]
         return [IsAuthenticated()]
+
+    def get_throttles(self):
+        """Тротлинг на создание объявления: 1 раз в 3 часа"""
+        if self.action == 'create':
+            return [ServiceCreationThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         queryset = Service.objects.all()
@@ -622,7 +634,6 @@ class DealViewSet(viewsets.ViewSet):
             client_id = current_user_id
             worker_id = other_member_id
 
-            # is_escrow передаётся из запроса (default=True из CreateDealSerializer)
             is_escrow = serializer.validated_data.get('is_escrow', True)
 
             deal = DealService.create_deal(
@@ -647,18 +658,8 @@ class DealViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
-    # ── ЭНДПОИНТ: клиент запускает неэскроу-сделку ───────────────────────────
-    # Галочка в UI — просто локальный стейт. Сервер узнаёт о выборе только здесь.
-    # После вызова: deal.is_escrow=False, deal.status='accepted'.
-    # Воркер видит кнопку «Принять заказ» (can_worker_accept=True).
-    # Откатить нельзя — статус уже не pending, галочка в UI исчезает.
-
     @action(detail=True, methods=['post'], url_path='client-start')
     def client_start(self, request, pk=None):
-        """
-        Клиент запускает неэскроу-сделку.
-        Выставляет is_escrow=False и переводит статус pending → accepted.
-        """
         try:
             deal = Deal.objects.get(id=pk)
         except Deal.DoesNotExist:
@@ -677,7 +678,6 @@ class DealViewSet(viewsets.ViewSet):
         deal.status = 'accepted'
         deal.save(update_fields=['is_escrow', 'status'])
 
-        # Отправляем обновлённую карточку обоим участникам
         DealService._send_deal_card(deal, str(request.user.id), 'client_started', token)
 
         return Response({
@@ -734,7 +734,6 @@ class DealViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='worker-accept')
     def worker_accept(self, request, pk=None):
-        """Исполнитель принимает неэскроу-заказ (после client-start)"""
         try:
             deal = Deal.objects.get(id=pk)
 
@@ -1051,21 +1050,6 @@ class InternalDeactivateServicesView(APIView):
 
     def post(self, request):
         owner_id = request.data.get('owner_id')
-        if not owner_id:
-            return Response({'error': 'owner_id обязателен'}, status=400)
-
-        count = Service.objects.filter(
-            owner_id=owner_id,
-            is_active=True
-        ).update(is_active=False)
-
-        return Response({
-            'status': 'success',
-            'data': {'deactivated_count': count}
-        })
-
-    def post(self, request):
-        owner_id = request.data.get('owner_id')
         owner_ids = request.data.get('owner_ids')
 
         if owner_ids:
@@ -1082,4 +1066,3 @@ class InternalDeactivateServicesView(APIView):
             return Response({'error': 'owner_id или owner_ids обязателен'}, status=400)
 
         return Response({'status': 'success', 'data': {'deactivated_count': count}})
-
