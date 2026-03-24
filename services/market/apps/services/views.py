@@ -97,7 +97,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def get_throttles(self):
-        """Тротлинг на создание объявления: 1 раз в 3 часа"""
+        """Тротлинг на создание объявления"""
         if self.action == 'create':
             return [ServiceCreationThrottle()]
         return super().get_throttles()

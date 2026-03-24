@@ -11,3 +11,4 @@ Pillow==10.4.0
 python-magic==0.4.27
 bleach==6.1.0
 django-extensions==3.2.3
+django-redis==5.4.0

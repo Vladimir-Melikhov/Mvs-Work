@@ -107,7 +107,7 @@ REST_FRAMEWORK = {
         'file_upload': '50/hour',
         'deal_payment': '10/hour',
         'room_creation': '20/hour',
-        'service_creation': '2/3h',
+        'service_creation': '2/hour',
     }
 }
 
