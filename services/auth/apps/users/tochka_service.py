@@ -1,11 +1,5 @@
-# services/auth/apps/users/tochka_service.py
 """
 Сервис интеграции с интернет-эквайрингом Точка Банка.
-
-customerCode — код ИП/юрлица в системе Точки (НЕ физлица).
-Получается через GET /uapi/open-banking/v1.0/customers,
-берём запись с customerType="Business".
-Хранится в .env как TOCHKA_CUSTOMER_CODE.
 """
 import os
 import json
