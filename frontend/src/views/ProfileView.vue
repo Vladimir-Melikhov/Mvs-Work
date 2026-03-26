@@ -103,7 +103,6 @@
               {{ user?.profile?.company_name || user?.profile?.full_name || user?.email }}
             </h1>
             
-            
             <div v-if="isWorker && workerRating > 0" class="flex items-center gap-2 md:gap-3 mt-2 md:mt-3 justify-center md:justify-start flex-wrap">
               <div class="flex gap-1">
                 <div v-for="i in 5" :key="i" class="relative w-3 h-3 md:w-4 md:h-4">
@@ -111,25 +110,15 @@
                     <defs>
                       <linearGradient :id="'grad-' + i">
                         <stop offset="0%" stop-color="#7000ff" />
-                        <stop 
-                          :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" 
-                          stop-color="#7000ff" 
-                        />
-                        <stop 
-                          :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" 
-                          stop-color="#e5e7eb" 
-                        />
+                        <stop :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" stop-color="#7000ff" />
+                        <stop :offset="(Math.min(Math.max(workerRating - (i - 1), 0), 1) * 100) + '%'" stop-color="#e5e7eb" />
                         <stop offset="100%" stop-color="#e5e7eb" />
                       </linearGradient>
                     </defs>
-                    <path 
-                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
-                      :fill="'url(#grad-' + i + ')'"
-                    />
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" :fill="'url(#grad-' + i + ')'" />
                   </svg>
                 </div>
               </div>
-              
               <div class="text-[10px] md:text-xs font-bold text-gray-500 flex items-center gap-1">
                 <span class="text-[#1a1a2e] text-xs md:text-sm">{{ workerRating.toFixed(1) }}</span>
                 <span class="w-1 h-1 rounded-full bg-gray-300"></span>
@@ -149,22 +138,38 @@
                 </svg>
                 {{ user.profile.company_website.replace('https://', '').replace('http://', '') }}
               </a>
-              <div v-if="isWorker" class="mt-2 flex justify-center md:justify-start">
+
+              <!-- ── Подписка: статус + дата + кнопка отмены ── -->
+              <div v-if="isWorker" class="mt-2 flex justify-center md:justify-start items-center gap-2 flex-wrap">
+                <!-- Статус / кнопка открытия модалки -->
                 <button 
                   @click="handleSubscriptionClick"
                   class="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 rounded-xl transition-all border backdrop-blur-md text-[9px] md:text-[10px] font-bold uppercase tracking-widest shadow-sm"
                   :class="subscriptionStatus.isActive 
-                    ? 'bg-[#7000ff]/10 text-[#7000ff] border-[#7000ff]/30' 
+                    ? 'bg-[#7000ff]/10 text-[#7000ff] border-[#7000ff]/30 cursor-default' 
                     : 'bg-[#1a1a2e]/5 text-[#1a1a2e]/60 border-[#1a1a2e]/10 hover:bg-[#7000ff]/5 hover:text-[#7000ff] cursor-pointer'"
                 >
                   <span 
-                    class="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full" 
+                    class="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full shrink-0" 
                     :class="subscriptionStatus.isActive ? 'bg-[#7000ff] shadow-[0_0_8px_#7000ff]' : 'bg-[#1a1a2e]/40'"
                   ></span>
-                  
-                  {{ subscriptionStatus.isActive ? 'Подписка активна' : 'Подписка неактивна' }}
+                  <span v-if="subscriptionStatus.isActive">
+                    Подписка до {{ formatSubscriptionDate(subscriptionStatus.expiresAt) }}
+                  </span>
+                  <span v-else>Подписка неактивна</span>
+                </button>
+
+                <!-- Кнопка отмены — только когда активна -->
+                <button 
+                  v-if="subscriptionStatus.isActive"
+                  @click="cancelSubscription"
+                  :disabled="cancellingSubscription"
+                  class="text-[9px] md:text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest disabled:opacity-50"
+                >
+                  {{ cancellingSubscription ? '...' : 'Отменить' }}
                 </button>
               </div>
+
               <a 
                 v-if="user?.profile?.github_link" 
                 :href="user.profile.github_link" 
@@ -207,55 +212,37 @@
       <div class="glass p-6 md:p-8 rounded-[24px] md:rounded-[32px] space-y-6">
         <h3 class="text-lg md:text-xl font-bold text-[#1a1a2e] mb-6">Безопасность</h3>
         
-        <!-- Смена Email -->
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div>
               <div class="font-bold text-sm md:text-base text-[#1a1a2e]">Email</div>
               <div class="text-xs md:text-sm text-gray-500">{{ user?.email }}</div>
             </div>
-            <button 
-              @click="showEmailModal = true"
-              class="text-xs md:text-sm font-bold text-[#7000ff] hover:underline"
-            >
-              Изменить
-            </button>
+            <button @click="showEmailModal = true" class="text-xs md:text-sm font-bold text-[#7000ff] hover:underline">Изменить</button>
           </div>
         </div>
 
         <div class="border-t border-white/20"></div>
 
-        <!-- Смена пароля -->
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div>
               <div class="font-bold text-sm md:text-base text-[#1a1a2e]">Пароль</div>
               <div class="text-xs md:text-sm text-gray-500">••••••••</div>
             </div>
-            <button 
-              @click="showPasswordModal = true"
-              class="text-xs md:text-sm font-bold text-[#7000ff] hover:underline"
-            >
-              Изменить
-            </button>
+            <button @click="showPasswordModal = true" class="text-xs md:text-sm font-bold text-[#7000ff] hover:underline">Изменить</button>
           </div>
         </div>
 
         <div class="border-t border-white/20"></div>
 
-        <!-- Удаление аккаунта -->
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div>
               <div class="font-bold text-sm md:text-base text-[#1a1a2e]">Удаление аккаунта</div>
               <div class="text-xs md:text-sm text-gray-500">Безвозвратное удаление всех данных</div>
             </div>
-            <button 
-              @click="showDeleteModal = true"
-              class="text-xs md:text-sm font-bold text-red-500 hover:underline"
-            >
-              Удалить
-            </button>
+            <button @click="showDeleteModal = true" class="text-xs md:text-sm font-bold text-red-500 hover:underline">Удалить</button>
           </div>
         </div>
       </div>
@@ -309,9 +296,7 @@
          </router-link>
       </div>
 
-      <div v-if="loadingServices" class="text-center py-10 opacity-50">
-        Загрузка...
-      </div>
+      <div v-if="loadingServices" class="text-center py-10 opacity-50">Загрузка...</div>
 
       <div v-else-if="paginatedServices.length > 0">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
@@ -321,7 +306,6 @@
             class="glass rounded-[24px] md:rounded-[32px] p-3 md:p-6 cursor-pointer group flex flex-col h-full border border-white/20 hover:border-white/40 hover:-translate-y-1 transition-all relative"
             @click="$router.push(`/services/${service.id}`)" 
           >
-
             <div class="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                <div class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-white/20 flex items-center justify-center text-[9px] md:text-[10px] font-bold border border-white/30 overflow-hidden shrink-0">
                  <img v-if="service.owner_avatar" :src="service.owner_avatar" class="w-full h-full object-cover">
@@ -332,64 +316,28 @@
                </div>
                <div class="text-[#7000ff] font-bold text-xs md:text-lg shrink-0">{{ parseInt(service.price) }}₽</div>
             </div>
-
-            <h3 class="text-sm md:text-lg font-bold text-[#1a1a2e] mb-1 md:mb-2 leading-tight line-clamp-2 break-words">
-              {{ service.title }}
-            </h3>
-            <p class="text-gray-600 text-[10px] md:text-xs leading-relaxed mb-3 md:mb-4 line-clamp-2 md:line-clamp-3 flex-1 break-words">
-              {{ service.description }}
-            </p>
-
+            <h3 class="text-sm md:text-lg font-bold text-[#1a1a2e] mb-1 md:mb-2 leading-tight line-clamp-2 break-words">{{ service.title }}</h3>
+            <p class="text-gray-600 text-[10px] md:text-xs leading-relaxed mb-3 md:mb-4 line-clamp-2 md:line-clamp-3 flex-1 break-words">{{ service.description }}</p>
             <div class="flex flex-wrap gap-1.5 md:gap-2 mt-auto pt-3 md:pt-4 border-t border-white/10">
-               <span v-for="tag in service.tags?.slice(0,2)" :key="tag" class="px-1.5 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg bg-white/20 text-[9px] md:text-[10px] font-bold text-gray-600 border border-white/20 break-words">
-                 #{{ tag }}
-               </span>
+               <span v-for="tag in service.tags?.slice(0,2)" :key="tag" class="px-1.5 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg bg-white/20 text-[9px] md:text-[10px] font-bold text-gray-600 border border-white/20 break-words">#{{ tag }}</span>
                <div class="flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest backdrop-blur-md transition-all shadow-sm"
-       :class="service.is_active 
-         ? 'bg-[#7000ff]/10 text-[#7000ff] border border-[#7000ff]/20' 
-         : 'bg-gray-100/50 text-gray-400 border border-gray-200'">
-    <span class="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full" 
-          :class="service.is_active ? 'bg-[#7000ff] shadow-[0_0_5px_#7000ff]' : 'bg-gray-400'">
-    </span>
-    {{ service.is_active ? 'Активно' : 'Архив' }}
-  </div>
+                 :class="service.is_active ? 'bg-[#7000ff]/10 text-[#7000ff] border border-[#7000ff]/20' : 'bg-gray-100/50 text-gray-400 border border-gray-200'">
+                 <span class="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full" :class="service.is_active ? 'bg-[#7000ff] shadow-[0_0_5px_#7000ff]' : 'bg-gray-400'"></span>
+                 {{ service.is_active ? 'Активно' : 'Архив' }}
+               </div>
             </div>
           </div>
         </div>
 
         <div v-if="totalServicePages > 1" class="flex justify-center items-center gap-2 mt-4 md:mt-6">
-          <button 
-            @click="currentServicePage--" 
-            :disabled="currentServicePage === 1"
-            class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
-          >
-            <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
+          <button @click="currentServicePage--" :disabled="currentServicePage === 1" class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center">
+            <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           </button>
-
           <div class="flex gap-1">
-            <button 
-              v-for="page in visibleServicePages" 
-              :key="page"
-              @click="currentServicePage = page"
-              class="w-8 h-8 md:w-9 md:h-9 rounded-full font-bold text-xs md:text-sm transition-all"
-              :class="currentServicePage === page 
-                ? 'bg-[#7000ff] text-white' 
-                : 'bg-white/20 hover:bg-white/40 text-gray-700'"
-            >
-              {{ page }}
-            </button>
+            <button v-for="page in visibleServicePages" :key="page" @click="currentServicePage = page" class="w-8 h-8 md:w-9 md:h-9 rounded-full font-bold text-xs md:text-sm transition-all" :class="currentServicePage === page ? 'bg-[#7000ff] text-white' : 'bg-white/20 hover:bg-white/40 text-gray-700'">{{ page }}</button>
           </div>
-
-          <button 
-            @click="currentServicePage++" 
-            :disabled="currentServicePage === totalServicePages"
-            class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
-          >
-            <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
+          <button @click="currentServicePage++" :disabled="currentServicePage === totalServicePages" class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center">
+            <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>
@@ -415,7 +363,7 @@
       Выйти
     </button>
 
-    <!-- Модалки подписки -->
+    <!-- Модалка подписки -->
     <SubscriptionModal 
       v-if="showSubscriptionModal" 
       @close="showSubscriptionModal = false"
@@ -428,40 +376,13 @@
       <div v-if="showEmailModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4 text-[#1a1a2e]">Изменить Email</h3>
-          
-          <p class="text-sm text-gray-600 mb-4">
-            На новый email будет отправлен код подтверждения
-          </p>
-          
-          <input 
-            v-model="newEmail" 
-            type="email" 
-            placeholder="Новый email" 
-            class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] mb-4 text-sm"
-          >
-          
-          <div v-if="emailError" class="mb-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">
-            {{ emailError }}
-          </div>
-          
-          <div v-if="emailSuccess" class="mb-4 p-3 rounded-xl bg-green-50 text-green-600 text-xs font-bold">
-            {{ emailSuccess }}
-          </div>
-          
+          <p class="text-sm text-gray-600 mb-4">На новый email будет отправлен код подтверждения</p>
+          <input v-model="newEmail" type="email" placeholder="Новый email" class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] mb-4 text-sm">
+          <div v-if="emailError" class="mb-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">{{ emailError }}</div>
+          <div v-if="emailSuccess" class="mb-4 p-3 rounded-xl bg-green-50 text-green-600 text-xs font-bold">{{ emailSuccess }}</div>
           <div class="flex gap-3">
-            <button 
-              @click="closeEmailModal"
-              class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm"
-            >
-              Отмена
-            </button>
-            <button 
-              @click="updateEmail"
-              :disabled="emailLoading || !newEmail"
-              class="flex-1 bg-[#7000ff] text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-[#5500cc] transition-all"
-            >
-              {{ emailLoading ? 'Обновление...' : 'Обновить' }}
-            </button>
+            <button @click="closeEmailModal" class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm">Отмена</button>
+            <button @click="updateEmail" :disabled="emailLoading || !newEmail" class="flex-1 bg-[#7000ff] text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-[#5500cc] transition-all">{{ emailLoading ? 'Обновление...' : 'Обновить' }}</button>
           </div>
         </div>
       </div>
@@ -470,53 +391,16 @@
       <div v-if="showPasswordModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4 text-[#1a1a2e]">Изменить пароль</h3>
-          
           <div class="space-y-4">
-            <input 
-              v-model="oldPassword" 
-              type="password" 
-              placeholder="Текущий пароль" 
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm"
-            >
-            
-            <input 
-              v-model="newPassword" 
-              type="password" 
-              placeholder="Новый пароль (минимум 6 символов)" 
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm"
-            >
-            
-            <input 
-              v-model="confirmNewPassword" 
-              type="password" 
-              placeholder="Повторите новый пароль" 
-              class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm"
-              :class="{'border-red-400': newPassword && confirmNewPassword && newPassword !== confirmNewPassword}"
-            >
+            <input v-model="oldPassword" type="password" placeholder="Текущий пароль" class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm">
+            <input v-model="newPassword" type="password" placeholder="Новый пароль (минимум 6 символов)" class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm">
+            <input v-model="confirmNewPassword" type="password" placeholder="Повторите новый пароль" class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#7000ff] text-sm" :class="{'border-red-400': newPassword && confirmNewPassword && newPassword !== confirmNewPassword}">
           </div>
-          
-          <div v-if="passwordError" class="mt-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">
-            {{ passwordError }}
-          </div>
-          
-          <div v-if="passwordSuccess" class="mt-4 p-3 rounded-xl bg-green-50 text-green-600 text-xs font-bold">
-            {{ passwordSuccess }}
-          </div>
-          
+          <div v-if="passwordError" class="mt-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">{{ passwordError }}</div>
+          <div v-if="passwordSuccess" class="mt-4 p-3 rounded-xl bg-green-50 text-green-600 text-xs font-bold">{{ passwordSuccess }}</div>
           <div class="flex gap-3 mt-6">
-            <button 
-              @click="closePasswordModal"
-              class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm"
-            >
-              Отмена
-            </button>
-            <button 
-              @click="changePassword"
-              :disabled="passwordLoading || !oldPassword || !newPassword || !confirmNewPassword"
-              class="flex-1 bg-[#7000ff] text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-[#5500cc] transition-all"
-            >
-              {{ passwordLoading ? 'Обновление...' : 'Изменить' }}
-            </button>
+            <button @click="closePasswordModal" class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm">Отмена</button>
+            <button @click="changePassword" :disabled="passwordLoading || !oldPassword || !newPassword || !confirmNewPassword" class="flex-1 bg-[#7000ff] text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-[#5500cc] transition-all">{{ passwordLoading ? 'Обновление...' : 'Изменить' }}</button>
           </div>
         </div>
       </div>
@@ -525,36 +409,12 @@
       <div v-if="showDeleteModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl">
           <h3 class="text-xl font-bold mb-4 text-red-600">Удалить аккаунт?</h3>
-          
-          <p class="text-sm text-gray-600 mb-4">
-            Это действие необратимо. Все ваши данные, услуги и сообщения будут удалены навсегда.
-          </p>
-          
-          <input 
-            v-model="deletePassword" 
-            type="password" 
-            placeholder="Введите ваш пароль для подтверждения" 
-            class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 text-sm"
-          >
-          
-          <div v-if="deleteError" class="mb-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">
-            {{ deleteError }}
-          </div>
-          
+          <p class="text-sm text-gray-600 mb-4">Это действие необратимо. Все ваши данные, услуги и сообщения будут удалены навсегда.</p>
+          <input v-model="deletePassword" type="password" placeholder="Введите ваш пароль для подтверждения" class="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 text-sm">
+          <div v-if="deleteError" class="mb-4 p-3 rounded-xl bg-red-50 text-red-500 text-xs font-bold">{{ deleteError }}</div>
           <div class="flex gap-3">
-            <button 
-              @click="closeDeleteModal"
-              class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm"
-            >
-              Отмена
-            </button>
-            <button 
-              @click="deleteAccount"
-              :disabled="deleteLoading || !deletePassword"
-              class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-red-700 transition-all"
-            >
-              {{ deleteLoading ? 'Удаление...' : 'Удалить навсегда' }}
-            </button>
+            <button @click="closeDeleteModal" class="flex-1 border-2 border-gray-200 py-3 rounded-xl hover:bg-gray-50 transition-colors font-bold text-sm">Отмена</button>
+            <button @click="deleteAccount" :disabled="deleteLoading || !deletePassword" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold disabled:opacity-50 text-sm hover:bg-red-700 transition-all">{{ deleteLoading ? 'Удаление...' : 'Удалить навсегда' }}</button>
           </div>
         </div>
       </div>
@@ -594,12 +454,12 @@ const workerRating = ref(0)
 const totalReviews = ref(0)
 
 const showSubscriptionModal = ref(false)
+const cancellingSubscription = ref(false)
+
 const subscriptionStatus = computed(() => {
   if (!isWorker.value) return { isActive: true, expiresAt: null }
-  
   const subscription = user.value?.subscription
   if (!subscription) return { isActive: false, expiresAt: null }
-  
   return {
     isActive: subscription.is_active,
     expiresAt: subscription.expires_at
@@ -625,6 +485,14 @@ const deletePassword = ref('')
 const deleteError = ref('')
 const deleteLoading = ref(false)
 
+// ── Форматирование даты подписки ─────────────────────────────────────────────
+const formatSubscriptionDate = (dateStr) => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+}
+
+// ── Подписка ─────────────────────────────────────────────────────────────────
 const handleSubscriptionClick = () => {
   if (!subscriptionStatus.value.isActive) {
     showSubscriptionModal.value = true
@@ -636,6 +504,20 @@ const handleSubscribed = async () => {
   await auth.fetchProfile()
 }
 
+const cancelSubscription = async () => {
+  if (!confirm('Отменить подписку? Доступ и объявления будут деактивированы немедленно.')) return
+  cancellingSubscription.value = true
+  try {
+    await axios.post('/api/auth/subscription/cancel/')
+    await auth.fetchProfile()
+  } catch (e) {
+    alert('Ошибка отмены: ' + (e.response?.data?.error || e.message))
+  } finally {
+    cancellingSubscription.value = false
+  }
+}
+
+// ── Прочее ───────────────────────────────────────────────────────────────────
 const userInitials = computed(() => {
   if (user.value?.profile?.full_name) return user.value.profile.full_name.charAt(0).toUpperCase()
   return user.value?.email?.substring(0, 2).toUpperCase() || 'ME'
@@ -645,8 +527,7 @@ const totalServicePages = computed(() => Math.ceil(myServices.value.length / ser
 
 const paginatedServices = computed(() => {
   const start = (currentServicePage.value - 1) * servicesPerPage
-  const end = start + servicesPerPage
-  return myServices.value.slice(start, end)
+  return myServices.value.slice(start, start + servicesPerPage)
 })
 
 const visibleServicePages = computed(() => {
@@ -666,7 +547,7 @@ const visibleServicePages = computed(() => {
 const handleAvatarUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
-  if (file.size > 5 * 1024 * 1024) { alert('Файл слишком большой. Максимум 5MB'); return; }
+  if (file.size > 5 * 1024 * 1024) { alert('Файл слишком большой. Максимум 5MB'); return }
   avatarFile.value = file
   const reader = new FileReader()
   reader.onload = (e) => { avatarPreview.value = e.target.result }
@@ -681,7 +562,6 @@ const toggleEdit = () => {
     avatarFile.value = null
     avatarPreview.value = null
   } else {
-    // Отменяем редактирование
     avatarFile.value = null
     avatarPreview.value = null
   }
@@ -698,7 +578,6 @@ const addSkill = () => {
 const saveProfile = async () => {
   uploadingAvatar.value = true
   try {
-    // Очищаем ненужные поля в зависимости от типа профиля
     if (isCompanyEdit.value && !isWorker.value) {
       editForm.value.full_name = ''
     } else {
@@ -707,8 +586,6 @@ const saveProfile = async () => {
     }
     
     const formData = new FormData()
-    
-    // Добавляем только заполненные текстовые поля
     const textFields = ['full_name', 'company_name', 'headline', 'company_website', 'bio', 'github_link', 'behance_link']
     textFields.forEach(key => {
       const value = editForm.value[key]
@@ -716,13 +593,9 @@ const saveProfile = async () => {
         formData.append(key, value)
       }
     })
-    
-    // Добавляем навыки как JSON
     if (editForm.value.skills && Array.isArray(editForm.value.skills)) {
       formData.append('skills', JSON.stringify(editForm.value.skills))
     }
-    
-    // Добавляем аватар если есть
     if (avatarFile.value) {
       formData.append('avatar', avatarFile.value)
     }
@@ -778,27 +651,16 @@ const closeDeleteModal = () => {
 }
 
 const updateEmail = async () => {
-  if (!newEmail.value) {
-    emailError.value = 'Введите новый email'
-    return
-  }
-  
+  if (!newEmail.value) { emailError.value = 'Введите новый email'; return }
   emailError.value = ''
   emailSuccess.value = ''
   emailLoading.value = true
-  
   try {
-    const response = await axios.post('/api/auth/update-email/', {
-      new_email: newEmail.value
-    })
-    
+    const response = await axios.post('/api/auth/update-email/', { new_email: newEmail.value })
     if (response.data.status === 'success') {
       emailSuccess.value = 'Email обновлен! Проверьте новый email для подтверждения.'
       await auth.fetchProfile()
-      
-      setTimeout(() => {
-        closeEmailModal()
-      }, 2000)
+      setTimeout(() => { closeEmailModal() }, 2000)
     }
   } catch (error) {
     emailError.value = error.response?.data?.error || 'Ошибка обновления email'
@@ -808,32 +670,19 @@ const updateEmail = async () => {
 }
 
 const changePassword = async () => {
-  if (newPassword.value.length < 6) {
-    passwordError.value = 'Пароль должен быть не менее 6 символов'
-    return
-  }
-  
-  if (newPassword.value !== confirmNewPassword.value) {
-    passwordError.value = 'Пароли не совпадают'
-    return
-  }
-  
+  if (newPassword.value.length < 6) { passwordError.value = 'Пароль должен быть не менее 6 символов'; return }
+  if (newPassword.value !== confirmNewPassword.value) { passwordError.value = 'Пароли не совпадают'; return }
   passwordError.value = ''
   passwordSuccess.value = ''
   passwordLoading.value = true
-  
   try {
     const response = await axios.post('/api/auth/change-password/', {
       old_password: oldPassword.value,
       new_password: newPassword.value
     })
-    
     if (response.data.status === 'success') {
       passwordSuccess.value = 'Пароль успешно изменен!'
-      
-      setTimeout(() => {
-        closePasswordModal()
-      }, 2000)
+      setTimeout(() => { closePasswordModal() }, 2000)
     }
   } catch (error) {
     passwordError.value = error.response?.data?.error || 'Ошибка смены пароля'
@@ -843,24 +692,13 @@ const changePassword = async () => {
 }
 
 const deleteAccount = async () => {
-  if (!deletePassword.value) {
-    deleteError.value = 'Введите пароль для подтверждения'
-    return
-  }
-  
-  if (!confirm('Вы действительно хотите удалить аккаунт? Это действие нельзя отменить!')) {
-    return
-  }
-  
+  if (!deletePassword.value) { deleteError.value = 'Введите пароль для подтверждения'; return }
+  if (!confirm('Вы действительно хотите удалить аккаунт? Это действие нельзя отменить!')) return
   deleteError.value = ''
   deleteLoading.value = true
-  
   try {
     const result = await auth.deleteAccount(deletePassword.value)
-    
-    if (result.success) {
-      // Успешное удаление - пользователь будет перенаправлен в authStore
-    } else {
+    if (!result.success) {
       deleteError.value = result.error || 'Ошибка удаления аккаунта'
       deleteLoading.value = false
     }
@@ -874,13 +712,11 @@ const fetchMyServices = async () => {
   if (!isWorker.value) return
   loadingServices.value = true
   try {
-    const res = await axios.get(`/api/market/services/`, {
-        params: { owner_id: auth.user.id }
-    })
+    const res = await axios.get('/api/market/services/', { params: { owner_id: auth.user.id } })
     if (res.data.status === 'success') myServices.value = res.data.data
     else if (Array.isArray(res.data)) myServices.value = res.data
   } catch (e) {
-    console.error("Failed to fetch my services", e)
+    console.error('Failed to fetch my services', e)
   } finally {
     loadingServices.value = false
   }
@@ -896,8 +732,8 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-onMounted(async () => { 
-  await auth.fetchProfile() 
+onMounted(async () => {
+  await auth.fetchProfile()
   fetchMyServices()
 
   const urlParams = new URLSearchParams(window.location.search)

@@ -1406,3 +1406,62 @@ class InternalSetUserActiveView(APIView):
                 'status': 'error',
                 'error': str(e)
             }, status=400)
+class SubscriptionCancelView(APIView):
+    """
+    Принудительная отмена подписки пользователем.
+    Сразу деактивирует подписку и объявления, сигналит в Точку об отмене.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import os, requests as req
+        from .models import Subscription, SubscriptionPayment
+
+        if request.user.role != 'worker':
+            return Response({'status': 'error', 'error': 'Только для исполнителей'}, status=403)
+
+        try:
+            subscription = request.user.subscription
+        except Subscription.DoesNotExist:
+            return Response({'status': 'error', 'error': 'Подписка не найдена'}, status=404)
+
+        if not subscription.is_active:
+            return Response({'status': 'error', 'error': 'Подписка уже неактивна'}, status=400)
+
+        # 1. Деактивируем подписку у нас
+        subscription.deactivate()
+
+        # 2. Деактивируем объявления
+        try:
+            from .jwt_service import ServiceJWT
+            token = ServiceJWT.generate_service_token('auth-cancel', expires_minutes=5)
+            market_url = os.getenv('MARKET_SERVICE_URL', 'http://market:8002')
+            req.post(
+                f"{market_url}/api/market/services/internal-deactivate/",
+                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+                json={'owner_id': str(request.user.id)},
+                timeout=5
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error("[Cancel] Ошибка деактивации объявлений: %s", e)
+
+        # 3. Сигналим Точке об отмене подписки (если есть operationId)
+        payment = subscription.payments.filter(
+            status='completed',
+            tochka_operation_id__isnull=False
+        ).order_by('-created_at').first()
+
+        if payment and payment.tochka_operation_id:
+            try:
+                from .tochka_service import TochkaPaymentService
+                tochka = TochkaPaymentService()
+                tochka.cancel_subscription(payment.tochka_operation_id)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error("[Cancel] Ошибка отмены в Точке: %s", e)
+
+        return Response({
+            'status': 'success',
+            'message': 'Подписка отменена. Объявления деактивированы.'
+        })

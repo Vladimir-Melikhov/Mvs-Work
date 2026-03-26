@@ -1,3 +1,4 @@
+# services/auth/apps/users/apps.py
 from django.apps import AppConfig
 
 

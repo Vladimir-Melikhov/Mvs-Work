@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 TOCHKA_HOST = "enter.tochka.com"
 TOCHKA_BASE_PATH = "/uapi/acquiring/v1.0"
+TOCHKA_WEBHOOK_PATH = "/uapi/webhook/v1.0"
 
 SUBSCRIPTION_PRICE = Decimal("444.00")
 SUBSCRIPTION_TITLE = "Подписка MVS-Work (1 месяц)"
@@ -27,14 +28,13 @@ class TochkaPaymentService:
         self.token = os.getenv("TOCHKA_JWT_TOKEN", "")
         self.customer_code = os.getenv("TOCHKA_CUSTOMER_CODE", "")
         self.merchant_id = os.getenv("TOCHKA_MERCHANT_ID", "")
+        self.client_id = os.getenv("TOCHKA_CLIENT_ID", "")
         self.frontend_url = os.getenv("FRONTEND_URL", "https://mvs-work.ru")
 
         if not self.token:
             logger.warning("[Tochka] TOCHKA_JWT_TOKEN не задан в .env")
         if not self.customer_code:
             logger.warning("[Tochka] TOCHKA_CUSTOMER_CODE не задан в .env")
-        else:
-            logger.info("[Tochka] customerCode: %s", self.customer_code)
 
     def _get_headers(self) -> Dict[str, str]:
         return {
@@ -125,3 +125,33 @@ class TochkaPaymentService:
         tochka_status = response.get("Data", {}).get("status", "Unknown")
         logger.info("[Tochka] Статус %s: %s", operation_id, tochka_status)
         return tochka_status
+
+    def cancel_subscription(self, operation_id: str) -> bool:
+        """Отменить подписку в Точке"""
+        path = f"{TOCHKA_BASE_PATH}/subscriptions/{operation_id}/status"
+        try:
+            response = self._make_request("POST", path, {"Data": {"status": "Cancelled"}})
+            result = response.get("Data", {}).get("result", False)
+            logger.info("[Tochka] Отмена подписки %s: %s", operation_id, result)
+            return bool(result)
+        except TochkaAPIError as e:
+            logger.error("[Tochka] Ошибка отмены подписки %s: %s", operation_id, e)
+            return False
+
+    def register_webhook(self, webhook_url: str) -> bool:
+        """Зарегистрировать вебхук в Точке"""
+        if not self.client_id:
+            logger.warning("[Tochka] TOCHKA_CLIENT_ID не задан, вебхук не зарегистрирован")
+            return False
+
+        path = f"{TOCHKA_WEBHOOK_PATH}/{self.client_id}"
+        try:
+            response = self._make_request("PUT", path, {
+                "webhooksList": ["acquiringInternetPayment"],
+                "url": webhook_url,
+            })
+            logger.info("[Tochka] ✅ Вебхук зарегистрирован: %s", response.get("Data", {}).get("url"))
+            return True
+        except TochkaAPIError as e:
+            logger.error("[Tochka] Ошибка регистрации вебхука: %s", e)
+            return False
