@@ -77,7 +77,7 @@ class TochkaPaymentService:
                 "paymentLinkId": payment_link_id,
                 "taxSystemCode": os.getenv("TOCHKA_TAX_SYSTEM", "osn"),
                 "Options": {
-                    "trancheCount": 84,
+                    "trancheCount": 12,
                     "period": "Month",
                 },
                 "Client": {
