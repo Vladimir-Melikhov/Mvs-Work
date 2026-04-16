@@ -1,4 +1,3 @@
-# services/chat/apps/messaging/consumers.py
 import json
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer

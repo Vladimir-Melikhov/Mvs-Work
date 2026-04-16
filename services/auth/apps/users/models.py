@@ -247,6 +247,28 @@ class Profile(models.Model):
         help_text="Включены ли Telegram уведомления"
     )
 
+    # ── Безопасные сделки Точка Банка (Medusa) ────────────────────────────────
+    medusa_recipient_ext_id = models.UUIDField(
+        null=True, blank=True, unique=True,
+        help_text='ID получателя в системе Безопасных сделок Точка Банка'
+    )
+    medusa_recipient_registered = models.BooleanField(
+        default=False,
+        help_text='Зарегистрирован ли воркер как получатель в Medusa'
+    )
+    medusa_card_ext_id = models.UUIDField(
+        null=True, blank=True,
+        help_text='ID основной карты для выплат в Medusa'
+    )
+    medusa_card_masked_pan = models.CharField(
+        max_length=20, null=True, blank=True,
+        help_text='Маскированный номер карты (****1234)'
+    )
+    medusa_card_linked = models.BooleanField(
+        default=False,
+        help_text='Есть ли привязанная карта для выплат'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

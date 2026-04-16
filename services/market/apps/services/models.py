@@ -321,6 +321,52 @@ class Deal(models.Model):
         help_text="Безопасная сделка (с холдированием средств)"
     )
 
+    # ── Интеграция с Безопасными сделками Точка Банка (Medusa) ─────────────
+    medusa_order_ext_id = models.UUIDField(
+        null=True, blank=True, db_index=True,
+        help_text='ID заказа в системе Безопасных сделок Точка Банка'
+    )
+    medusa_service_ext_id = models.UUIDField(
+        null=True, blank=True,
+        help_text='ID услуги в заказе Medusa (для принятия решения)'
+    )
+    medusa_payment_url = models.URLField(
+        max_length=1000, null=True, blank=True,
+        help_text='Ссылка на страницу оплаты от Точка Банка'
+    )
+    medusa_order_status = models.CharField(
+        max_length=30, null=True, blank=True,
+        help_text='Статус заказа в системе Medusa'
+    )
+    medusa_platform_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Комиссия платформы MVS-Work (0.5%)'
+    )
+    medusa_tochka_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Комиссия Безопасных сделок (0.8%)'
+    )
+    medusa_acquiring_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Комиссия за эквайринг (2.2%)'
+    )
+    medusa_total_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Суммарная комиссия по сделке'
+    )
+    medusa_total_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Итого к оплате заказчиком (цена + комиссии)'
+    )
+    medusa_recipient_ext_id = models.UUIDField(
+        null=True, blank=True,
+        help_text='ID получателя (воркера) в системе Medusa'
+    )
+    medusa_card_ext_id = models.UUIDField(
+        null=True, blank=True,
+        help_text='ID карты получателя в системе Medusa'
+    )
+
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
 
     revision_count = models.IntegerField(default=0)

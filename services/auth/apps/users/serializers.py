@@ -33,8 +33,13 @@ class ProfileSerializer(serializers.ModelSerializer):
             'behance_link',
             'telegram_chat_id',
             'telegram_notifications_enabled',
+            'medusa_recipient_ext_id',
+            'medusa_recipient_registered',
+            'medusa_card_ext_id',
+            'medusa_card_masked_pan',
+            'medusa_card_linked',
         ]
-        read_only_fields = ['rating', 'avatar_url', 'telegram_chat_id']
+        read_only_fields = ['rating', 'avatar_url', 'telegram_chat_id', 'medusa_recipient_ext_id', 'medusa_card_ext_id']
     
     def get_avatar_url(self, obj):
         """Возвращает полный URL аватарки"""

@@ -261,7 +261,7 @@
         ></textarea>
         <p v-else class="text-gray-600 leading-relaxed whitespace-pre-wrap break-words text-xs md:text-base">{{ user?.profile?.bio || 'Информация не заполнена.' }}</p>
       </div>
-
+      
       <div v-if="isWorker" class="glass p-4 md:p-8 rounded-[24px] md:rounded-[32px]">
         <h3 class="text-base md:text-lg font-bold text-[#1a1a2e] mb-3 md:mb-4">Навыки</h3>
         
@@ -286,7 +286,9 @@
         </div>
       </div>
     </div>
-
+    <div v-if="isWorker" class="mt-6 md:mt-8 animate-fade-in">
+      <MedusaCardSetup />
+    </div>
     <!-- Мои услуги -->
     <div v-if="isWorker" class="mt-6 md:mt-8 animate-fade-in">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 md:mb-6 px-2 gap-2 md:gap-3">
@@ -430,6 +432,7 @@ import axios from 'axios'
 import DealsHistory from '../components/DealsHistory.vue'
 import ReviewsSection from '../components/ReviewsSection.vue'
 import SubscriptionModal from '../components/SubscriptionModal.vue'
+import MedusaCardSetup from '../components/MedusaCardSetup.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

@@ -139,7 +139,7 @@ class DealService:
                     'chat_room_id': chat_room_id,
                     'title': title,
                     'description': description,
-                    'price': int(price),
+                    'price': int(price ),
                     'status': 'pending',
                     'was_delivered': False,
                     'is_escrow': is_escrow,

@@ -11,5 +11,6 @@ router.register('favorites', FavoriteViewSet, basename='favorite')
 urlpatterns = [
     path('services/update-owner-avatar/', UpdateOwnerAvatarView.as_view(), name='update-owner-avatar'),
     path('services/internal-deactivate/', InternalDeactivateServicesView.as_view()),
+    path('medusa/', include('apps.services.medusa_urls')),
     path('', include(router.urls)),
 ]
