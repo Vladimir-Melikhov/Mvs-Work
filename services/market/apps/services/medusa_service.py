@@ -1,14 +1,20 @@
-# services/market/apps/services/medusa_service.py
 """
+services/market/apps/services/medusa_service.py
+
 Клиент API Безопасных сделок Точка Банка (Medusa).
 
-Все запросы обёрнуты в { "Data": { ... } } — как требует API.
-Create Order использует v3.0: /uapi/medusa/v3.0/orders.
-Остальные методы — v1.0: /uapi/medusa/v1.0/...
+Документация: https://developers.tochka.com/docs/medusa/
 
-Окружения:
-  STAGE: stage-uapi.tochka.com
-  PROD:  enter.tochka.com
+STAGE: stage-uapi.tochka.com
+PROD:  enter.tochka.com
+
+Авторизация на STAGE:
+  Authorization: Bearer sandbox.jwt.token
+  Sign-Key-Id: 7715014b-3d11-4c8a-add9-8cbc81364cea
+  Sign-Body: 12345
+
+На STAGE Sign-Body=12345 обязателен для ВСЕХ методов (включая GET и DELETE).
+Без него возвращается 403 "The access token is missing".
 """
 
 import os
@@ -21,14 +27,14 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# ── Константы комиссий ────────────────────────────────────────────────────────
-MEDUSA_COMMISSION_RATE = Decimal("0.80")    # Комиссия Точки
-PLATFORM_COMMISSION_RATE = Decimal("0.50")  # Комиссия MVS-Work
-ACQUIRING_COMMISSION_RATE = Decimal("2.20") # Комиссия эквайринга
+# Комиссии (%)
+MEDUSA_COMMISSION_RATE = Decimal("0.80")     # Комиссия Tochka Medusa (фиксированная)
+PLATFORM_COMMISSION_RATE = Decimal("0.50")   # Наша комиссия
+ACQUIRING_COMMISSION_RATE = Decimal("2.20")  # Эквайринг
 
 
 class MedusaAPIError(Exception):
-    """Ошибка при работе с Medusa API"""
+    """Ошибка API Medusa"""
     def __init__(self, message: str, status_code: int = 0, response_body: str = ""):
         self.status_code = status_code
         self.response_body = response_body
@@ -36,83 +42,75 @@ class MedusaAPIError(Exception):
 
 
 class MedusaService:
-    """
-    Клиент для работы с API Безопасных сделок Точка Банка.
-    """
+    """Клиент Medusa API"""
 
     def __init__(self):
         self.is_stage = os.getenv("MEDUSA_ENV", "stage").lower() == "stage"
 
-        # JWT-токен — тот же что для эквайринга (TOCHKA_JWT_TOKEN).
-        # Можно переопределить через MEDUSA_JWT_TOKEN если будет отдельный.
+        # JWT-токен
+        # На stage это "sandbox.jwt.token"
+        # На prod — реальный JWT с правами medusa_*
         self.token = os.getenv("MEDUSA_JWT_TOKEN") or os.getenv("TOCHKA_JWT_TOKEN", "")
 
         if self.is_stage:
             self.host = "stage-uapi.tochka.com"
             self.sign_key_id = os.getenv("MEDUSA_SIGN_KEY_ID", "7715014b-3d11-4c8a-add9-8cbc81364cea")
-            self.sign_body = os.getenv("MEDUSA_SIGN_BODY", "12345")
+            self.sign_body_value = os.getenv("MEDUSA_SIGN_BODY", "12345")
         else:
             self.host = "enter.tochka.com"
             self.sign_key_id = os.getenv("MEDUSA_SIGN_KEY_ID", "")
-            self.sign_body = os.getenv("MEDUSA_SIGN_BODY", "")
+            self.sign_body_value = os.getenv("MEDUSA_SIGN_BODY", "")
 
-        self.base_path_v1 = "/uapi/medusa/v1.0"
-        self.base_path_v3 = "/uapi/medusa/v3.0"
+        self.base_v1 = "/uapi/medusa/v1.0"
+        self.base_v2 = "/uapi/medusa/v2.0"
+        self.base_v3 = "/uapi/medusa/v3.0"
         self.frontend_url = os.getenv("FRONTEND_URL", "https://mvs-work.ru")
 
         if not self.token:
-            logger.warning("[Medusa] TOCHKA_JWT_TOKEN не задан — запросы вернут 403")
-        if not self.sign_key_id:
-            logger.warning("[Medusa] MEDUSA_SIGN_KEY_ID не задан")
+            logger.error("[Medusa] ❌ TOCHKA_JWT_TOKEN / MEDUSA_JWT_TOKEN не задан!")
 
-    # ── HTTP-слой ─────────────────────────────────────────────────────────────
+    # ─── HTTP ────────────────────────────────────────────────────────────────
 
-    def _get_headers(self, method: str = "POST") -> Dict[str, str]:
-        """
-        Заголовки запроса.
-        Authorization: Bearer <jwt> — обязателен для всех запросов.
-        Sign-Key-Id / Sign-Body    — для stage-окружения.
-        Sign-Body пустой для GET, "12345" для остальных методов на stage.
-        """
-        headers = {
+    def _headers(self, method: str) -> Dict[str, str]:
+        """Заголовки запроса."""
+        h = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Authorization": f"Bearer {self.token}",
-            "Sign-Key-Id": self.sign_key_id,
         }
 
-        if method.upper() == "GET":
-            headers["Sign-Body"] = ""
-        else:
-            headers["Sign-Body"] = self.sign_body
+        if self.sign_key_id:
+            h["Sign-Key-Id"] = self.sign_key_id
 
-        return headers
+        # На STAGE Медуза требует Sign-Body=12345 для ВСЕХ методов.
+        # Без него — 403 "The access token is missing".
+        if self.sign_body_value:
+            h["Sign-Body"] = self.sign_body_value
 
-    def _make_request(
-        self,
-        method: str,
-        path: str,
-        payload: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
-        """Выполнить HTTP-запрос к API Медузы."""
-        body = json.dumps(payload) if payload else ""
+        return h
+
+    def _request(self, method: str, path: str, payload: Optional[Dict] = None) -> Dict[str, Any]:
+        """Отправить HTTP-запрос к Medusa API"""
+        body = json.dumps(payload, ensure_ascii=False) if payload else ""
+        body_bytes = body.encode("utf-8") if body else b""
         conn = http.client.HTTPSConnection(self.host, timeout=30)
-        headers = self._get_headers(method)
+        headers = self._headers(method)
 
         try:
-            conn.request(method, path, body, headers)
+            logger.info("[Medusa] → %s %s", method, path)
+            if payload:
+                # Полный payload в логах (полезно при отладке на stage)
+                logger.info("[Medusa] payload: %s", json.dumps(payload, ensure_ascii=False)[:2000])
+
+            conn.request(method, path, body_bytes, headers)
             res = conn.getresponse()
-            raw = res.read().decode("utf-8")
+            raw = res.read().decode("utf-8", errors="replace")
 
-            logger.info(
-                "[Medusa] %s %s → HTTP %s | Body: %s",
-                method, path, res.status, raw[:500]
-            )
+            logger.info("[Medusa] ← HTTP %s: %s", res.status, raw[:2000])
 
-            if res.status not in (200, 201):
-                logger.error("[Medusa] HTTP %s: %s", res.status, raw[:500])
+            if res.status not in (200, 201, 204):
                 raise MedusaAPIError(
-                    f"Medusa API вернул HTTP {res.status}: {raw[:300]}",
+                    f"HTTP {res.status}: {raw[:500]}",
                     status_code=res.status,
                     response_body=raw,
                 )
@@ -120,57 +118,70 @@ class MedusaService:
             return json.loads(raw) if raw.strip() else {}
 
         except json.JSONDecodeError as e:
-            raise MedusaAPIError(f"Ошибка парсинга ответа Medusa: {e}")
+            raise MedusaAPIError(f"Не JSON-ответ: {e}")
         except OSError as e:
-            raise MedusaAPIError(f"Сетевая ошибка при запросе к Medusa: {e}")
+            raise MedusaAPIError(f"Сетевая ошибка: {e}")
         finally:
             conn.close()
 
-    # ── Расчёт комиссий ───────────────────────────────────────────────────────
+    # ─── Комиссии ────────────────────────────────────────────────────────────
 
     @staticmethod
     def calculate_commission(service_price: Decimal) -> Dict[str, Decimal]:
-        price = Decimal(str(service_price))
+        """
+        Рассчитать все комиссии для цены услуги.
 
-        platform_commission = (price * PLATFORM_COMMISSION_RATE / Decimal("100")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        medusa_commission = (price * MEDUSA_COMMISSION_RATE / Decimal("100")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        transaction_sum = price + platform_commission + medusa_commission
-        acquiring_commission = (transaction_sum * ACQUIRING_COMMISSION_RATE / Decimal("100")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        total_commission = platform_commission + medusa_commission + acquiring_commission
+        Формула по доке Точки:
+          1. platform  = price × 0.5%
+          2. medusa    = price × 0.8%
+          3. acquiring = (price + platform + medusa) × 2.2%
+          4. commission (в поле Services[].commission) = platform + medusa + acquiring
+          5. total_amount (что платит клиент) = price + commission
+
+        Пример для price=10000:
+          platform   = 50.00
+          medusa     = 80.00
+          acquiring  = (10000 + 50 + 80) × 0.022 = 222.86
+          commission = 352.86
+          total_amount = 10352.86
+        """
+        price = Decimal(str(service_price))
+        q = Decimal("0.01")
+
+        platform = (price * PLATFORM_COMMISSION_RATE / 100).quantize(q, ROUND_HALF_UP)
+        medusa = (price * MEDUSA_COMMISSION_RATE / 100).quantize(q, ROUND_HALF_UP)
+        transaction_sum = price + platform + medusa
+        acquiring = (transaction_sum * ACQUIRING_COMMISSION_RATE / 100).quantize(q, ROUND_HALF_UP)
+        total_commission = platform + medusa + acquiring
         total_amount = price + total_commission
 
         return {
-            "platform_commission": platform_commission,
-            "medusa_commission": medusa_commission,
-            "acquiring_commission": acquiring_commission,
+            "service_price": price,
+            "platform_commission": platform,
+            "medusa_commission": medusa,
+            "acquiring_commission": acquiring,
             "total_commission": total_commission,
             "total_amount": total_amount,
-            "service_price": price,
         }
 
-    # ── 1. Получатели (Recipients) v1.0 ──────────────────────────────────────
+    # ─── Recipients (Получатели) v1.0 ────────────────────────────────────────
 
-    def create_recipient(self, recipient_ext_id: str, name: str) -> Dict[str, Any]:
+    def create_recipient(self, ext_id: str, name: str) -> Dict[str, Any]:
+        """Создать получателя. extId — UUID воркера в нашей системе."""
         payload = {
             "Data": {
-                "extId": str(recipient_ext_id),
-                "name": name[:128],
+                "extId": str(ext_id),
+                "name": (name or "Worker")[:128],
             }
         }
-        response = self._make_request("POST", f"{self.base_path_v1}/recipients", payload)
-        data = response.get("Data", {})
-        logger.info("[Medusa] ✅ Получатель создан: %s (%s)", recipient_ext_id, name)
-        return data
+        resp = self._request("POST", f"{self.base_v1}/recipients", payload)
+        logger.info("[Medusa] ✅ Recipient создан: %s", ext_id)
+        return resp.get("Data", {})
 
-    def get_recipient(self, recipient_ext_id: str) -> Dict[str, Any]:
-        response = self._make_request("GET", f"{self.base_path_v1}/recipients/{recipient_ext_id}")
-        return response.get("Data", {})
+    def get_recipient(self, ext_id: str) -> Dict[str, Any]:
+        """Получить данные получателя, включая список привязанных карт."""
+        resp = self._request("GET", f"{self.base_v1}/recipients/{ext_id}")
+        return resp.get("Data", {})
 
     def add_card_payout_method(
         self,
@@ -178,6 +189,13 @@ class MedusaService:
         redirect_url: str,
         payout_method_ext_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """
+        Получить ссылку на форму токенизации карты.
+
+        Возвращает:
+          formUrl — ссылка, куда редиректить пользователя для ввода данных карты
+          payoutMethodExtId — UUID, который мы задали этой карте
+        """
         if not payout_method_ext_id:
             payout_method_ext_id = str(uuid.uuid4())
 
@@ -190,18 +208,18 @@ class MedusaService:
             }
         }
 
-        response = self._make_request(
+        resp = self._request(
             "POST",
-            f"{self.base_path_v1}/recipients/{recipient_ext_id}/payout_methods/cards",
+            f"{self.base_v1}/recipients/{recipient_ext_id}/payout_methods/cards",
             payload,
         )
 
-        data = response.get("Data", {})
+        data = resp.get("Data", {})
         form_url = data.get("formUrl", "")
 
         logger.info(
-            "[Medusa] ✅ Форма добавления карты: %s (получатель=%s)",
-            form_url[:80], recipient_ext_id,
+            "[Medusa] ✅ Форма карты: %s... (payoutMethodExtId=%s)",
+            form_url[:60], payout_method_ext_id,
         )
 
         return {
@@ -214,10 +232,11 @@ class MedusaService:
         recipient_ext_id: str,
         payout_method_ext_id: str,
     ) -> bool:
+        """Удалить карту"""
         try:
-            self._make_request(
+            self._request(
                 "DELETE",
-                f"{self.base_path_v1}/recipients/{recipient_ext_id}/payout_methods/cards/{payout_method_ext_id}",
+                f"{self.base_v1}/recipients/{recipient_ext_id}/payout_methods/cards/{payout_method_ext_id}",
             )
             logger.info("[Medusa] ✅ Карта удалена: %s", payout_method_ext_id)
             return True
@@ -225,7 +244,7 @@ class MedusaService:
             logger.error("[Medusa] Ошибка удаления карты: %s", e)
             return False
 
-    # ── 2. Заказы v3.0 ────────────────────────────────────────────────────────
+    # ─── Orders v3.0 ──────────────────────────────────────────────────────────
 
     def create_order(
         self,
@@ -239,23 +258,33 @@ class MedusaService:
         purpose: str = "Оплата заказа на MVS-Work",
         payment_url_ttl: int = 60,
         consumer_id: Optional[str] = None,
+        with_receipt: bool = True,
     ) -> Dict[str, Any]:
+        """
+        Создать заказ (безопасную сделку) по v3 API.
+
+        Структура соответствует документации v3:
+        https://developers.tochka.com/docs/medusa/api/create-new-order-medusa-v-3-0-orders-post
+
+        Если API возвращает 424 "orderCantBeCreated" — это обычно означает что
+        на стороне Точки твой аккаунт не имеет права создавать ордера.
+        Это НЕ ошибка структуры payload. Решается через саппорт Точки.
+        """
         commission = self.calculate_commission(service_price)
         service_ext_id = str(uuid.uuid4())
 
-        details = {
+        details: Dict[str, Any] = {
             "sbpNeeded": False,
             "cardNeeded": True,
             "redirectUrl": redirect_url,
             "failRedirectUrl": redirect_fail_url,
-            "ttl": payment_url_ttl,
-            "purpose": purpose[:256],
+            "ttl": int(payment_url_ttl),
+            "purpose": (purpose or "Оплата заказа")[:256],
         }
-
         if consumer_id:
             details["consumerId"] = str(consumer_id)
 
-        payload = {
+        payload: Dict[str, Any] = {
             "Data": {
                 "extId": str(order_ext_id),
                 "IncomingPayment": {
@@ -274,43 +303,43 @@ class MedusaService:
                         "startDecision": "not_decided",
                     }
                 ],
-                "Receipt": {
-                    "email": customer_email,
-                    "name": purpose[:128],
-                    "vatType": os.getenv("MEDUSA_VAT_TYPE", "none"),
-                    "paymentMethod": "full_payment",
-                    "paymentObject": "service",
-                },
             }
         }
 
-        response = self._make_request("POST", f"{self.base_path_v3}/orders", payload)
-        data = response.get("Data", {})
-        payment_url = data.get("paymentUrl", "")
+        # Receipt — по доке опциональный объект.
+        # Нужен для фискализации (отправки чека в ОФД).
+        if with_receipt:
+            payload["Data"]["Receipt"] = {
+                "email": customer_email or "customer@mvs-work.ru",
+                "name": (purpose or "Услуга")[:128],
+                "vatType": os.getenv("MEDUSA_VAT_TYPE", "none"),
+                "paymentMethod": "full_payment",
+                "paymentObject": "service",
+            }
+
+        resp = self._request("POST", f"{self.base_v3}/orders", payload)
+        data = resp.get("Data", {})
 
         logger.info(
-            "[Medusa] ✅ Заказ создан: %s | Сумма: %s₽ | Комиссия: %s₽",
-            order_ext_id, commission["total_amount"], commission["total_commission"],
+            "[Medusa] ✅ Order создан: %s (сумма %s₽, комиссия %s₽, paymentUrl: %s...)",
+            order_ext_id,
+            commission["total_amount"],
+            commission["total_commission"],
+            str(data.get("paymentUrl", ""))[:60],
         )
 
         return {
             "orderExtId": str(order_ext_id),
             "serviceExtId": service_ext_id,
-            "paymentUrl": payment_url,
+            "paymentUrl": data.get("paymentUrl", ""),
             "total_amount": commission["total_amount"],
             "commission_details": commission,
         }
 
     def get_order(self, order_ext_id: str) -> Dict[str, Any]:
-        response = self._make_request("GET", f"{self.base_path_v1}/orders/{order_ext_id}")
-        return response.get("Data", {})
-
-    def get_order_list(self, offset: int = 0, limit: int = 10) -> Dict[str, Any]:
-        response = self._make_request(
-            "GET",
-            f"{self.base_path_v1}/orders?offset={offset}&limit={limit}",
-        )
-        return response.get("Data", {})
+        """Получить данные заказа."""
+        resp = self._request("GET", f"{self.base_v1}/orders/{order_ext_id}")
+        return resp.get("Data", {})
 
     def make_decision(
         self,
@@ -318,8 +347,13 @@ class MedusaService:
         service_ext_id: str,
         decision: str,
     ) -> Dict[str, Any]:
+        """
+        Принятие решения заказчиком:
+          confirmed — подтверждаем выполнение (выплата воркеру)
+          rejected  — отказ (возврат заказчику)
+        """
         if decision not in ("confirmed", "rejected"):
-            raise ValueError(f"decision должен быть 'confirmed' или 'rejected', получено: {decision}")
+            raise ValueError("decision должен быть 'confirmed' или 'rejected'")
 
         payload = {
             "Data": {
@@ -332,86 +366,63 @@ class MedusaService:
             }
         }
 
-        response = self._make_request(
+        resp = self._request(
             "POST",
-            f"{self.base_path_v1}/orders/{order_ext_id}/decisions",
+            f"{self.base_v1}/orders/{order_ext_id}/decisions",
             payload,
         )
 
-        action = "подтверждён ✅" if decision == "confirmed" else "отклонён ❌"
-        logger.info("[Medusa] Заказ %s — %s", order_ext_id, action)
+        logger.info(
+            "[Medusa] %s заказ %s",
+            "✅ Подтверждён" if decision == "confirmed" else "❌ Отклонён",
+            order_ext_id,
+        )
+        return resp.get("Data", {})
 
-        return response.get("Data", {})
+    # ─── Sandbox (только STAGE) ───────────────────────────────────────────────
 
-    # ── 3. Sandbox-методы (только STAGE) ──────────────────────────────────────
-
-    def _sandbox_request(self, path: str, payload: Dict) -> Dict[str, Any]:
-        return self._make_request("POST", f"{self.base_path_v1}{path}", {"Data": payload})
+    def _sandbox(self, path: str, payload: Dict) -> Dict[str, Any]:
+        """Внутренний метод для sandbox-запросов"""
+        return self._request("POST", f"{self.base_v1}{path}", {"Data": payload})
 
     def sandbox_mark_order_paid(self, order_ext_id: str) -> Dict[str, Any]:
-        if not self.is_stage:
-            logger.warning("[Medusa] sandbox вызван в PROD, пропускаем")
-            return {}
-        return self._sandbox_request(
-            "/sandbox/mark_order_paid_by_acquirer",
-            {"orderExtId": str(order_ext_id)},
-        )
-
-    def sandbox_mark_order_payment_failed(self, order_ext_id: str) -> Dict[str, Any]:
+        """Эмулирует успешную оплату заказа пользователем"""
         if not self.is_stage:
             return {}
-        return self._sandbox_request(
-            "/sandbox/mark_order_acquiring_payment_failed",
-            {"orderExtId": str(order_ext_id)},
-        )
+        try:
+            return self._sandbox(
+                "/sandbox/mark_order_paid_by_acquirer",
+                {"orderExtId": str(order_ext_id)},
+            )
+        except MedusaAPIError as e:
+            logger.warning("[Sandbox] mark_paid: %s", e)
+            return {}
 
     def sandbox_proceed_payout(self, service_ext_id: str) -> Dict[str, Any]:
+        """Эмулирует выплату воркеру"""
         if not self.is_stage:
             return {}
-        return self._sandbox_request(
-            "/sandbox/proceed_service_payout_to_recipient",
-            {"serviceExtId": str(service_ext_id)},
-        )
+        try:
+            return self._sandbox(
+                "/sandbox/proceed_service_payout_to_recipient",
+                {"serviceExtId": str(service_ext_id)},
+            )
+        except MedusaAPIError as e:
+            logger.warning("[Sandbox] proceed_payout: %s", e)
+            return {}
 
     def sandbox_proceed_refund(self, service_ext_id: str) -> Dict[str, Any]:
+        """Эмулирует возврат заказчику"""
         if not self.is_stage:
             return {}
-        return self._sandbox_request(
-            "/sandbox/proceed_refund",
-            {"serviceExtId": str(service_ext_id)},
-        )
-
-    def sandbox_proceed_payout_commission(self, service_ext_id: str) -> Dict[str, Any]:
-        if not self.is_stage:
+        try:
+            return self._sandbox(
+                "/sandbox/proceed_refund",
+                {"serviceExtId": str(service_ext_id)},
+            )
+        except MedusaAPIError as e:
+            logger.warning("[Sandbox] proceed_refund: %s", e)
             return {}
-        return self._sandbox_request(
-            "/sandbox/proceed_service_payout_commission",
-            {"serviceExtId": str(service_ext_id)},
-        )
-
-    def sandbox_proceed_acquiring_commission(self, order_ext_id: str) -> Dict[str, Any]:
-        if not self.is_stage:
-            return {}
-        return self._sandbox_request(
-            "/sandbox/proceed_acquiring_commission",
-            {"orderExtId": str(order_ext_id)},
-        )
-
-    def sandbox_move_platform_commission(self, order_ext_id: str) -> Dict[str, Any]:
-        if not self.is_stage:
-            return {}
-        return self._sandbox_request(
-            "/sandbox/move_platform_commission_to_commission_account",
-            {"orderExtId": str(order_ext_id)},
-        )
-
-    def sandbox_proceed_platform_commission(self, order_ext_id: str) -> Dict[str, Any]:
-        if not self.is_stage:
-            return {}
-        return self._sandbox_request(
-            "/sandbox/proceed_platform_commission",
-            {"orderExtId": str(order_ext_id)},
-        )
 
     def sandbox_full_cycle_after_decision(
         self,
@@ -419,22 +430,10 @@ class MedusaService:
         service_ext_id: str,
         decision: str,
     ) -> None:
+        """Полный цикл после принятия решения (только stage)"""
         if not self.is_stage:
             return
-
-        try:
-            if decision == "confirmed":
-                self.sandbox_proceed_payout(service_ext_id)
-                self.sandbox_proceed_payout_commission(service_ext_id)
-                self.sandbox_proceed_acquiring_commission(order_ext_id)
-                self.sandbox_move_platform_commission(order_ext_id)
-                self.sandbox_proceed_platform_commission(order_ext_id)
-                logger.info("[Medusa/Sandbox] ✅ Полный цикл выплаты завершён")
-
-            elif decision == "rejected":
-                self.sandbox_proceed_refund(service_ext_id)
-                self.sandbox_proceed_acquiring_commission(order_ext_id)
-                logger.info("[Medusa/Sandbox] ✅ Возврат завершён")
-
-        except MedusaAPIError as e:
-            logger.warning("[Medusa/Sandbox] ⚠️ Ошибка шага: %s", e)
+        if decision == "confirmed":
+            self.sandbox_proceed_payout(service_ext_id)
+        elif decision == "rejected":
+            self.sandbox_proceed_refund(service_ext_id)

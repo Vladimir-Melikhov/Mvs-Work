@@ -1344,11 +1344,6 @@ class InternalUserProfileView(APIView):
                     'company_name': user.profile.company_name,
                     'telegram_chat_id': user.profile.telegram_chat_id,
                     'telegram_notifications_enabled': user.profile.telegram_notifications_enabled,
-                    'medusa_recipient_ext_id': str(user.profile.medusa_recipient_ext_id) if user.profile.medusa_recipient_ext_id else None,
-                    'medusa_recipient_registered': user.profile.medusa_recipient_registered,
-                    'medusa_card_ext_id': str(user.profile.medusa_card_ext_id) if user.profile.medusa_card_ext_id else None,
-                    'medusa_card_linked': user.profile.medusa_card_linked,
-                    'medusa_card_masked_pan': user.profile.medusa_card_masked_pan,
                 }
 
             return Response({
