@@ -2,13 +2,12 @@
 <!--
   Компонент управления картой для безопасных сделок.
 
-  Простой флоу:
-    1. Если не зарегистрирован как получатель → кнопка «Зарегистрироваться»
-    2. Если зарегистрирован, но карты нет → кнопка «Привязать карту»
-       → открывается форма Tochka в новой вкладке
-       → после заполнения карты пользователь возвращается
-       → жмёт «Я привязал карту» → проверяем через API
-    3. Если карта привязана → показываем её, можно удалить
+  Флоу:
+    1. Не зарегистрирован → кнопка «Зарегистрироваться»
+    2. Зарегистрирован, карты нет → кнопка «Привязать карту»
+       → форма Tochka в новой вкладке
+       → «Я привязал карту» → проверяем через API
+    3. Карта привязана → показываем, можно удалить
 -->
 <template>
   <div class="glass rounded-[24px] md:rounded-[32px] p-4 md:p-6 border border-white/20">
@@ -110,7 +109,7 @@
       <!-- Шаг 2: привязка карты -->
       <div v-else class="space-y-3">
 
-        <!-- Состояние: форма открыта, ждём подтверждения -->
+        <!-- Форма открыта, ждём подтверждения -->
         <div v-if="formOpened" class="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div class="font-bold text-blue-800 mb-2 flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -139,7 +138,7 @@
           </div>
         </div>
 
-        <!-- Начальное состояние: готов привязать карту -->
+        <!-- Начальное: готов привязать -->
         <template v-else>
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
             <div class="font-bold mb-1">Шаг 2 из 2: Привязка карты</div>
@@ -187,7 +186,11 @@
           <div>registered: {{ recipientInfo.registered }}</div>
           <div>has_card: {{ recipientInfo.has_card }}</div>
           <div>recipient_ext_id: {{ recipientInfo.recipient_ext_id || '—' }}</div>
+          <div>card_ext_id: {{ recipientInfo.card_ext_id || '—' }}</div>
           <div>cards: {{ recipientInfo.cards.length }}</div>
+          <div v-for="(c, i) in recipientInfo.cards" :key="i">
+            card[{{ i }}]: ext_id={{ c.ext_id }}, pan={{ c.masked_pan }}
+          </div>
         </div>
 
         <div class="flex gap-2">
@@ -195,7 +198,6 @@
             @click="forceLinkCard"
             :disabled="debugLoading"
             class="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-yellow-700 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 disabled:opacity-50"
-            title="Принудительно пометить карту как привязанную (для stage)"
           >
             Force-link карту
           </button>
@@ -203,7 +205,6 @@
             @click="resetRecipient"
             :disabled="debugLoading"
             class="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50"
-            title="Полный сброс (локально)"
           >
             Сбросить получателя
           </button>
@@ -260,7 +261,7 @@ const showDeleteConfirm = ref(false)
 const showDebug = ref(false)
 const debugLoading = ref(false)
 
-// Флаг "форма открыта, ждём пользователя"
+// Форма открыта
 const formOpened = ref(false)
 const cardFormUrl = ref('')
 
@@ -268,12 +269,14 @@ const cardFormUrl = ref('')
 const error = ref('')
 const successMessage = ref('')
 
-// Локальные данные (синхронизируются с сервером)
+// Данные из API
 const recipientInfo = ref({
   registered: false,
   has_card: false,
   cards: [],
   recipient_ext_id: null,
+  card_ext_id: null,
+  medusa_card_ext_id: null,
 })
 
 // Computed
@@ -283,7 +286,6 @@ const hasCard = computed(() => recipientInfo.value.has_card)
 const displayMaskedPan = computed(() => {
   if (!recipientInfo.value.cards.length) return '•••• •••• •••• ••••'
   const pan = recipientInfo.value.cards[0]?.masked_pan || '****'
-  // Из "1111***1111" или "****1234" → "•••• •••• •••• 1234"
   const digits = pan.replace(/[^0-9]/g, '').slice(-4)
   return `•••• •••• •••• ${digits.padStart(4, '•')}`
 })
@@ -320,7 +322,6 @@ const loadRecipientInfo = async () => {
     if (res.data.status === 'success') {
       recipientInfo.value = res.data.data
 
-      // Если карта появилась — скрываем "форма открыта" блок
       if (recipientInfo.value.has_card) {
         formOpened.value = false
         cardFormUrl.value = ''
@@ -362,8 +363,6 @@ const addCard = async () => {
     if (res.data.status === 'success') {
       const formUrl = res.data.data.form_url
       cardFormUrl.value = formUrl
-
-      // Открываем форму Tochka
       window.open(formUrl, '_blank')
       formOpened.value = true
     } else {
@@ -387,7 +386,6 @@ const openCardForm = () => {
   }
 }
 
-// Проверка что карта реально привязана (вызывает синхронизацию с Tochka)
 const confirmCard = async () => {
   confirming.value = true
   clearMessages()
@@ -407,7 +405,7 @@ const confirmCard = async () => {
   }
 }
 
-// ─── Обновление данных ──────────────────────────────────────────────────────
+// ─── Обновление ──────────────────────────────────────────────────────────────
 
 const refreshInfo = async () => {
   refreshing.value = true
@@ -422,14 +420,15 @@ const refreshInfo = async () => {
 // ─── Удаление карты ──────────────────────────────────────────────────────────
 
 const deleteCard = async () => {
-  // Берём id карты из любого доступного источника
+  // Ищем ext_id карты из всех доступных источников
   const cardExtId =
     recipientInfo.value.cards?.[0]?.ext_id ||
     recipientInfo.value.card_ext_id ||
     recipientInfo.value.medusa_card_ext_id
 
   if (!cardExtId) {
-    error.value = 'Не найден id карты для удаления. Используйте «Сбросить получателя».'
+    error.value = 'Не найден id карты для удаления. Попробуйте «Обновить» или используйте «Сбросить получателя».'
+    showDeleteConfirm.value = false
     return
   }
 
@@ -459,7 +458,7 @@ const deleteCard = async () => {
 // ─── Отладка (stage only) ───────────────────────────────────────────────────
 
 const resetRecipient = async () => {
-  if (!confirm('Сбросить все данные получателя? После этого нужно будет регистрироваться заново.')) return
+  if (!confirm('Сбросить все данные получателя?')) return
 
   debugLoading.value = true
   clearMessages()
