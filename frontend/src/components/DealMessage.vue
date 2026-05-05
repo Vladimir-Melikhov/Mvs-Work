@@ -1,17 +1,14 @@
 <!-- frontend/src/components/DealMessage.vue -->
 <!--
   ОБНОВЛЁННЫЙ DealMessage.vue — интеграция с Безопасными сделками Точка Банка.
-  
+
   Изменения:
-    1. Кнопка «Оплатить» для эскроу → вызывает /api/market/medusa/create-payment/
-       и открывает ссылку на оплату банка
-    2. Кнопка «Принять работу» для эскроу → вызывает /api/market/medusa/confirm-deal/
-    3. Отказ/спор для эскроу → вызывает /api/market/medusa/reject-deal/
-    4. Отображение комиссий и суммы к оплате
-    5. Проверка статуса оплаты
-    6. Предупреждение если у воркера не привязана карта
-    
-  Всё остальное (неэскроу, доработки, споры) — без изменений.
+    1. Когда заказ создан в Точке (есть medusa_payment_url + medusa_order_ext_id):
+       - Скрывается кнопка «Оплатить безопасно»
+       - Показывается «Перейти к оплате» (фиолетовая, открывает paymentUrl)
+       - Показывается «Я оплатил — проверить» (зелёная, дёргает /payment-status/)
+    2. При возврате на /chats/{room}?payment=success — автоматическая проверка статуса
+    3. confirm/reject и остальной флоу — без изменений
 -->
 <template>
   <div 
@@ -243,7 +240,7 @@
           </button>
 
           <!-- ══════════════════════════════════════════════════════════════════
-               ЭСКРОУ: Оплатить через Medusa (реальный платёж)
+               ЭСКРОУ: Оплатить через Medusa (создание ссылки)
                ══════════════════════════════════════════════════════════════════ -->
           <button 
             v-if="showPayButton"
@@ -271,18 +268,45 @@
             </span>
           </button>
 
-          <!-- Кнопка проверки оплаты (если ссылка уже была создана) -->
+          <!-- ══════════════════════════════════════════════════════════════════
+               ЭСКРОУ: Перейти на страницу оплаты (если ссылка уже создана)
+               ══════════════════════════════════════════════════════════════════ -->
+          <a
+            v-if="showPaymentLinkButtons && dealData.medusa_payment_url"
+            :href="dealData.medusa_payment_url"
+            target="_blank"
+            class="block w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all text-center"
+          >
+            <span class="flex flex-col items-center gap-1">
+              <span class="text-base font-bold flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+                Перейти к оплате
+              </span>
+              <span class="text-xs font-normal opacity-90">
+                {{ dealData.medusa_total_amount ? parseInt(dealData.medusa_total_amount) + '₽ к оплате' : 'Откроется страница банка' }}
+              </span>
+            </span>
+          </a>
+
+          <!-- ══════════════════════════════════════════════════════════════════
+               ЭСКРОУ: «Я оплатил — проверить» (зелёная)
+               ══════════════════════════════════════════════════════════════════ -->
           <button 
-            v-if="showCheckPaymentButton"
+            v-if="showPaymentLinkButtons"
             @click="checkPaymentStatus"
             :disabled="loading"
-            class="w-full border-2 border-purple-300 text-purple-600 py-2 rounded-xl font-bold hover:bg-purple-50 transition-all flex items-center justify-center gap-2"
+            class="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <svg v-if="loading" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <svg v-if="loading" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
-            <span>Проверить оплату</span>
+            <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>{{ loading ? 'Проверяем...' : 'Я оплатил — проверить' }}</span>
           </button>
 
           <!-- КЛИЕНТ: Начать сделку — pending + галочка снята (неэскроу) -->
@@ -361,9 +385,7 @@
             </button>
           </div>
 
-          <!-- ══════════════════════════════════════════════════════════════════
-               Принять работу: эскроу → Medusa confirm, неэскроу → обычный complete
-               ══════════════════════════════════════════════════════════════════ -->
+          <!-- Принять работу: эскроу → Medusa confirm, неэскроу → обычный complete -->
           <button 
             v-if="showCompleteButton"
             @click="showCompletionModal = true"
@@ -426,7 +448,7 @@
       </div>
     </div>
 
-    <!-- МОДАЛЬНЫЕ ОКНА (без изменений — копируем из оригинала) -->
+    <!-- МОДАЛЬНЫЕ ОКНА -->
     <teleport to="body">
       <!-- Изменение цены -->
       <div v-if="showPriceModal" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
@@ -570,6 +592,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
@@ -582,11 +605,12 @@ const props = defineProps({
 const emit = defineEmits(['deal-action'])
 
 const auth = useAuthStore()
+const route = useRoute()
 const loading = ref(false)
 
 const localIsEscrow = ref(props.dealData.is_escrow ?? true)
 
-// Данные комиссий (загружаются при эскроу)
+// Данные комиссий
 const commissionInfo = ref(null)
 const commissionRateDisplay = '~3.5%'
 
@@ -647,10 +671,22 @@ const statusTextColor = computed(() => {
 })
 
 // ── Видимость кнопок ─────────────────────────────────────────────────────────
-const showPayButton = computed(() => isClient.value && props.dealData.status === 'pending' && localIsEscrow.value)
-const showCheckPaymentButton = computed(() => {
-  return isClient.value && props.dealData.status === 'pending' && localIsEscrow.value && props.dealData.medusa_payment_url
+
+// Уже создана платёжная ссылка в Точке
+const hasPaymentLink = computed(() => {
+  return !!(props.dealData.medusa_payment_url && props.dealData.medusa_order_ext_id)
 })
+
+// «Оплатить безопасно» — только когда ссылки ещё нет
+const showPayButton = computed(() => 
+  isClient.value && props.dealData.status === 'pending' && localIsEscrow.value && !hasPaymentLink.value
+)
+
+// «Перейти к оплате» + «Я оплатил — проверить» — когда ссылка уже есть
+const showPaymentLinkButtons = computed(() => 
+  isClient.value && props.dealData.status === 'pending' && localIsEscrow.value && hasPaymentLink.value
+)
+
 const showClientStartButton = computed(() => isClient.value && props.dealData.status === 'pending' && !localIsEscrow.value)
 const showWorkerAcceptButton = computed(() => isWorker.value && props.dealData.can_worker_accept)
 const showClientAcceptedInfo = computed(() => isClient.value && !props.dealData.is_escrow && props.dealData.status === 'accepted')
@@ -697,11 +733,19 @@ onMounted(() => {
       totalAmount: props.dealData.medusa_total_amount,
     }
   }
+
+  // ✅ Авто-проверка статуса при возврате со страницы оплаты Точки
+  if (route.query.payment === 'success' 
+      && props.dealData.is_escrow 
+      && props.dealData.status === 'pending'
+      && hasPaymentLink.value) {
+    setTimeout(() => checkPaymentStatus(true), 800)
+  }
 })
 
 // ── Действия ─────────────────────────────────────────────────────────────────
 
-// ═══ ЭСКРОУ: Оплатить через Medusa ═══
+// Создать платёжную ссылку в Medusa
 const payDealMedusa = async () => {
   loading.value = true
   try {
@@ -750,21 +794,33 @@ const payDealMedusa = async () => {
 }
 
 // Проверка статуса оплаты
-const checkPaymentStatus = async () => {
+// silent=true — без alert при незавершённом платеже (для авто-проверки)
+const checkPaymentStatus = async (silent = false) => {
   loading.value = true
   try {
     const res = await axios.get(`/api/market/medusa/payment-status/${dealId.value}/`)
     if (res.data.status === 'success') {
       const d = res.data.data
-      if (d.medusa_status === 'paid') {
-        alert('Оплата прошла успешно! Деньги заморожены.')
-      } else {
-        alert(d.message || `Статус: ${d.medusa_status}`)
+      if (d.deal_status === 'paid') {
+        if (!silent) {
+          alert('Оплата прошла успешно! Деньги заморожены до завершения сделки.')
+        }
+      } else if (!silent) {
+        const msg = d.message || `Статус: ${d.medusa_status || 'unknown'}`
+        if (d.medusa_status === 'waiting_user_payment') {
+          alert('Оплата ещё не поступила.\n\nЕсли вы только что оплатили, подождите 10-30 секунд и попробуйте снова.')
+        } else if (d.medusa_status === 'canceled') {
+          alert('Платёж отменён.')
+        } else {
+          alert(msg)
+        }
       }
       emit('deal-action')
     }
   } catch (e) {
-    alert('Ошибка проверки: ' + (e.response?.data?.error || e.message))
+    if (!silent) {
+      alert('Ошибка проверки: ' + (e.response?.data?.error || e.message))
+    }
   } finally {
     loading.value = false
   }
@@ -828,7 +884,7 @@ const deliverWork = async () => {
   }
 }
 
-// ═══ Завершение: эскроу → Medusa confirm + review, неэскроу → обычный complete ═══
+// Завершение: эскроу → Medusa confirm + review, неэскроу → обычный complete
 const completeDeal = async () => {
   if (rating.value === 0) { alert('Поставьте оценку'); return }
   loading.value = true

@@ -1,4 +1,4 @@
-# services/market/apps/services/deal_service.py
+# services/market/apps/services/services.py
 import os
 import requests
 from decimal import Decimal
@@ -10,11 +10,9 @@ from datetime import datetime, timedelta
 import jwt
 from .models import Service, Deal
 
+
 class AIService:
-    """
-    AI-сервис для генерации СТРОГОГО ТЗ через YandexGPT.
-    Ориентирован на профессиональную бизнес-аналитику.
-    """
+    """AI-сервис для генерации СТРОГОГО ТЗ через YandexGPT."""
     
     @staticmethod
     def generate_tz(service_id: str, client_requirements: str) -> str:
@@ -27,7 +25,6 @@ class AIService:
                 print("⚠️ [Market] Нет YANDEX_API_KEY или YANDEX_FOLDER_ID")
                 return AIService._generate_mock_tz(client_requirements, service.price, service.title)
 
-            # НОВЫЙ ПРОМПТ: Акцент на перевод в проф. плоскость без галлюцинаций
             system_instruction = """Ты — ведущий ИТ бизнес-аналитик. Твоя роль: структурировать хаотичные пожелания клиента в четкое техническое задание.
 
 Твоя задача:
@@ -72,7 +69,7 @@ class AIService:
                 "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
                 "completionOptions": {
                     "stream": False,
-                    "temperature": 0.4, # Чуть выше для красоты слога
+                    "temperature": 0.4,
                     "maxTokens": "4000"
                 },
                 "messages": [
@@ -116,9 +113,7 @@ class AIService:
 
 
 class DealService:
-    """
-    СЕРВИС РАБОТЫ С ЗАКАЗАМИ (С ПОДДЕРЖКОЙ ЭСКРОУ И БЕЗ)
-    """
+    """СЕРВИС РАБОТЫ С ЗАКАЗАМИ (С ПОДДЕРЖКОЙ ЭСКРОУ И БЕЗ)"""
 
     @staticmethod
     def _get_system_token() -> str:
@@ -139,7 +134,7 @@ class DealService:
                     'chat_room_id': chat_room_id,
                     'title': title,
                     'description': description,
-                    'price': int(price ),
+                    'price': int(price),
                     'status': 'pending',
                     'was_delivered': False,
                     'is_escrow': is_escrow,
@@ -162,12 +157,9 @@ class DealService:
         except IntegrityError:
             raise ValueError("Не удалось создать заказ. У вас уже есть активный заказ с этим исполнителем.")
 
-    # ── Неэскроу: принятие заказа исполнителем ────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def worker_accept(deal: Deal, worker_id: str, auth_token: str):
-        """Исполнитель принимает неэскроу-заказ и приступает к работе"""
         if str(worker_id) != str(deal.worker_id):
             raise ValueError("Принять заказ может только исполнитель")
 
@@ -190,8 +182,6 @@ class DealService:
         DealService._send_deal_card(deal, worker_id, 'accepted', auth_token)
         return deal
 
-    # ── Изменение цены ─────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def update_price(deal: Deal, worker_id: str, new_price: Decimal, auth_token: str):
@@ -206,6 +196,20 @@ class DealService:
 
         old_price = int(deal.price)
         deal.price = int(new_price)
+
+        # Сбрасываем medusa-данные — при следующем "Оплатить" создастся
+        # новый заказ в Точке с актуальной ценой и комиссиями
+        if deal.is_escrow and deal.medusa_order_ext_id:
+            deal.medusa_order_ext_id = None
+            deal.medusa_service_ext_id = None
+            deal.medusa_payment_url = None
+            deal.medusa_order_status = None
+            deal.medusa_total_amount = None
+            deal.medusa_total_commission = None
+            deal.medusa_platform_commission = None
+            deal.medusa_tochka_commission = None
+            deal.medusa_acquiring_commission = None
+
         deal.save()
 
         DealService._send_text_message(
@@ -218,8 +222,6 @@ class DealService:
         DealService._send_deal_card(deal, worker_id, 'price_updated', auth_token)
         return deal
 
-    # ── Оплата ─────────────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def pay_deal(deal: Deal, client_id: str, auth_token: str):
@@ -230,7 +232,6 @@ class DealService:
             if deal.status != 'pending':
                 raise ValueError(f"Нельзя оплатить заказ в статусе '{deal.status}'")
         else:
-            # Неэскроу: оплата доступна после принятия исполнителем
             if deal.status not in ['pending', 'accepted']:
                 raise ValueError(f"Нельзя оплатить заказ в статусе '{deal.status}'")
 
@@ -256,8 +257,6 @@ class DealService:
         DealService._send_deal_card(deal, client_id, 'paid', auth_token)
         return deal
 
-    # ── Сдача работы ───────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def deliver_work(deal: Deal, worker_id: str, delivery_message: str, auth_token: str):
@@ -268,7 +267,6 @@ class DealService:
             if deal.status != 'paid':
                 raise ValueError(f"Нельзя сдать работу в статусе '{deal.status}'")
         else:
-            # Неэскроу: можно сдать после принятия или после оплаты
             if deal.status not in ['accepted', 'paid']:
                 raise ValueError(f"Нельзя сдать работу в статусе '{deal.status}'")
 
@@ -320,8 +318,6 @@ class DealService:
         except Exception as e:
             print(f"🔥 Error sending delivery message: {e}")
 
-    # ── Доработка ──────────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def request_revision(deal: Deal, client_id: str, revision_reason: str, auth_token: str):
@@ -334,7 +330,6 @@ class DealService:
         if deal.revision_count >= deal.max_revisions:
             raise ValueError(f"Исчерпан лимит доработок ({deal.max_revisions})")
 
-        # Возвращаем в статус "в работе": для эскроу — paid, для неэскроу — accepted/paid
         if deal.is_escrow:
             deal.status = 'paid'
         else:
@@ -352,8 +347,6 @@ class DealService:
 
         DealService._send_deal_card(deal, client_id, 'revision', auth_token)
         return deal
-
-    # ── Спор ───────────────────────────────────────────────────────────────────
 
     @staticmethod
     @transaction.atomic
@@ -440,8 +433,6 @@ class DealService:
 
         return deal
 
-    # ── Административное разрешение спора ─────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def admin_resolve_dispute(deal: Deal, winner: str, admin_comment: str = '', auth_token: str = ''):
@@ -494,8 +485,6 @@ class DealService:
 
         return deal
 
-    # ── Завершение ─────────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def complete_deal(deal: Deal, client_id: str, rating: int, comment: str, auth_token: str):
@@ -526,8 +515,6 @@ class DealService:
         DealService._send_deal_card(deal, client_id, 'completed', auth_token)
         return deal
 
-    # ── Отмена ─────────────────────────────────────────────────────────────────
-
     @staticmethod
     @transaction.atomic
     def cancel_deal(deal: Deal, canceller_id: str, reason: str, auth_token: str):
@@ -556,8 +543,6 @@ class DealService:
 
         DealService._send_deal_card(deal, canceller_id, 'cancelled', auth_token)
         return deal
-
-    # ── Вспомогательные методы ─────────────────────────────────────────────────
 
     @staticmethod
     def _send_text_message(chat_room_id: str, sender_id: str, text: str, auth_token: str):
@@ -606,6 +591,15 @@ class DealService:
                 'price': int(deal.price),
                 'status': deal.status,
                 'is_escrow': deal.is_escrow,
+                # ✅ Поля Medusa — нужны фронту чтобы показать кнопку «Я оплатил — проверить»
+                'medusa_payment_url': deal.medusa_payment_url or '',
+                'medusa_order_ext_id': str(deal.medusa_order_ext_id) if deal.medusa_order_ext_id else '',
+                'medusa_order_status': deal.medusa_order_status or '',
+                'medusa_total_amount': str(deal.medusa_total_amount) if deal.medusa_total_amount else '',
+                'medusa_total_commission': str(deal.medusa_total_commission) if deal.medusa_total_commission else '',
+                'medusa_platform_commission': str(deal.medusa_platform_commission) if deal.medusa_platform_commission else '',
+                'medusa_tochka_commission': str(deal.medusa_tochka_commission) if deal.medusa_tochka_commission else '',
+                'medusa_acquiring_commission': str(deal.medusa_acquiring_commission) if deal.medusa_acquiring_commission else '',
                 'client_id': str(deal.client_id),
                 'worker_id': str(deal.worker_id),
                 'revision_count': deal.revision_count,
@@ -647,6 +641,7 @@ class DealService:
                 'refunded': '💰 Деньги возвращены клиенту',
                 'admin_resolved_client': '🎉 Спор разрешён: деньги возвращены клиенту',
                 'admin_resolved_worker': '🎉 Спор разрешён: оплата выполнена исполнителю',
+                'payment_link_created': f'💳 Ссылка на оплату создана: {int(deal.price)}₽',
             }
 
             text = message_texts.get(action_type, '📋 Обновление заказа')
