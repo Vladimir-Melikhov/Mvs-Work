@@ -1,19 +1,19 @@
 # services/market/apps/services/services.py
 import os
 import requests
+import logging
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction, IntegrityError
-from .models import Deal, Transaction, Review
+from .models import Deal, Transaction, Review, Service
 from django.conf import settings
-from datetime import datetime, timedelta
-import jwt
-from .models import Service, Deal
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
     """AI-сервис для генерации СТРОГОГО ТЗ через YandexGPT."""
-    
+
     @staticmethod
     def generate_tz(service_id: str, client_requirements: str) -> str:
         try:
@@ -51,7 +51,7 @@ class AIService:
 (Пункты, которые нужно прояснить перед стартом)"""
 
             freelancer_reqs = service.ai_template if service.ai_template else "Общие условия исполнения согласно профилю специалиста."
-            
+
             user_content = f"""ИСХОДНЫЕ ДАННЫЕ ДЛЯ АНАЛИЗА:
 
 1. ТРЕБОВАНИЯ ИСПОЛНИТЕЛЯ:
@@ -64,7 +64,7 @@ class AIService:
 Задание: Сформируй на основе этих данных структурированное ТЗ. Не добавляй лишних функций, но используй профессиональный язык."""
 
             url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
-            
+
             payload = {
                 "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
                 "completionOptions": {
@@ -85,9 +85,9 @@ class AIService:
             }
 
             print(f"🔄 [Market] Генерация ТЗ (YandexGPT - Business Analyst Mode)...")
-            
+
             response = requests.post(url, headers=headers, json=payload, timeout=90)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 try:
@@ -119,6 +119,29 @@ class DealService:
     def _get_system_token() -> str:
         from .jwt_service import ServiceJWT
         return ServiceJWT.generate_service_token('market-service', expires_minutes=5)
+
+    @staticmethod
+    def _send_decision_to_medusa(deal: Deal, decision: str) -> None:
+        """
+        Отправляет решение по сделке в Medusa.
+        decision: 'confirmed' (выплата исполнителю) или 'rejected' (возврат клиенту)
+        Бросает ValueError при ошибке банка.
+        """
+        from .medusa_service import MedusaService, MedusaAPIError
+
+        if not (deal.is_escrow and deal.medusa_order_ext_id and deal.medusa_service_ext_id):
+            return
+
+        try:
+            MedusaService().make_decision(
+                str(deal.medusa_order_ext_id),
+                str(deal.medusa_service_ext_id),
+                decision,
+            )
+            deal.medusa_order_status = decision
+        except MedusaAPIError as e:
+            logger.error("[Medusa make_decision] deal=%s decision=%s error=%s", deal.id, decision, e)
+            raise ValueError(f"Ошибка банка: {str(e)[:200]}")
 
     @staticmethod
     @transaction.atomic
@@ -384,6 +407,10 @@ class DealService:
         if deal.dispute_worker_defense:
             raise ValueError("Нельзя вернуть деньги после подачи защиты")
 
+        # ✅ Сначала отправляем решение в банк (rejected → возврат клиенту).
+        # Если банк ответит ошибкой — транзакция откатится, статус не изменится.
+        DealService._send_decision_to_medusa(deal, 'rejected')
+
         transaction_obj = deal.transactions.filter(status='held').first()
         if transaction_obj:
             transaction_obj.status = 'refunded'
@@ -444,6 +471,13 @@ class DealService:
 
         if winner not in ['client', 'worker']:
             raise ValueError("winner должен быть 'client' или 'worker'")
+
+        # ✅ Сначала отправляем решение в банк.
+        # winner=client → rejected (возврат заказчику)
+        # winner=worker → confirmed (выплата исполнителю)
+        # При ошибке банка — транзакция откатывается, статус сделки не меняется.
+        decision = 'rejected' if winner == 'client' else 'confirmed'
+        DealService._send_decision_to_medusa(deal, decision)
 
         deal.dispute_winner = winner
         deal.dispute_resolved_at = timezone.now()
@@ -591,7 +625,7 @@ class DealService:
                 'price': int(deal.price),
                 'status': deal.status,
                 'is_escrow': deal.is_escrow,
-                # ✅ Поля Medusa — нужны фронту чтобы показать кнопку «Я оплатил — проверить»
+                # Поля Medusa — нужны фронту чтобы показать кнопки оплаты
                 'medusa_payment_url': deal.medusa_payment_url or '',
                 'medusa_order_ext_id': str(deal.medusa_order_ext_id) if deal.medusa_order_ext_id else '',
                 'medusa_order_status': deal.medusa_order_status or '',

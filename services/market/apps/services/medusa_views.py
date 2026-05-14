@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth:8001")
 
+# Статусы Get Order V2, означающие что заказ оплачен
+PAID_STATES = {
+    "waiting_enroll",
+    "waiting_services",
+    "waiting_compensation",
+    "waiting_commissions",
+    "finished",
+    "paid",
+}
+
+CANCELED_STATES = {"canceled", "cancelled", "failed"}
+
 
 def _auth_token(request) -> str:
     h = request.headers.get("Authorization", "")
@@ -119,7 +131,6 @@ class MedusaRegisterRecipientView(APIView):
             }})
         except MedusaAPIError as e:
             logger.error("[Medusa] create_recipient: %s", e)
-            # Может уже существует
             try:
                 existing = MedusaService().get_recipient(recipient_ext_id)
                 if existing and existing.get("extId"):
@@ -254,10 +265,18 @@ class MedusaDeleteCardView(APIView):
             return Response({"status": "success", "message": "Карта удалена (локально)"})
 
         medusa = MedusaService()
-        deleted = medusa.delete_card_payout_method(str(recipient_ext_id), payout_method_ext_id)
+        ok, err_code = medusa.delete_card_payout_method(str(recipient_ext_id), payout_method_ext_id)
 
-        if not deleted:
-            return Response({"status": "error", "error": "Не удалось удалить карту в банке"}, status=502)
+        if not ok:
+            if err_code == 'has_active_deal':
+                return Response({
+                    "status": "error",
+                    "error": "Нельзя удалить карту, пока есть незавершённые сделки. Дождитесь завершения всех активных сделок."
+                }, status=400)
+            return Response({
+                "status": "error",
+                "error": "Не удалось удалить карту в банке"
+            }, status=502)
 
         _patch_my_profile(request, {"medusa_card_ext_id": None, "medusa_card_masked_pan": None, "medusa_card_linked": False})
         return Response({"status": "success", "message": "Карта удалена"})
@@ -301,6 +320,15 @@ class MedusaForceLinkCardView(APIView):
 # ─── Payments ─────────────────────────────────────────────────────────────────
 
 class MedusaCreatePaymentView(APIView):
+    """
+    Создаёт ордер в Medusa и возвращает ссылку на оплату.
+    После сохранения сделки — обновляет deal_card в чате через WebSocket,
+    чтобы фронт сразу увидел кнопки «Перейти к оплате» / «Я оплатил».
+
+    ВАЖНО: order_ext_id в банке генерируется заново при каждом создании,
+    а не берётся из id сделки. Иначе после смены цены Точка вернёт старый
+    ордер с прежней суммой по тому же orderExtId.
+    """
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
@@ -321,10 +349,24 @@ class MedusaCreatePaymentView(APIView):
         if deal.status != "pending":
             return Response({"status": "error", "error": f"Нельзя в статусе '{deal.status}'"}, status=400)
 
+        # Если ссылка уже есть — сразу обновляем карточку в чате (на случай если
+        # она там устарела) и отдаём существующую
         if deal.medusa_payment_url and deal.medusa_order_ext_id:
+            try:
+                from .services import DealService
+                DealService._send_deal_card(deal, str(request.user.id), "payment_link_created", _auth_token(request))
+            except Exception as e:
+                logger.error("[Medusa] resend deal_card error: %s", e)
+
             return Response({"status": "success", "data": {
                 "payment_url": deal.medusa_payment_url,
                 "total_amount": str(deal.medusa_total_amount or deal.price),
+                "commission_details": {
+                    "platform": str(deal.medusa_platform_commission or 0),
+                    "tochka": str(deal.medusa_tochka_commission or 0),
+                    "acquiring": str(deal.medusa_acquiring_commission or 0),
+                    "total": str(deal.medusa_total_commission or 0),
+                },
             }})
 
         worker_data = _get_worker_medusa_data(str(deal.worker_id))
@@ -332,10 +374,16 @@ class MedusaCreatePaymentView(APIView):
             return Response({"status": "error", "error": "Исполнитель не привязал карту.", "action_required": "worker_card_required"}, status=400)
 
         frontend_url = os.getenv("FRONTEND_URL", "https://mvs-work.ru")
+
+        # Генерируем НОВЫЙ order_ext_id для банка при каждом создании платежа.
+        # Точка идемпотентна по orderExtId — если переслать тот же id, вернёт
+        # тот же payment_url и старую сумму, даже если в нашей БД уже другая цена.
+        new_order_ext_id = str(uuid.uuid4())
+
         try:
             medusa = MedusaService()
             result = medusa.create_order(
-                order_ext_id=str(deal.id),
+                order_ext_id=new_order_ext_id,
                 service_price=Decimal(str(deal.price)),
                 recipient_ext_id=worker_data["recipient_ext_id"],
                 card_ext_id=worker_data["card_ext_id"],
@@ -346,7 +394,7 @@ class MedusaCreatePaymentView(APIView):
                 consumer_id=str(request.user.id),
             )
             c = result["commission_details"]
-            deal.medusa_order_ext_id = uuid.UUID(result["orderExtId"])
+            deal.medusa_order_ext_id = uuid.UUID(new_order_ext_id)
             deal.medusa_service_ext_id = uuid.UUID(result["serviceExtId"])
             deal.medusa_payment_url = result["paymentUrl"]
             deal.medusa_order_status = "created"
@@ -358,6 +406,17 @@ class MedusaCreatePaymentView(APIView):
             deal.medusa_recipient_ext_id = uuid.UUID(worker_data["recipient_ext_id"])
             deal.medusa_card_ext_id = uuid.UUID(worker_data["card_ext_id"])
             deal.save()
+
+            # ✅ КЛЮЧЕВОЕ: обновляем deal_card в чате через WebSocket.
+            # Это: (1) обновит сохранённое сообщение в БД с новыми deal_data,
+            #      (2) разошлёт deal_card_updated всем участникам чата.
+            # Фронт мгновенно увидит medusa_payment_url и переключит кнопки.
+            try:
+                from .services import DealService
+                DealService._send_deal_card(deal, str(request.user.id), "payment_link_created", _auth_token(request))
+            except Exception as e:
+                logger.error("[Medusa] _send_deal_card after create error: %s", e)
+
             return Response({"status": "success", "data": {
                 "payment_url": result["paymentUrl"],
                 "total_amount": str(c["total_amount"]),
@@ -368,6 +427,12 @@ class MedusaCreatePaymentView(APIView):
 
 
 class MedusaPaymentStatusView(APIView):
+    """
+    GET /api/market/medusa/payment-status/<deal_id>/
+
+    Запрашивает Get Order V2 у Точки и переводит сделку в paid,
+    если банк подтвердил оплату.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, deal_id):
@@ -379,30 +444,89 @@ class MedusaPaymentStatusView(APIView):
         if str(request.user.id) not in [str(deal.client_id), str(deal.worker_id)]:
             return Response({"status": "error", "error": "Нет доступа"}, status=403)
 
+        # Сделка уже оплачена — отвечаем сразу
+        if deal.status != "pending":
+            return Response({"status": "success", "data": {
+                "medusa_status": deal.medusa_order_status or "unknown",
+                "deal_status": deal.status,
+                "message": "Сделка не в ожидании оплаты",
+            }})
+
         if not deal.medusa_order_ext_id:
-            return Response({"status": "success", "data": {"medusa_status": None, "deal_status": deal.status}})
+            return Response({"status": "success", "data": {
+                "medusa_status": None,
+                "deal_status": deal.status,
+                "message": "Платёж ещё не создан",
+            }})
 
         try:
             order_data = MedusaService().get_order(str(deal.medusa_order_ext_id))
-            state = order_data.get("state") or order_data.get("status") or "unknown"
-            deal.medusa_order_status = state
-
-            is_paid = state in ("waiting_services", "waiting_enroll", "paid", "waiting_compensation", "waiting_commissions", "finished")
-            if is_paid and deal.status == "pending":
-                from .services import DealService
-                deal.status = "paid"
-                deal.paid_at = timezone.now()
-                deal.save()
-                token = _auth_token(request)
-                DealService._send_text_message(str(deal.chat_room_id), str(deal.client_id),
-                    f"💳 ЗАКАЗ ОПЛАЧЕН\n\nСумма: {int(deal.price)}₽\nСредства заморожены.", token)
-                DealService._send_deal_card(deal, str(deal.client_id), "paid", token)
-            else:
-                deal.save(update_fields=["medusa_order_status"])
-
-            return Response({"status": "success", "data": {"medusa_status": state, "deal_status": deal.status}})
         except MedusaAPIError as e:
-            return Response({"status": "success", "data": {"medusa_status": deal.medusa_order_status, "deal_status": deal.status}})
+            logger.error("[Medusa] get_order failed for deal=%s: %s", deal.id, e)
+            return Response({"status": "success", "data": {
+                "medusa_status": deal.medusa_order_status,
+                "deal_status": deal.status,
+                "message": "Не удалось получить статус от банка, попробуйте позже",
+            }})
+
+        state = (order_data.get("state") or order_data.get("status") or "").lower()
+        logger.info("[Medusa] Order %s state=%s (deal=%s)", deal.medusa_order_ext_id, state, deal.id)
+
+        deal.medusa_order_status = state or "unknown"
+
+        # Оплачено
+        if state in PAID_STATES:
+            from .services import DealService
+            from .models import Transaction
+
+            if not deal.transactions.filter(status__in=["held", "captured"]).exists():
+                Transaction.objects.create(
+                    deal=deal,
+                    amount=deal.price,
+                    commission=deal.medusa_total_commission or 0,
+                    status="held",
+                    payment_provider="tochka_medusa",
+                    external_payment_id=str(deal.medusa_order_ext_id),
+                )
+
+            deal.status = "paid"
+            deal.paid_at = timezone.now()
+            deal.save()
+
+            token = _auth_token(request)
+            try:
+                DealService._send_text_message(
+                    str(deal.chat_room_id),
+                    str(deal.client_id),
+                    f"💳 ЗАКАЗ ОПЛАЧЕН\n\nСумма: {int(deal.price)}₽\nСредства заморожены в банке до завершения работы.",
+                    token,
+                )
+                DealService._send_deal_card(deal, str(deal.client_id), "paid", token)
+            except Exception as e:
+                logger.error("[Medusa] Notify chat error: %s", e)
+
+            return Response({"status": "success", "data": {
+                "medusa_status": state,
+                "deal_status": deal.status,
+                "message": "Оплата прошла успешно!",
+            }})
+
+        # Отменено / ошибка
+        if state in CANCELED_STATES:
+            deal.save(update_fields=["medusa_order_status"])
+            return Response({"status": "success", "data": {
+                "medusa_status": state,
+                "deal_status": deal.status,
+                "message": "Платёж отменён",
+            }})
+
+        # Ещё ждём оплату
+        deal.save(update_fields=["medusa_order_status"])
+        return Response({"status": "success", "data": {
+            "medusa_status": state or "unknown",
+            "deal_status": deal.status,
+            "message": "Оплата ещё не поступила",
+        }})
 
 
 class MedusaConfirmDealView(APIView):

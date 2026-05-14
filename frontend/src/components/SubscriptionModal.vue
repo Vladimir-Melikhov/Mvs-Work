@@ -118,6 +118,27 @@ const features = [
   'Дешевле стакана кофе'
 ]
 
+// Маппинг статусов от Точки на понятные пользователю сообщения
+const STATUS_MESSAGES = {
+  'Refused': 'Платёж отклонён банком. Проверьте данные карты или попробуйте другую.',
+  'Declined': 'Платёж отклонён. Попробуйте ещё раз.',
+  'Failed': 'Платёж не прошёл. Попробуйте ещё раз.',
+  'Cancelled': 'Платёж отменён.',
+  'Canceled': 'Платёж отменён.',
+  'Expired': 'Срок оплаты истёк. Создайте новый платёж.',
+  'Pending': 'Платёж ещё обрабатывается. Подождите несколько секунд и проверьте снова.',
+  'Processing': 'Платёж обрабатывается. Подождите несколько секунд.',
+  'Created': 'Ожидаем оплату. Если вы уже оплатили — подождите несколько секунд.',
+  'Waiting': 'Ожидаем оплату. Если вы уже оплатили — подождите несколько секунд.',
+}
+
+const FAILED_STATUSES = ['Refused', 'Declined', 'Failed', 'Cancelled', 'Canceled', 'Expired']
+
+const formatStatusMessage = (status) => {
+  if (!status) return 'Платёж ещё обрабатывается. Попробуйте через несколько секунд.'
+  return STATUS_MESSAGES[status] || 'Платёж ещё обрабатывается. Попробуйте через несколько секунд.'
+}
+
 const subscribe = async () => {
   try {
     loading.value = true
@@ -163,7 +184,11 @@ const checkPaymentStatus = async () => {
         step.value = 'success'
         emit('subscribed')
       } else {
-        checkError.value = `Оплата ещё не получена (статус: ${tochkaStatus || 'Pending'}). Попробуйте через несколько секунд.`
+        checkError.value = formatStatusMessage(tochkaStatus)
+        // Если платёж точно провалился — предложим попробовать снова с нуля
+        if (FAILED_STATUSES.includes(tochkaStatus)) {
+          setTimeout(() => { step.value = 'offer' }, 3500)
+        }
       }
     }
   } catch (err) {

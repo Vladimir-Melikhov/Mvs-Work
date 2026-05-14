@@ -6,6 +6,10 @@ services/market/apps/services/medusa_service.py
 POST — {"Data":{...}}, ответ {"Data":{...}}
 GET  — без body, Accept: application/json
 DELETE — пустой payload, пустые headers
+
+Get Order — V2 (/uapi/medusa/v2.0/orders/{orderExtId})
+  Возможные state: waiting_user_payment, waiting_enroll, canceled,
+                   waiting_services, finished
 """
 
 import os
@@ -90,11 +94,11 @@ class MedusaService:
             headers["Sign-Body"] = self.sign_body_value
         conn = http.client.HTTPSConnection(self.host, timeout=30)
         try:
-            logger.info("[Medusa] GET %s", path)
+            print("[Medusa] GET %s" % path, flush=True)
             conn.request("GET", path, "", headers)
             res = conn.getresponse()
             raw = res.read().decode("utf-8", errors="replace")
-            logger.info("[Medusa] <- %s: %s", res.status, raw[:1500])
+            print("[Medusa] <- GET %s: %s" % (res.status, raw[:2000]), flush=True)
             if res.status not in (200, 201):
                 raise MedusaAPIError("HTTP %s: %s" % (res.status, raw[:500]), res.status, raw)
             return json.loads(raw) if raw.strip() else {}
@@ -106,10 +110,9 @@ class MedusaService:
             conn.close()
 
     def _delete(self, path):
-        """DELETE — пробуем с полными заголовками, потом без."""
+        """DELETE — с авторизацией. Возвращает (ok, status_code)."""
         conn = http.client.HTTPSConnection(self.host, timeout=30)
         try:
-            # Сначала с авторизацией
             headers = {
                 "Accept": "application/json",
                 "Authorization": "Bearer " + self.token,
@@ -119,15 +122,15 @@ class MedusaService:
             if self.sign_body_value:
                 headers["Sign-Body"] = self.sign_body_value
 
-            logger.info("[Medusa] DELETE %s (with auth)", path)
+            print("[Medusa] DELETE %s" % path, flush=True)
             conn.request("DELETE", path, "", headers)
             res = conn.getresponse()
             raw = res.read().decode("utf-8", errors="replace")
-            logger.info("[Medusa] <- DELETE %s: %s", res.status, raw[:500])
-            return res.status in (200, 201, 204)
+            print("[Medusa] <- DELETE %s: %s" % (res.status, raw[:1000]), flush=True)
+            return (res.status in (200, 201, 204, 404), res.status)
         except Exception as e:
-            logger.error("[Medusa] DELETE error: %s", e)
-            return False
+            print("[Medusa] DELETE error: %s" % e, flush=True)
+            return (False, 0)
         finally:
             conn.close()
 
@@ -180,13 +183,23 @@ class MedusaService:
         return {"formUrl": form_url, "payoutMethodExtId": payout_method_ext_id}
 
     def delete_card_payout_method(self, recipient_ext_id, payout_method_ext_id):
+        """
+        Возвращает кортеж (ok, error_code).
+        error_code:
+          None              — успех
+          'has_active_deal' — есть незавершённая сделка (HTTP 424)
+          'bank_error'      — другая ошибка банка
+        """
         path = self.base_v1 + "/recipients/" + str(recipient_ext_id) + "/payout_methods/cards/" + str(payout_method_ext_id)
-        ok = self._delete(path)
+        ok, status = self._delete(path)
         if ok:
-            logger.info("[Medusa] Card deleted: %s", payout_method_ext_id)
-        else:
-            logger.error("[Medusa] Card NOT deleted: %s", payout_method_ext_id)
-        return ok
+            print("[Medusa] Card delete OK (status=%s): %s" % (status, payout_method_ext_id), flush=True)
+            return (True, None)
+        if status == 424:
+            print("[Medusa] Card delete BLOCKED (active deal): %s" % payout_method_ext_id, flush=True)
+            return (False, 'has_active_deal')
+        print("[Medusa] Card delete FAILED (status=%s): %s" % (status, payout_method_ext_id), flush=True)
+        return (False, 'bank_error')
 
     # ─── Orders V2 ────────────────────────────────────────────────────────────
 
@@ -242,7 +255,18 @@ class MedusaService:
         }
 
     def get_order(self, order_ext_id):
-        resp = self._get(self.base_v1 + "/orders/" + str(order_ext_id))
+        """
+        Get Order V2 — /uapi/medusa/v2.0/orders/{orderExtId}
+
+        Возвращает dict с ключом 'state' и возможными значениями:
+          - waiting_user_payment — ждём оплату от пользователя
+          - waiting_enroll       — деньги списались, идёт зачисление
+          - waiting_services     — деньги получены, ждём решения по услугам
+          - canceled             — отменён
+          - finished             — завершён
+        """
+        resp = self._get(self.base_v2 + "/orders/" + str(order_ext_id))
+        # Согласно документации структура: {"Data": {"state": "...", ...}, "Links": ..., "Meta": ...}
         return resp.get("Data", resp)
 
     def make_decision(self, order_ext_id, service_ext_id, decision):

@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.contrib import messages
 from .models import Service, ServiceImage, Deal, Transaction, Review, Favorite
-from .deal_service import DealService
+from .services import DealService
 
 
 # ─── Вспомогательные функции ─────────────────────────────────────────────────

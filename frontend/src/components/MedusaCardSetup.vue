@@ -50,30 +50,17 @@
             {{ displayMaskedPan }}
           </div>
           <div class="flex items-center justify-between">
-            <div class="text-xs text-white/60">MVS-Work</div>
-            <svg class="w-8 h-5 text-white/40" viewBox="0 0 48 30" fill="currentColor">
-              <circle cx="15" cy="15" r="15" opacity="0.8"/>
-              <circle cx="33" cy="15" r="15" opacity="0.6"/>
-            </svg>
+            <div class="text-xs text-white/60">Мвс-Работа</div>
           </div>
         </div>
       </div>
 
-      <div class="flex gap-2">
-        <button
-          @click="refreshInfo"
-          :disabled="refreshing"
-          class="flex-1 py-2 rounded-xl text-xs font-bold text-gray-600 bg-white/20 hover:bg-white/40 transition-all border border-white/30 disabled:opacity-50"
-        >
-          {{ refreshing ? 'Обновление...' : 'Обновить' }}
-        </button>
-        <button
-          @click="showDeleteConfirm = true"
-          class="px-4 py-2 rounded-xl text-xs font-bold text-red-500 bg-red-50/50 hover:bg-red-50 transition-all border border-red-200/50"
-        >
-          Удалить
-        </button>
-      </div>
+      <button
+        @click="showDeleteConfirm = true"
+        class="w-full py-2 rounded-xl text-xs font-bold text-[#7000ff] bg-[#7000ff]/10 hover:bg-[#7000ff]/20 transition-all border border-[#7000ff]/30"
+      >
+        Удалить карту
+      </button>
     </div>
 
     <!-- Карта НЕ привязана -->
@@ -172,46 +159,6 @@
       {{ successMessage }}
     </div>
 
-    <!-- ОТЛАДКА (только на stage) -->
-    <div v-if="!initialLoading" class="mt-4 pt-4 border-t border-dashed border-gray-300">
-      <button
-        @click="showDebug = !showDebug"
-        class="text-[10px] uppercase tracking-widest text-gray-400 hover:text-gray-600 font-bold"
-      >
-        {{ showDebug ? '▾' : '▸' }} Отладка (stage)
-      </button>
-
-      <div v-if="showDebug" class="mt-3 space-y-2">
-        <div class="bg-gray-50 rounded-lg p-2 text-[10px] font-mono text-gray-600 overflow-x-auto">
-          <div>registered: {{ recipientInfo.registered }}</div>
-          <div>has_card: {{ recipientInfo.has_card }}</div>
-          <div>recipient_ext_id: {{ recipientInfo.recipient_ext_id || '—' }}</div>
-          <div>card_ext_id: {{ recipientInfo.card_ext_id || '—' }}</div>
-          <div>cards: {{ recipientInfo.cards.length }}</div>
-          <div v-for="(c, i) in recipientInfo.cards" :key="i">
-            card[{{ i }}]: ext_id={{ c.ext_id }}, pan={{ c.masked_pan }}
-          </div>
-        </div>
-
-        <div class="flex gap-2">
-          <button
-            @click="forceLinkCard"
-            :disabled="debugLoading"
-            class="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-yellow-700 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 disabled:opacity-50"
-          >
-            Force-link карту
-          </button>
-          <button
-            @click="resetRecipient"
-            :disabled="debugLoading"
-            class="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50"
-          >
-            Сбросить получателя
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Модалка подтверждения удаления -->
     <teleport to="body">
       <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
@@ -253,13 +200,8 @@ const initialLoading = ref(true)
 const registering = ref(false)
 const addingCard = ref(false)
 const confirming = ref(false)
-const refreshing = ref(false)
 const deleting = ref(false)
 const showDeleteConfirm = ref(false)
-
-// Отладка
-const showDebug = ref(false)
-const debugLoading = ref(false)
 
 // Форма открыта
 const formOpened = ref(false)
@@ -405,18 +347,6 @@ const confirmCard = async () => {
   }
 }
 
-// ─── Обновление ──────────────────────────────────────────────────────────────
-
-const refreshInfo = async () => {
-  refreshing.value = true
-  clearMessages()
-  try {
-    await loadRecipientInfo()
-  } finally {
-    refreshing.value = false
-  }
-}
-
 // ─── Удаление карты ──────────────────────────────────────────────────────────
 
 const deleteCard = async () => {
@@ -427,7 +357,7 @@ const deleteCard = async () => {
     recipientInfo.value.medusa_card_ext_id
 
   if (!cardExtId) {
-    error.value = 'Не найден id карты для удаления. Попробуйте «Обновить» или используйте «Сбросить получателя».'
+    error.value = 'Не найден id карты для удаления.'
     showDeleteConfirm.value = false
     return
   }
@@ -452,51 +382,6 @@ const deleteCard = async () => {
     error.value = e.response?.data?.error || 'Ошибка связи с сервером'
   } finally {
     deleting.value = false
-  }
-}
-
-// ─── Отладка (stage only) ───────────────────────────────────────────────────
-
-const resetRecipient = async () => {
-  if (!confirm('Сбросить все данные получателя?')) return
-
-  debugLoading.value = true
-  clearMessages()
-  try {
-    const res = await axios.post('/api/market/medusa/reset-recipient/')
-    if (res.data.status === 'success') {
-      successMessage.value = res.data.message
-      formOpened.value = false
-      cardFormUrl.value = ''
-      await loadRecipientInfo()
-      setTimeout(() => { successMessage.value = '' }, 3000)
-    } else {
-      error.value = res.data.error || 'Ошибка сброса'
-    }
-  } catch (e) {
-    error.value = e.response?.data?.error || 'Ошибка связи с сервером'
-  } finally {
-    debugLoading.value = false
-  }
-}
-
-const forceLinkCard = async () => {
-  debugLoading.value = true
-  clearMessages()
-  try {
-    const res = await axios.post('/api/market/medusa/force-link-card/')
-    if (res.data.status === 'success') {
-      successMessage.value = res.data.message
-      formOpened.value = false
-      await loadRecipientInfo()
-      setTimeout(() => { successMessage.value = '' }, 3000)
-    } else {
-      error.value = res.data.error || 'Ошибка'
-    }
-  } catch (e) {
-    error.value = e.response?.data?.error || 'Ошибка связи с сервером'
-  } finally {
-    debugLoading.value = false
   }
 }
 
